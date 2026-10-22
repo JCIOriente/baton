@@ -137,7 +137,7 @@ function init(argv) {
   };
   mkdirSync(join(root, CONFIG_DIR), { recursive: true });
   writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
-  for (const d of Object.values(config.docs)) mkdirSync(join(root, d), { recursive: true });
+  for (const d of [config.docs.specs, config.docs.plans]) mkdirSync(join(root, d), { recursive: true });
   if (values.labels) getProvider(loadConfig().config, root).ensureLabels();
   print(values.json ? config : `Wrote ${relative(root, path)}\n${JSON.stringify(config, null, 2)}`);
 }

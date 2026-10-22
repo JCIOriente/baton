@@ -58,6 +58,7 @@ baton worktree remove <n>     # refuses if uncommitted changes remain
 baton unblock     # tasks waiting on this one become ready
 ```
 
+Tick the task in the spec's "Implementation status" section (in this PR, or a small follow-up).
 Run `baton:retro` for the task, so that lessons from review and verification land in the repo.
 
 Report the PR URL, merge commit, closed issue, the tasks this unblocked, and any lessons proposed.

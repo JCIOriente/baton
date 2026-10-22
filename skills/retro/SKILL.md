@@ -27,6 +27,7 @@ For each item, decide where it belongs:
 | It is about... | Write it to |
 |---|---|
 | How this project does something (naming, a pattern, a rule) | the project's conventions file (`conventions` in `.baton/config.json`) |
+| A bug pattern that keeps recurring (same mistake, different places) | `docs/common-issues.md` (`docs.commonIssues`): symptom, cause, how to avoid it. Agents read it before coding |
 | A decision that is hard to reverse | a new ADR in `docs/adr/` |
 | Domain vocabulary that was misunderstood | `CONTEXT.md` (the glossary) |
 | A gap in a baton stack guide, reviewer or skill (applies to any project) | an issue on the baton repo, with the evidence |

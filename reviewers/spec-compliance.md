@@ -27,7 +27,10 @@ something is done. Verify by reading the code.
 3. Misreadings: the right feature built the wrong way (wrong endpoint, wrong status code,
    wrong field, wrong role allowed, wrong default, wrong ordering or pagination contract).
 4. Extra scope: features, endpoints, flags, config, refactors or "while I was here" fixes
-   that no criterion asks for. Extra scope is a finding even when the code is good.
+   that no criterion asks for. Extra scope is a finding even when the code is good. This
+   includes line-level churn in owned files: reformatting, renames, rewritten comments or
+   deleted pre-existing code that the task doesn't need. Every changed line should trace back to
+   a criterion.
 5. File ownership: substantive changes only in files the task owns. Files listed as
    "touches" get additive changes only (registering a route, exporting a module), not
    restructuring. Any edit to a file another open task owns is a blocker.

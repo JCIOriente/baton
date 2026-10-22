@@ -56,3 +56,17 @@ test('fact gate: classifies targets and always asks for the user instruction', (
     assert.match(questions(kind, false, 'f').at(-1), /verbatim/);
   }
 });
+
+test('context: always-on rules, undetected stacks and common issues', async () => {
+  const { buildContext, ALWAYS_RULES } = await import('../lib/context.mjs');
+  const root = mkdtempSync(join(tmpdir(), 'baton-ctx-'));
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ dependencies: { react: '19' }, devDependencies: { typescript: '5' } }));
+  mkdirSync(join(root, 'docs'));
+  writeFileSync(join(root, 'docs/common-issues.md'), '# issues');
+  const config = deepMerge(DEFAULT_CONFIG, { stacks: ['typescript'] });
+  const text = buildContext({ root, found: true, config }, { pluginRoot: '/p', cwd: root });
+  for (const r of ALWAYS_RULES) assert.ok(text.includes(r));
+  assert.match(text, /Detected but not enabled: react\./);
+  assert.match(text, /common-issues\.md/);
+  assert.match(text, /- common: \/p\/stacks\/common\.md/);
+});

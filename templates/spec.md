@@ -5,6 +5,13 @@
 - Owner: <name>
 - Related: <links to issues, prior specs>
 
+## TL;DR
+- 3-5 bullets: what changes, for whom, and the key decision.
+
+## Change in a nutshell
+The most important change, shown concretely first (a screen, an endpoint, a config fragment),
+then generalized. A reader who stops here should know what will be different.
+
 ## Problem
 Who has what problem, and why it matters now. 2-5 sentences.
 
@@ -41,5 +48,13 @@ What proves this works: unit, integration (real DB), e2e. Includes permission-de
 ## Decisions
 ADRs created or relied on (docs/adr/...), and new terms added to CONTEXT.md.
 
+## FAQ
+### Why this approach rather than <alternative>?
+One question per subsection, so each can be linked from discussions.
+
 ## Open questions
 None at approval time. Resolve them or move them to non-goals.
+
+## Implementation status
+Updated by the PRs that implement this spec (link the plan and issues once they exist).
+- [ ] <step / task #N>

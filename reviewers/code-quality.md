@@ -45,6 +45,8 @@ handled one frame up or ruled out by a type.
 - "Consider adding error handling" where the caller or framework already handles it. Trace
   at least one caller first.
 - Pre-existing issues outside the diff, unless the diff makes them worse.
+- Missing handling for states that validation or the types already rule out. Flag the opposite
+  instead: defensive branches for impossible states that obscure the real error paths.
 
 ## Report
 

@@ -2,6 +2,16 @@ This project includes material adapted from third-party projects under the MIT L
 Adapted means rewritten and condensed, not copied verbatim; the notices below are kept as
 the MIT License requires.
 
+Ideas credited (no text reused):
+- Andrej Karpathy, observations on LLM coding pitfalls
+  (https://x.com/karpathy/status/2015883857489522876): the "Scope of a change" rules in
+  stacks/common.md, line-level scope in skills/implement, templates/implementer-brief.md and
+  reviewers/spec-compliance.md, and the always-on rules in the session context.
+- Symposium (https://github.com/symposium-dev/symposium, MIT OR Apache-2.0): always-on
+  context for rules that must not depend on a skill being loaded, RFD-style spec sections
+  (TL;DR, change in a nutshell, FAQ, implementation status), the common-issues file read
+  before coding, and reporting detected-but-not-enabled stacks.
+
 ==============================================================================
 superpowers - https://github.com/obra/superpowers
 ------------------------------------------------------------------------------

@@ -78,6 +78,8 @@ export const DEFAULT_CONFIG = {
   docs: {
     specs: 'docs/specs',
     plans: 'docs/plans',
+    // Recurring bug patterns, maintained by baton:retro and read before coding.
+    commonIssues: 'docs/common-issues.md',
   },
   conventions: [], // project-specific rule files, relative to repo root
 };

@@ -39,7 +39,9 @@ lines. It still gets written and approved.
    `<docs.specs>/YYYY-MM-DD-<topic>.md`.
 7. **Self-review and fix inline:** look for placeholders ("TBD", "etc.", "handle errors
    appropriately"), sections that contradict each other, requirements with two readings
-   (pick one and say which), and scope still too big for one plan.
+   (pick one and say which), and scope still too big for one plan. Check the writing too:
+   factual and brief, no promotional wording, concrete example first and the general rule
+   second. The TL;DR and "change in a nutshell" must make sense to someone who reads nothing else.
 8. **Record decisions and vocabulary:**
    - Every hard-to-reverse choice made along the way (framework, database, tenancy model, auth
      approach) gets an ADR from `${CLAUDE_PLUGIN_ROOT}/templates/adr.md` in `docs/adr/`.

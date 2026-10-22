@@ -27,7 +27,9 @@ baton start <n>      # race-safe claim + worktree + branch, runs `setup`, then a
 2. The linked spec and plan sections.
 3. Stack guides for every stack this task touches (paths are in the `<baton>` block), plus the
    project conventions.
-4. The existing code the task builds on. Follow its patterns.
+4. `docs/common-issues.md` if it exists (listed in the `<baton>` block): recurring bug
+   patterns in this repo.
+5. The existing code the task builds on. Follow its patterns.
 
 If the task is ambiguous or contradicts the code, ask now. Guessing costs a review round later.
 
@@ -53,6 +55,9 @@ If you notice you did it, delete that code and redo the step properly.
 
 - Only modify the files the task owns. Additive changes to "touches" files (registering a
   route, exporting a module) are fine. Restructuring them is not.
+- Inside owned files too, every changed line traces back to the task: no drive-by
+  reformatting, renames or refactors of nearby code. Remove only what your change made unused
+  (see "Scope of a change" in the common guide).
 - Found a bug or a missing piece outside the task? Create an issue (`baton:backlog`) and
   mention it. Don't fix it here.
 - Task turns out much bigger than planned? Stop, explain, and propose a split.

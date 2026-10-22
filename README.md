@@ -101,4 +101,7 @@ subagents).
 ## Credits
 
 Adapted from [obra/superpowers](https://github.com/obra/superpowers) and
-[affaan-m/ECC](https://github.com/affaan-m/ECC), both MIT. See [NOTICE](NOTICE) for details.
+[affaan-m/ECC](https://github.com/affaan-m/ECC), both MIT. The scope-of-change rules follow
+[Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding
+pitfalls, and several ideas come from [Symposium](https://github.com/symposium-dev/symposium).
+See [NOTICE](NOTICE) for details.

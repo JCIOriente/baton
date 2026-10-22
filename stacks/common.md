@@ -11,6 +11,23 @@ Baseline for all code in any language. Stack guides refine it. Project conventio
 - Early returns over nested conditionals. More than three levels of nesting is a signal to
   split the code.
 
+## Scope of a change
+
+These rules follow Andrej Karpathy's observations on LLM coding pitfalls: agents run with
+unstated assumptions, overbuild, and change code they don't understand as a side effect.
+
+- Every changed line traces back to the task. If you can't say which requirement a line serves,
+  it doesn't belong in this change.
+- Don't "improve" nearby code, comments or formatting while you're there, and don't refactor
+  what isn't broken. Match the existing style, even where you'd write it differently.
+- Clean up only your own leftovers: imports, variables and functions that *your* change made
+  unused. Pre-existing dead code or problems you notice get mentioned (or become an issue), not
+  silently deleted or fixed.
+- If you're unsure what the request means, or a simpler approach than the one asked for exists,
+  say so before building. Don't pick one reading silently.
+- If the change came out much larger than the problem (hundreds of lines where tens would do),
+  stop and simplify before asking for review.
+
 ## Simplicity
 
 - **KISS:** the simplest design that meets today's requirements. No speculative options,
@@ -40,7 +57,8 @@ Baseline for all code in any language. Stack guides refine it. Project conventio
   issue), invariants a reader can't see. If code needs a "what" comment, rename or restructure.
 - Public APIs get doc comments describing contract, errors and edge cases.
 - Keep comments true. Update or delete them with the code they describe.
-- No commented-out code and no dead code. Version control remembers it.
+- Don't add commented-out code or dead code. Version control remembers it. (Existing dead code
+  outside your task: see Scope of a change.)
 - `TODO` only with an issue reference (`TODO(#123): ...`).
 
 ## Errors
@@ -49,6 +67,8 @@ Baseline for all code in any language. Stack guides refine it. Project conventio
 - Propagate errors with the **cause preserved** (wrap and add context, don't replace with a
   new message). Handle an error where you can do something about it, not everywhere.
 - Never swallow errors silently. Ignoring one is a deliberate decision with a comment.
+- Don't add handling for states that validation or the types already rule out. Defensive
+  branches for the impossible are noise that hides the real error paths.
 - Users see safe, actionable messages. Logs get the detail. Never leak stack traces,
   SQL or internal IDs in responses.
 
