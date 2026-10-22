@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "sources": [
+    {
+      "id": "superpowers",
+      "repo": "obra/superpowers",
+      "license": "MIT",
+      "baseline": { "sha": "f2cbfbefebbfef77321e4c9abc9e949826bea9d7", "date": "2026-05-13", "how": "gitCommitSha of the installed superpowers 5.1.0 plugin the skills were adapted from" },
+      "files": [
+        { "upstream": "skills/brainstorming/", "local": "skills/spec/SKILL.md" },
+        { "upstream": "skills/writing-plans/", "local": "skills/plan/SKILL.md" },
+        { "upstream": "skills/systematic-debugging/", "local": "skills/debug/SKILL.md" },
+        { "upstream": "skills/verification-before-completion/", "local": "skills/verify/SKILL.md" },
+        { "upstream": "skills/requesting-code-review/", "local": "skills/review/SKILL.md" },
+        { "upstream": "skills/receiving-code-review/", "local": "skills/review/SKILL.md" },
+        { "upstream": "skills/test-driven-development/", "local": "skills/implement/SKILL.md" },
+        { "upstream": "skills/subagent-driven-development/", "local": "skills/parallel/SKILL.md" },
+        { "upstream": "skills/subagent-driven-development/implementer-prompt.md", "local": "templates/implementer-brief.md" },
+        { "upstream": "skills/subagent-driven-development/spec-reviewer-prompt.md", "local": "reviewers/spec-compliance.md" },
+        { "upstream": "skills/subagent-driven-development/code-quality-reviewer-prompt.md", "local": "reviewers/code-quality.md" },
+        { "upstream": "skills/writing-skills/", "local": ".claude/skills/writing-skills/SKILL.md" }
+      ]
+    },
+    {
+      "id": "ecc",
+      "repo": "affaan-m/ECC",
+      "license": "MIT",
+      "baseline": { "sha": "90606c8315ee09cafc303515c5f33024db6b9882", "date": "2026-10-20", "how": "repository HEAD when the files were fetched (2026-10-22)" },
+      "files": [
+        { "upstream": "skills/coding-standards/", "local": "stacks/common.md" },
+        { "upstream": "rules/common/", "local": "stacks/common.md" },
+        { "upstream": "skills/postgres-patterns/", "local": "stacks/postgres.md" },
+        { "upstream": "skills/database-migrations/", "local": "stacks/postgres.md" },
+        { "upstream": "skills/api-design/", "local": "stacks/api.md" },
+        { "upstream": "skills/contract-first/", "local": "stacks/openapi.md" },
+        { "upstream": "skills/i18n-sync/", "local": "stacks/i18n.md" },
+        { "upstream": "skills/e2e-testing/", "local": "stacks/e2e.md" },
+        { "upstream": "skills/rust-patterns/", "local": "stacks/rust.md" },
+        { "upstream": "skills/rust-testing/", "local": "stacks/rust.md" },
+        { "upstream": "rules/rust/", "local": "stacks/rust.md" },
+        { "upstream": "skills/react-testing/", "local": "stacks/react.md" },
+        { "upstream": "skills/frontend-a11y/", "local": "stacks/react.md" },
+        { "upstream": "rules/react/", "local": "stacks/react.md" },
+        { "upstream": "rules/typescript/", "local": "stacks/typescript.md" },
+        { "upstream": "rules/web/", "local": "stacks/react.md" },
+        { "upstream": "skills/security-review/", "local": "reviewers/security.md" },
+        { "upstream": "agents/security-reviewer.md", "local": "reviewers/security.md" },
+        { "upstream": "agents/pr-test-analyzer.md", "local": "reviewers/tests.md" },
+        { "upstream": "agents/silent-failure-hunter.md", "local": "reviewers/silent-failures.md" },
+        { "upstream": "agents/type-design-analyzer.md", "local": "reviewers/types.md" },
+        { "upstream": "agents/rust-reviewer.md", "local": "reviewers/rust.md" },
+        { "upstream": "agents/typescript-reviewer.md", "local": "reviewers/typescript.md" },
+        { "upstream": "agents/react-reviewer.md", "local": "reviewers/react.md" },
+        { "upstream": "agents/database-reviewer.md", "local": "reviewers/postgres.md" },
+        { "upstream": "agents/code-reviewer.md", "local": "reviewers/code-quality.md" },
+        { "upstream": "skills/gateguard/", "local": "hooks/fact-gate.mjs" }
+      ]
+    },
+    {
+      "id": "react-best-practices",
+      "repo": "vercel-labs/agent-skills",
+      "license": "MIT (declared in the skill; the repository has no LICENSE file)",
+      "baseline": { "sha": "063bee94c3f4df8453406c830b0a7df0f2860278", "date": "2026-08-28", "how": "repository HEAD when the rules were fetched (2026-10-22)" },
+      "files": [
+        { "upstream": "skills/react-best-practices/", "local": "stacks/react.md" },
+        { "upstream": "skills/react-best-practices/", "local": "reviewers/react.md" }
+      ]
+    }
+  ],
+  "facts": [
+    { "id": "react.19-2-apis", "file": "stacks/react.md", "anchor": "(React 19.2+)", "pkg": "npm:react", "requires": ">=19.2 <20", "verified": "2026-10-22", "note": "Activity and useEffectEvent shipped in 19.2.0 (2025-10-01)" },
+    { "id": "react-compiler.stable", "file": "stacks/react.md", "anchor": "stable since 1.0", "pkg": "npm:babel-plugin-react-compiler", "requires": ">=1.0 <2", "verified": "2026-10-22" },
+    { "id": "query.imperative-api", "file": "stacks/react.md", "anchor": "From **5.102**", "pkg": "npm:@tanstack/query-core", "requires": ">=5.102 <6", "verified": "2026-10-22", "note": "queryClient.query added and fetchQuery/prefetchQuery/ensureQueryData deprecated in 5.102.0" },
+    { "id": "router.autocodesplitting", "file": "stacks/react.md", "anchor": "autoCodeSplitting: true", "pkg": "npm:@tanstack/react-router", "requires": ">=1.0 <2", "verified": "2026-10-22" },
+    { "id": "playwright.fail-on-flaky", "file": "stacks/e2e.md", "anchor": "--fail-on-flaky-tests", "pkg": "npm:@playwright/test", "requires": "<2", "verified": "2026-10-22", "note": "flag present in 1.64.1; earliest version not checked" }
+  ]
+}

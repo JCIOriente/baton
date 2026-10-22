@@ -82,9 +82,13 @@ each data-driven view, not an afterthought.
 Assumes TanStack Router + TanStack Query. Translate the ideas if the project uses something else.
 
 - Define each query once with `queryOptions` (key from the typed key factory + `queryFn`). The
-  route `loader` warms the cache with it (`queryClient.query({ ...opts, staleTime: 'static' })`;
-  `ensureQueryData` is deprecated in Query 5) and the component reads it with
-  `useSuspenseQuery(opts)`. Pass the `queryClient` through router context.
+  route `loader` warms the cache with it and the component reads it with `useSuspenseQuery(opts)`.
+  Pass the `queryClient` through router context.
+- Imperative cache calls depend on the Query version. From **5.102**: `queryClient.query(opts)`
+  (add `staleTime: 'static'` to only fill a missing entry) and `queryClient.infiniteQuery(opts)`.
+  `fetchQuery`, `prefetchQuery`, `ensureQueryData` and their infinite variants are deprecated
+  there and will be removed in the next major. Before 5.102, use `ensureQueryData` /
+  `prefetchQuery`.
 - Loaders of nested routes run in parallel; `beforeLoad` runs serially, parent to child. Keep
   `beforeLoad` for auth checks and redirects, and fetch data in loaders.
 - **No fetch-on-render waterfalls:** a parent that renders a child only after its own query

@@ -1,6 +1,6 @@
 # <Feature> — Spec
 
-- Status: draft | approved
+- Status: draft | approved | superseded by <path> (never rewrite an approved spec; supersede it)
 - Date: YYYY-MM-DD
 - Owner: <name>
 - Related: <links to issues, prior specs>

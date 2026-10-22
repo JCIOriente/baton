@@ -139,9 +139,33 @@ export function validateConfig(config) {
   return problems;
 }
 
-/** Reviewer briefs to dispatch for this config, spec compliance first. */
-export function reviewersFor(config) {
+// Files that belong to each stack. Used to skip stack reviewers a diff doesn't touch.
+const JS_FILES = [/\.[cm]?[jt]sx?$/, /(^|\/)package\.json$/, /(^|\/)tsconfig[^/]*\.json$/];
+const RUST_FILES = [/\.rs$/, /(^|\/)Cargo\.(toml|lock)$/];
+export const STACK_PATHS = {
+  typescript: JS_FILES,
+  javascript: JS_FILES,
+  node: JS_FILES,
+  react: JS_FILES,
+  rust: RUST_FILES,
+  'rust-tokio-postgres': RUST_FILES,
+  // SQL often lives inside Rust code, so Rust changes also get the Postgres review.
+  postgres: [/\.sql$/, /(^|\/)migrations\//, /\.rs$/],
+};
+// Files no stack reviewer needs to see (docs, images, repo metadata).
+const NEUTRAL_FILES = /\.(md|mdx|txt|png|jpe?g|gif|svg|webp|ico)$|(^|\/)(LICENSE|NOTICE|\.gitignore|\.gitattributes)$/;
+
+/**
+ * Reviewer briefs to dispatch, spec compliance first. With `changedFiles`, stack reviewers run
+ * only for stacks the diff touches. A changed file that matches no stack and isn't neutral
+ * keeps every stack reviewer (fail open), as does a missing file list.
+ */
+export function reviewersFor(config, changedFiles) {
   const names = new Set(GENERAL_REVIEWERS);
-  for (const s of config.stacks) for (const r of STACK_REVIEWERS[s] ?? []) names.add(r);
+  const unknown = changedFiles?.some((f) => !NEUTRAL_FILES.test(f) && !config.stacks.some((s) => STACK_PATHS[s]?.some((re) => re.test(f))));
+  for (const s of config.stacks) {
+    const touched = !changedFiles || unknown || changedFiles.some((f) => STACK_PATHS[s]?.some((re) => re.test(f)) ?? true);
+    if (touched) for (const r of STACK_REVIEWERS[s] ?? []) names.add(r);
+  }
   return ['spec-compliance', ...names];
 }

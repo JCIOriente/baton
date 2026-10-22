@@ -70,3 +70,48 @@ test('context: always-on rules, undetected stacks and common issues', async () =
   assert.match(text, /common-issues\.md/);
   assert.match(text, /- common: \/p\/stacks\/common\.md/);
 });
+
+test('reviewersFor: skips stack reviewers the diff does not touch, fails open on unknown files', () => {
+  const config = deepMerge(DEFAULT_CONFIG, { stacks: ['react', 'typescript', 'rust-tokio-postgres', 'postgres'] });
+  const frontOnly = reviewersFor(config, ['apps/web/src/OrgList.tsx', 'README.md']);
+  assert.ok(frontOnly.includes('react') && frontOnly.includes('typescript'));
+  assert.ok(!frontOnly.includes('rust') && !frontOnly.includes('postgres'));
+  const backOnly = reviewersFor(config, ['crates/api/src/orgs.rs']);
+  assert.ok(backOnly.includes('rust') && backOnly.includes('postgres') && !backOnly.includes('react'));
+  const migration = reviewersFor(config, ['migrations/0004_events.sql']);
+  assert.ok(migration.includes('postgres') && !migration.includes('rust'));
+  const unknown = reviewersFor(config, ['infra/deploy.tf']);
+  assert.deepEqual(unknown, reviewersFor(config));
+  const docsOnly = reviewersFor(config, ['docs/specs/x.md']);
+  assert.deepEqual(docsOnly, ['spec-compliance', 'code-quality', 'security', 'tests', 'silent-failures']);
+});
+
+test('prBody: closing reference first, author sections, then validation', async () => {
+  const { prBody } = await import('../lib/tasks.mjs');
+  const body = prBody(42, '## Summary\nAdds org list.\n', [{ name: 'test', run: 'cargo test' }]);
+  assert.match(body, /^Closes #42\n\n## Summary\nAdds org list\.\n\n## Validation\n- \[x\] test: `cargo test`\n$/);
+  assert.equal(prBody(7, '', []), 'Closes #7\n\n## Validation\n- (no validation configured)\n');
+});
+
+test('provenance: satisfies ranges, lockfile parsing, lint and consumer check', async () => {
+  const { satisfies, installedVersions, lintProvenance, factsVsInstalled, loadProvenance } = await import('../lib/provenance.mjs');
+  assert.ok(satisfies('19.3.1', '>=19.2 <20'));
+  assert.ok(!satisfies('19.1.0', '>=19.2 <20'));
+  assert.ok(!satisfies('6.0.0', '>=5.102 <6'));
+  assert.ok(satisfies('v8.30.1', '>=8.19'));
+
+  const root = mkdtempSync(join(tmpdir(), 'baton-lock-'));
+  writeFileSync(join(root, 'package-lock.json'), JSON.stringify({ packages: { '': {}, 'node_modules/react': { version: '19.1.0' }, 'node_modules/a/node_modules/@tanstack/query-core': { version: '5.96.2' } } }));
+  writeFileSync(join(root, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n\npackages:\n\n  '@scope/pkg@1.2.3':\n    resolution: {}\n\n  react@19.3.1:\n    resolution: {}\n\nsnapshots:\n  react@19.3.1: {}\n");
+  writeFileSync(join(root, 'Cargo.lock'), '[[package]]\nname = "axum"\nversion = "0.8.9"\n');
+  const v = installedVersions(root);
+  assert.deepEqual([...v.get('npm:react')].sort(), ['19.1.0', '19.3.1']);
+  assert.deepEqual([...v.get('npm:@tanstack/query-core')], ['5.96.2']);
+  assert.deepEqual([...v.get('npm:@scope/pkg')], ['1.2.3']);
+  assert.deepEqual([...v.get('crates:axum')], ['0.8.9']);
+
+  const pluginRoot = new URL('../..', import.meta.url).pathname;
+  assert.deepEqual(lintProvenance(pluginRoot), [], 'provenance.json matches the repo');
+  const findings = factsVsInstalled(loadProvenance(pluginRoot), v);
+  assert.deepEqual(findings.map((f) => `${f.pkg}@${f.installed}`).sort(), ['npm:@tanstack/query-core@5.96.2', 'npm:react@19.1.0']);
+});

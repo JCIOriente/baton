@@ -15,7 +15,9 @@ lines. It still gets written and approved.
 ## Steps
 
 1. **Read context.** Check existing specs (configured `docs.specs` dir), related code and recent
-   commits. Check whether the topic is already covered.
+   commits. Check whether the topic is already covered. Claims about current behavior cite
+   `path:line`. Anything you could not confirm goes under Open questions, not into the design
+   as fact.
 2. **Check the scope first.** If the request spans several independent subsystems, say so
    before asking detail questions. Propose a split into sub-projects, each with its own
    spec -> plan -> implementation cycle and a build order. Then spec only the first one.

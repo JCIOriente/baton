@@ -93,6 +93,8 @@ this. The contract workflow is in `openapi.md`.
   assignment of `role`, `orgId`, `status`).
 - Function level: admin and cross-tenant operations check the capability explicitly. Each
   permission rule has a test that proves the denial.
+- A test enumerates every registered route and fails if one lacks a permission declaration or
+  an explicit public marker, so a new endpoint can't ship unprotected by omission.
 - Tokens go in the `Authorization` header or secure, httpOnly, `SameSite` cookies, never in URLs.
   Cookie-based auth needs CSRF protection on state-changing requests.
 

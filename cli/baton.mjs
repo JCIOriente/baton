@@ -21,7 +21,8 @@ import {
   worktreeBase,
 } from './lib/git.mjs';
 import { getProvider } from './lib/providers/github.mjs';
-import { labelNames, parseDependencies, rankClaimable, statusOf, unblockable } from './lib/tasks.mjs';
+import { factsVsInstalled, installedVersions, loadProvenance, upstreamFindings } from './lib/provenance.mjs';
+import { labelNames, parseDependencies, prBody, rankClaimable, statusOf, unblockable } from './lib/tasks.mjs';
 import { BatonError, print, runShell } from './lib/util.mjs';
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -51,8 +52,15 @@ Execution
 
 Integration
   verify [--only NAME]             Run the project's validation commands in the current checkout
-  reviewers                        Reviewer briefs to dispatch for this repo (spec compliance first)
-  done [--draft]                   Verify, push and open a PR for the current task, mark it review
+  reviewers [--all]                Reviewer briefs for this branch's diff (spec compliance first)
+  done [--draft] [--title T] [--body-file F]
+                                   Verify, push and open a PR for the current task, mark it review
+
+Maintenance
+  doctor                           This repo: config, tools on PATH, stacks not enabled, dependencies
+                                   outside what baton's guides assume (offline)
+  upstream                         baton itself: upstream changes to adapted files and new releases
+                                   outside asserted versions (network, needs gh)
 
 Add --json to any read command for machine-readable output.`;
 
@@ -75,6 +83,8 @@ const commands = {
   status,
   verify,
   done,
+  doctor,
+  upstream,
 };
 
 async function main() {
@@ -274,11 +284,26 @@ function unblock(argv) {
 }
 
 function reviewers(argv) {
-  const { values } = opts(argv);
+  const { values } = opts(argv, { all: { type: 'boolean' } });
   const { config } = requireConfig();
-  const rows = reviewersFor(config).map((name) => ({ name, brief: join(PLUGIN_ROOT, 'reviewers', `${name}.md`) }));
-  if (values.json) return print(rows);
-  print(rows.map((r) => `${r.name.padEnd(16)} ${r.brief}`).join('\n'));
+  const changed = values.all ? undefined : changedFiles(config);
+  const selected = reviewersFor(config, changed);
+  const skipped = reviewersFor(config).filter((r) => !selected.includes(r));
+  const rows = selected.map((name) => ({ name, brief: join(PLUGIN_ROOT, 'reviewers', `${name}.md`) }));
+  if (values.json) return print(values.all ? rows : { reviewers: rows, skipped });
+  const lines = rows.map((r) => `${r.name.padEnd(16)} ${r.brief}`);
+  if (skipped.length) lines.push(`(skipped, diff doesn't touch their files: ${skipped.join(', ')}; --all to include)`);
+  print(lines.join('\n'));
+}
+
+/** Files changed on this branch vs the base branch, or undefined if git can't tell (then nothing is skipped). */
+function changedFiles(config) {
+  const { remote, baseBranch } = config.git;
+  for (const base of [`${remote}/${baseBranch}`, baseBranch]) {
+    const res = git(['diff', '--name-only', `${base}...HEAD`], { allowFail: true });
+    if (res.code === 0) return res.stdout ? res.stdout.split('\n') : [];
+  }
+  return undefined;
 }
 
 // --- Execution ------------------------------------------------------------
@@ -425,10 +450,11 @@ function verify(argv) {
 }
 
 function done(argv) {
-  const { values } = opts(argv, { draft: { type: 'boolean' } });
+  const { values } = opts(argv, { draft: { type: 'boolean' }, 'body-file': { type: 'string' }, title: { type: 'string' } });
   const { root, config } = requireConfig();
   const top = currentTop();
   const n = currentTask(config);
+  const extra = values['body-file'] ? readFileSync(values['body-file'], 'utf8') : '';
   if (hasUncommittedChanges(top)) throw new BatonError('Uncommitted changes in this worktree', { hint: 'Commit your work before `baton done`.' });
 
   const res = runValidation(config, top);
@@ -442,13 +468,59 @@ function done(argv) {
   const task = provider.get(n);
   let pr = provider.findPullRequest(branch);
   if (!pr) {
-    const body = `Closes #${n}\n\n## Validation\n${res.results.map((r) => `- [x] ${r.name}: \`${r.run}\``).join('\n') || '- (no validation configured)'}\n`;
-    const url = provider.openPullRequest({ branch, title: task.title, body, base: config.git.baseBranch, draft: values.draft });
+    const body = prBody(n, extra, res.results);
+    const url = provider.openPullRequest({ branch, title: values.title ?? task.title, body, base: config.git.baseBranch, draft: values.draft });
     pr = { url };
   }
   provider.setStatus(n, 'review');
   if (values.json) return print({ number: n, pr: pr.url });
   print(`#${n} is in review: ${pr.url}`);
+}
+
+// --- Maintenance ----------------------------------------------------------
+
+function doctor(argv) {
+  const { values } = opts(argv);
+  const findings = [];
+  const loaded = loadConfig();
+  if (!loaded.found) findings.push({ kind: 'config', message: 'No .baton/config.json (run `baton init`)' });
+  const { root, config } = loaded;
+
+  for (const step of [...config.setup, ...config.validate]) {
+    const tool = step.run.trim().split(/\s+/)[0];
+    if (!/^[\w.-]+$/.test(tool)) continue;
+    if (runShell(`command -v ${tool} >/dev/null 2>&1`) !== 0) findings.push({ kind: 'tool', message: `'${tool}' (used by '${step.name ?? step.run}') is not on PATH` });
+    if (step.cwd && !existsSync(join(root, step.cwd))) findings.push({ kind: 'config', message: `cwd '${step.cwd}' of '${step.name ?? step.run}' does not exist` });
+  }
+  const notEnabled = detectStacks(root).stacks.filter((s) => !config.stacks.includes(s));
+  if (notEnabled.length) findings.push({ kind: 'stacks', message: `Detected but not enabled: ${notEnabled.join(', ')}` });
+
+  for (const f of factsVsInstalled(loadProvenance(PLUGIN_ROOT), installedVersions(root))) {
+    findings.push({ ...f, message: `${f.pkg.replace(/^\w+:/, '')} ${f.installed} installed, but ${f.file} assumes ${f.requires} (${f.fact}). Upgrade, or record the exception in the project conventions.` });
+  }
+
+  if (values.json) print(findings);
+  else print(findings.length ? findings.map((f) => `- [${f.kind}] ${f.message}`).join('\n') : 'No problems found.');
+  if (findings.length) process.exitCode = 1;
+}
+
+async function upstream(argv) {
+  const { values } = opts(argv);
+  const findings = await upstreamFindings(loadProvenance(PLUGIN_ROOT));
+  if (values.json) print(findings);
+  else if (!findings.length) print('Upstream sources and asserted versions are current.');
+  else {
+    const lines = [];
+    for (const f of findings) {
+      if (f.kind === 'upstream') {
+        lines.push(`UPSTREAM ${f.source} (${f.repo}) is ${f.ahead} commits ahead of the baseline${f.truncated ? ' (file list truncated)' : ''}:`);
+        for (const c of f.changed) lines.push(`  ${c.status.padEnd(9)} ${c.filename} (+${c.additions} -${c.deletions}) -> ${c.local}`);
+      } else if (f.kind === 'release') lines.push(`RELEASE  ${f.pkg} latest ${f.latest} is outside ${f.requires}: re-check ${f.file} (${f.fact})`);
+      else lines.push(`ERROR    ${f.source ?? f.fact}: ${f.message}`);
+    }
+    print(lines.join('\n'));
+  }
+  if (findings.length) process.exitCode = 1;
 }
 
 main().catch((err) => {

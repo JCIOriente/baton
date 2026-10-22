@@ -17,7 +17,8 @@ so never review your own diff in the same context you wrote it in.
 - Spec and plan paths linked from the task
 - Guide paths from the `<baton>` block
 - Reviewer briefs: `baton reviewers --json`. It lists `spec-compliance` first, then general
-  angles (code quality, security, tests, silent failures) and one per enabled stack.
+  angles (code quality, security, tests, silent failures) and the stack reviewers whose files
+  this branch's diff touches. Skipped ones are listed. Use `--all` to include them anyway.
 
 ## 2. Stage one: spec compliance (gate)
 
@@ -44,9 +45,9 @@ Then consolidate:
 4. After fixes: `baton verify`, then **re-dispatch only the angles that had findings**. Repeat
    until all approve.
 
-A task is reviewed when spec compliance and every quality angle report `APPROVE`. Post the
-consolidated outcome (angles run, findings fixed, minors deferred) as a PR comment or in the
-PR description.
+A task is reviewed when spec compliance and every quality angle report `APPROVE`. Record the
+consolidated outcome (angles run, findings fixed, minors deferred) in the **Reviews** section of
+the PR body (`baton:integrate`).
 
 ## Built-in alternatives
 

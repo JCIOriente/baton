@@ -51,7 +51,10 @@ context. Keep the scenarios in `tests/skills/<skill>.md` so changes can be re-ch
 - Guides: rules an agent applies while writing code. Reviewer briefs: checks with a
   concrete failure scenario. Don't put the same rule in both. The brief can point to the guide.
 - No project-specific content. Use the target project only to judge what matters.
-- Every adapted source is credited in `NOTICE`.
+- Every adapted source is credited in `NOTICE` and recorded in `provenance.json` (upstream
+  path and commit). A guide statement that depends on a version gets a `facts` entry with the
+  verified range. After acting on a `baton upstream` finding, bump the baseline SHA or the
+  `verified` date.
 
 ## Before committing
 

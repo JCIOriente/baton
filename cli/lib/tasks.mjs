@@ -64,6 +64,13 @@ export function unblockable(blockedTasks, openNumbers) {
   });
 }
 
+/** PR body: the closing reference, the author's sections, then the validation that actually ran. */
+export function prBody(number, extra, results) {
+  const validation = results.map((r) => `- [x] ${r.name}: \`${r.run}\``).join('\n') || '- (no validation configured)';
+  const middle = extra?.trim() ? `${extra.trim()}\n\n` : '';
+  return `Closes #${number}\n\n${middle}## Validation\n${validation}\n`;
+}
+
 // --- Claim protocol -------------------------------------------------------
 // GitHub has no atomic compare-and-set on issues, so a claim is a marker comment.
 // The earliest claim posted after the most recent release wins; losers roll back.

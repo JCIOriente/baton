@@ -23,10 +23,17 @@ After any rebase, the earlier verification is stale. Run `baton verify` again.
 
 ## 2. Open the PR
 
+Fill `${CLAUDE_PLUGIN_ROOT}/templates/pr-body.md` into a temp file: Summary, a Test plan that
+states what was *not* verified, Reviews (from `baton:review`) and Not in this PR. Then:
+
 ```bash
-baton done          # requires a clean tree; re-runs validation, pushes, opens PR "Closes #N", sets status:review
-baton done --draft  # when review is still needed before anyone should merge
+baton done --body-file <file> --title "feat(orgs): list organizations by nation"
+baton done --draft ...   # when review is still needed before anyone should merge
 ```
+
+`baton done` requires a clean tree, re-runs validation, pushes, opens the PR with `Closes #N`,
+your sections and the validation results, and sets `status:review`. With squash merges the PR
+title becomes the commit message, so make it a Conventional Commit.
 
 `baton done` refuses to open a PR if validation fails. Never get around it by pushing and
 opening the PR by hand.

@@ -33,10 +33,23 @@ disable-model-invocation: true
    - **conventions**: project rule files that override the guides (e.g. `docs/conventions.md`).
      Offer to create it. `baton:retro` adds lessons to it over time.
    - **git**: base branch, branch prefix, worktree root, merge strategy.
-4. **Validate:** `baton config` must print the config without errors.
+4. **Validate:** `baton config` must print the config without errors, and `baton doctor` reports
+   missing tools, stacks not enabled, and dependency versions older than the guides assume.
 5. **Labels:** `baton labels` creates the status/priority labels on GitHub. Confirm with the
    user first, since this writes to the remote repo.
-6. **Commit** `.baton/config.json` (and the docs dirs) so every contributor and session
+6. **Protect the base branch** (suggest; run only after the user confirms). It is enforced by
+   GitHub, so no agent or local hook can skip it: require a pull request, require the CI checks
+   that run the same commands as `validate`, and block force-pushes and deletion. For example:
+   ```bash
+   gh api -X PUT repos/{owner}/{repo}/branches/<baseBranch>/protection --input - <<'JSON'
+   { "required_status_checks": { "strict": true, "contexts": ["<ci check name>"] },
+     "enforce_admins": true,
+     "required_pull_request_reviews": { "required_approving_review_count": 0 },
+     "restrictions": null, "allow_force_pushes": false, "allow_deletions": false }
+   JSON
+   ```
+   Raise `required_approving_review_count` to 1 once the project has a second maintainer.
+7. **Commit** `.baton/config.json` (and the docs dirs) so every contributor and session
    shares the same workflow.
 
 The full schema with defaults is in `${CLAUDE_PLUGIN_ROOT}/templates/config.example.json`.

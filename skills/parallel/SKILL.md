@@ -58,7 +58,9 @@ Questions from an implementer get complete answers before it continues.
 ## 5. Verify and review each task
 
 Never relay an implementer's "tests pass" as a fact.
-1. In its worktree, run `baton verify` yourself and read the diff.
+1. In its worktree, run `baton verify` yourself and read the diff. Check that
+   `git -C <worktree> status --porcelain` is empty and that `git -C <worktree> log <base>..HEAD --oneline`
+   matches the commits the implementer reported.
 2. Run `baton:review`: spec compliance first, then the quality angles in parallel. Findings
    go back to the **same implementer** to fix, followed by a re-review. Don't fix it yourself
    in the controller context.

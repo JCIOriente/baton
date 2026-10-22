@@ -82,5 +82,7 @@ Do this in one helper that every request-scoped repository call goes through.
   which bypasses RLS and hides missing grants).
 - Isolate tests: a transaction per test that is never committed, or a fresh schema/database
   per test.
+- The test harness refuses to run unless the database name contains a test marker (e.g.
+  `_test`), so tests can never touch a dev or production database.
 - Test constraint behavior (duplicates, FK violations) and permission-scoped queries, not
   just the happy path.

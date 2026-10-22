@@ -1,0 +1,50 @@
+# Weekly check for drift in baton's adapted content and version facts (see provenance.json).
+# Keeps a single open issue labeled `drift` up to date. Never edits code.
+name: drift
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: drift
+  cancel-in-progress: true
+
+jobs:
+  upstream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check upstream sources and version facts
+        id: check
+        run: |
+          set +e
+          node cli/baton.mjs upstream > drift.txt
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          cat drift.txt
+      - name: Update the drift issue
+        if: steps.check.outputs.exit != '0'
+        run: |
+          gh label create drift --color fbca04 --description "Upstream or version drift (weekly check)" --force
+          {
+            echo "Weekly \`baton upstream\` found drift. Review each item, update the adapted file or the fact,"
+            echo "then bump the baseline SHA or \`verified\` date in provenance.json."
+            echo
+            echo '```'
+            cat drift.txt
+            echo '```'
+          } > body.md
+          number=$(gh issue list --label drift --state open --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file body.md
+          else
+            gh issue create --title "Upstream drift" --label drift --body-file body.md
+          fi
