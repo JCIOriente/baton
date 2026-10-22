@@ -55,7 +55,7 @@ Integration
   reviewers [--all]                Reviewer briefs to dispatch, with the changed files each should focus on
   done [--draft] [--title T] [--body-file F] [--skip-review REASON]
                                    Verify, push and open a PR for the current task, mark it review.
-                                   With requireReview, the body must hold `Reviewed-at: <HEAD sha>`
+                                   With requireReview, the body must hold \`Reviewed-at: <HEAD sha>\`
 
 Maintenance
   doctor                           This repo: config, tools on PATH, stacks not enabled, dependencies

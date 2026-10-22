@@ -138,3 +138,12 @@ test('reviewState: review must match HEAD exactly', async () => {
   assert.match(reviewState('## Reviews\nnone', head).reason, /no `Reviewed-at/);
   assert.ok(!reviewState('Reviewed-at: <full sha>', head).ok);
 });
+
+test('the CLI entry point loads and prints help', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const res = spawnSync(process.execPath, [cli, 'help'], { encoding: 'utf8' });
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /baton <command>/);
+  for (const cmd of ['claim', 'start', 'reviewers', 'done', 'doctor', 'upstream']) assert.match(res.stdout, new RegExp(`\\b${cmd}\\b`));
+});

@@ -1,0 +1,49 @@
+{
+  "project": "baton",
+  "stacks": [
+    "javascript",
+    "node"
+  ],
+  "tasks": {
+    "provider": "github",
+    "repo": null
+  },
+  "git": {
+    "baseBranch": "main",
+    "branchPrefix": "task",
+    "worktreeRoot": "../{repo}-worktrees",
+    "mergeStrategy": "squash"
+  },
+  "setup": [],
+  "validate": [
+    {
+      "name": "ci",
+      "run": "make ci"
+    }
+  ],
+  "workflow": {
+    "phases": [
+      "spec",
+      "plan",
+      "backlog",
+      "implement",
+      "verify",
+      "review",
+      "integrate"
+    ],
+    "custom": {},
+    "requireSpec": true,
+    "requireTdd": true,
+    "requireReview": true,
+    "baselineOnStart": true
+  },
+  "hooks": {
+    "factGate": false
+  },
+  "docs": {
+    "specs": "docs/specs",
+    "plans": "docs/plans",
+    "commonIssues": "docs/common-issues.md"
+  },
+  "conventions": []
+}

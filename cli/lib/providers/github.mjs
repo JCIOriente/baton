@@ -96,7 +96,7 @@ export class GithubProvider {
     const after = this.get(number, { comments: true });
     const winner = activeClaim(after.comments);
     if (!winner || winner.user !== me || winner.nonce !== nonce) {
-      this.comment(number, releaseComment(me, `lost claim race to @${winner?.user ?? 'unknown'}`));
+      this.comment(number, releaseComment(me, `lost claim race to @${winner?.user ?? 'unknown'}`, nonce));
       throw new BatonError(`Lost claim race on #${number} to @${winner?.user ?? 'unknown'}`);
     }
     this.edit(number, {
@@ -112,7 +112,7 @@ export class GithubProvider {
     const task = this.get(number, { comments: true });
     const claim = activeClaim(task.comments);
     if (claim && claim.user !== me) throw new BatonError(`#${number} is claimed by @${claim.user}, not you`);
-    this.comment(number, releaseComment(me, reason));
+    this.comment(number, releaseComment(me, reason, claim?.nonce));
     this.edit(number, { removeAssignees: [me] });
     this.setStatus(number, status);
   }

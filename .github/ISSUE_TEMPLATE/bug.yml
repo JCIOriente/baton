@@ -1,0 +1,23 @@
+name: Bug report
+description: Something in baton behaves incorrectly
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes: { label: What happened, description: Command or skill, what you expected, what happened instead. }
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes: { label: Steps to reproduce, render: shell }
+    validations: { required: true }
+  - type: input
+    id: versions
+    attributes: { label: Versions, placeholder: "baton 0.1.0, Claude Code 2.1.x, node 24, macOS" }
+    validations: { required: true }
+  - type: checkboxes
+    id: data
+    attributes:
+      label: Data
+      options:
+        - label: I removed tokens, private repo names and personal data from this report.
+          required: true

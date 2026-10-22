@@ -93,8 +93,10 @@ export function claimComment(user, nonce) {
   return `<!-- ${CLAIM_MARK} user=${user} nonce=${nonce} -->\nClaimed by @${user} via baton.`;
 }
 
-export function releaseComment(user, reason = 'released') {
-  return `<!-- ${RELEASE_MARK} user=${user} -->\nReleased by @${user} (${reason}).`;
+/** Release marker. `nonce` names the claim being released, so one session can't release another's. */
+export function releaseComment(user, reason = 'released', nonce) {
+  const id = nonce ? ` nonce=${nonce}` : '';
+  return `<!-- ${RELEASE_MARK} user=${user}${id} -->\nReleased by @${user} (${reason}).`;
 }
 
 function parseMarker(body, mark) {
@@ -113,7 +115,9 @@ export function activeClaim(comments) {
   for (const c of comments) {
     const author = c.author?.login;
     const rel = parseMarker(c.body ?? '', RELEASE_MARK);
-    if (rel && winner && (rel.user === winner.user || author === winner.user)) {
+    // Only the claimant can release, and only the claim it names (two sessions of the same
+    // user race with different nonces; the loser's release must not clear the winner).
+    if (rel && winner && author === winner.user && (!rel.nonce || rel.nonce === winner.nonce)) {
       winner = null;
       continue;
     }

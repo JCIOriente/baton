@@ -117,3 +117,22 @@ test('validateConfig requires instructions for custom phases', () => {
   const ok = deepMerge(cfg, { workflow: { custom: { 'security-audit': 'docs/process/audit.md' } } });
   assert.deepEqual(validateConfig(ok), []);
 });
+
+test('activeClaim: same user racing from two sessions keeps the winner', () => {
+  const comments = [
+    c('ana', claimComment('ana', 'a1')),
+    c('ana', claimComment('ana', 'a2')),
+    c('ana', releaseComment('ana', 'lost claim race to @ana', 'a2')),
+  ];
+  assert.deepEqual(activeClaim(comments), { user: 'ana', nonce: 'a1' });
+});
+
+test('activeClaim: a release posted by someone else is ignored', () => {
+  const comments = [c('ana', claimComment('ana', 'a1')), c('mallory', releaseComment('ana', 'forged', 'a1'))];
+  assert.deepEqual(activeClaim(comments), { user: 'ana', nonce: 'a1' });
+});
+
+test('activeClaim: the claimant releases its own claim by nonce', () => {
+  const comments = [c('ana', claimComment('ana', 'a1')), c('ana', releaseComment('ana', 'done', 'a1')), c('bob', claimComment('bob', 'b1'))];
+  assert.deepEqual(activeClaim(comments), { user: 'bob', nonce: 'b1' });
+});

@@ -1,0 +1,14 @@
+name: Task
+description: A unit of work for the baton backlog (usually created with `baton create`)
+body:
+  - type: textarea
+    id: context
+    attributes: { label: Context, description: What this delivers and why. Link the spec or issue. }
+    validations: { required: true }
+  - type: textarea
+    id: scope
+    attributes: { label: Scope, description: "Owned files, files touched additively, out of scope." }
+  - type: textarea
+    id: acceptance
+    attributes: { label: Acceptance criteria, description: Checkable criteria, and the tests to write first. }
+    validations: { required: true }

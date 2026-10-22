@@ -14,9 +14,11 @@ enable them.
 ## Install
 
 ```bash
-claude plugin marketplace add <path-or-git-url-of-this-repo>
+claude plugin marketplace add arkgast/baton
 claude plugin install baton@veloud
 ```
+
+Pin a release for a project by installing from a tag (see [CHANGELOG](CHANGELOG.md)).
 
 Requirements: Node >= 20, `git`, and `gh` (authenticated) for backlog commands. The suggested
 `secrets` validation step uses [gitleaks](https://github.com/gitleaks/gitleaks).
