@@ -1,0 +1,12 @@
+{
+  "name": "baton",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CLI behind the baton Claude Code plugin. No runtime dependencies.",
+  "bin": { "baton": "cli/baton.mjs" },
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test 'cli/test/*.test.mjs'"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "project": "jci-bolivia",
+  "stacks": ["typescript", "react", "rust", "rust-tokio-postgres"],
+  "tasks": {
+    "provider": "github",
+    "repo": null,
+    "labels": {
+      "ready": "status:ready",
+      "inProgress": "status:in-progress",
+      "review": "status:review",
+      "blocked": "status:blocked",
+      "priorityPrefix": "priority:"
+    }
+  },
+  "git": {
+    "baseBranch": "main",
+    "remote": "origin",
+    "branchPrefix": "task",
+    "worktreeRoot": "../{repo}-worktrees",
+    "mergeStrategy": "squash"
+  },
+  "validate": [
+    { "name": "fmt", "run": "cargo fmt --all -- --check" },
+    { "name": "clippy", "run": "cargo clippy --all-targets --all-features -- -D warnings" },
+    { "name": "cargo-test", "run": "cargo test --all" },
+    { "name": "web-typecheck", "run": "pnpm typecheck", "cwd": "apps/web" },
+    { "name": "web-lint", "run": "pnpm lint", "cwd": "apps/web" },
+    { "name": "web-test", "run": "pnpm test --run", "cwd": "apps/web" }
+  ],
+  "workflow": {
+    "phases": ["spec", "plan", "backlog", "implement", "verify", "review", "integrate"],
+    "custom": {},
+    "requireSpec": true,
+    "requireTdd": true,
+    "requireReview": true
+  },
+  "docs": {
+    "specs": "docs/specs",
+    "plans": "docs/plans"
+  },
+  "conventions": ["docs/conventions.md"]
+}

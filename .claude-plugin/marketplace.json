@@ -1,0 +1,12 @@
+{
+  "name": "veloud",
+  "description": "Veloud engineering plugins",
+  "owner": { "name": "Arnold Gandarillas", "email": "arkgast@gmail.com" },
+  "plugins": [
+    {
+      "name": "baton",
+      "source": ".",
+      "description": "Spec -> plan -> backlog -> worktree -> verify -> integrate."
+    }
+  ]
+}

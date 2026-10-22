@@ -1,0 +1,8 @@
+{
+  "name": "baton",
+  "description": "Spec-first planning, GitHub-backed backlog with race-safe claims, one worktree per task, project-defined validation and controlled integration for human + AI teams.",
+  "version": "0.1.0",
+  "author": { "name": "Arnold Gandarillas", "email": "arkgast@gmail.com" },
+  "license": "MIT",
+  "keywords": ["workflow", "planning", "worktrees", "backlog", "multi-agent"]
+}
