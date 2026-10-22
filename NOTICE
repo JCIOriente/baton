@@ -7,6 +7,11 @@ Ideas credited (no text reused):
   (https://x.com/karpathy/status/2015883857489522876): the "Scope of a change" rules in
   stacks/common.md, line-level scope in skills/implement, templates/implementer-brief.md and
   reviewers/spec-compliance.md, and the always-on rules in the session context.
+- Vercel Engineering, react-best-practices skill
+  (https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices, declared
+  MIT): the Data loading, Rendering performance, Bundle size and Server rendering sections of
+  stacks/react.md and the rendering/data-loading checks in reviewers/react.md, rewritten for
+  TanStack Router/Query and checked against react.dev.
 - Symposium (https://github.com/symposium-dev/symposium, MIT OR Apache-2.0): always-on
   context for rules that must not depend on a skill being loaded, RFD-style spec sections
   (TL;DR, change in a nutshell, FAQ, implementation status), the common-issues file read

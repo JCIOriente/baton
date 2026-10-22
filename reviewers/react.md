@@ -36,25 +36,37 @@ files and hooks.
    library; state initialized from a prop that does not reset when the prop changes.
 7. Lists: missing keys, `key={index}` on lists that can reorder, insert or delete, keys that
    are not unique among siblings.
-8. XSS and URLs: `dangerouslySetInnerHTML` with content that is not sanitized at that call
+8. Rendering bugs: a component defined inside another component (remounts and loses state on
+   every parent render); a number on the left of `&&` (renders `0`); `sort()`/`reverse()` or
+   index assignment on a prop or state array; a controlled text input's state updated inside a
+   transition; `useEffectEvent` results listed as dependencies, called during render or passed
+   to children; one-time app setup in `useEffect([])` that is not idempotent (runs twice in
+   development and again on remount).
+9. Data loading (TanStack Router/Query): fetch-on-render waterfalls, where a child query can
+   only start after a parent query resolves even though it doesn't need its result; data
+   fetched in `beforeLoad` (serial) instead of loaders (parallel); a query defined inline in two
+   places instead of shared `queryOptions`; server data copied into local state.
+10. XSS and URLs: `dangerouslySetInnerHTML` with content that is not sanitized at that call
    site (DOMPurify or equivalent); user-supplied URLs in `href`/`src` without a scheme
    allowlist (`javascript:`); `target="_blank"` to untrusted URLs without `rel="noopener"`.
-9. Secrets and auth in the client: secrets in `VITE_*`/`NEXT_PUBLIC_*`/`REACT_APP_*`; session
+11. Secrets and auth in the client: secrets in `VITE_*`/`NEXT_PUBLIC_*`/`REACT_APP_*`; session
    tokens in `localStorage`. Permission checks (CASL `can`, hidden buttons, route guards) are
    UX only. If a new action relies on them without a matching server check in the diff or
    existing code, flag it.
-10. Server/client boundary (when the project uses RSC or server actions): server-only modules
+12. Server/client boundary (when the project uses SSR, RSC, server functions or actions): server-only modules
     imported into client components; full records with sensitive fields passed as props to
     client components; server actions without input validation or an authorization check.
-11. UI states: data-fetching components with no loading or error state; errors from mutations
+13. UI states: data-fetching components with no loading or error state; errors from mutations
     not shown; optimistic updates without rollback.
-12. Accessibility: clickable `div`/`span` instead of `button`/`a`; inputs without labels;
+14. Accessibility: clickable `div`/`span` instead of `button`/`a`; inputs without labels;
     images without `alt`; focus not managed in dialogs; state conveyed by color only.
 
 ## Do not flag
 
 - Anything the project's ESLint config (`react-hooks`, `jsx-a11y`) already reports.
-- Missing `useMemo`/`useCallback`/`React.memo` without a measured or obvious render cost.
+- Missing `useMemo`/`useCallback`/`React.memo`: never when React Compiler is on, and otherwise
+  only with a measured or obvious render cost. Hoisting static JSX, caching property access and
+  other micro-optimizations outside a profiled hot path.
 - Prop drilling, component length or file organization unless it causes a defect.
 - Generic TypeScript, security and test concerns. Other reviewers own them.
 
