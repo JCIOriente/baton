@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Use before claiming any task, fix or change is done, passing, or ready for review. Runs the project's validation commands and requires fresh evidence before any success claim.
+description: Use before claiming any task, fix or change is done, passing, fixed or ready for review, and before committing to a PR.
 ---
 
 # Verify

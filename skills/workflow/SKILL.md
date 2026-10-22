@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: Use at the start of any feature, bug fix, refactor or backlog task in a repo that has .baton/config.json. Works out which phase the work is in (spec, plan, backlog, implement, verify, review, integrate or a project-defined phase) and routes to the matching baton skill.
+description: Use at the start of any feature, bug fix, refactor or backlog task in a repo that has .baton/config.json, or when unsure which baton skill applies.
 ---
 
 # baton workflow
@@ -23,7 +23,7 @@ Default phases, in order:
 | implement | `baton:implement` | Task claimed, worked in its own worktree, tests written first, commits made |
 | verify | `baton:verify` | `baton verify` passes, and the evidence is shown |
 | review | `baton:review` | Diff reviewed against spec, plan task and stack guides; findings resolved |
-| integrate | `baton:integrate` | PR open via `baton done`, merged per policy, worktree cleaned up |
+| integrate | `baton:integrate` | PR open via `baton done`, merged per policy, worktree cleaned up, retro done |
 
 A project can drop phases, reorder them, or add its own. A custom phase is listed as
 `Custom phase '<name>': follow <file>`. Read that file and follow it exactly as you would a skill.
@@ -42,6 +42,9 @@ Decide the phase from evidence, not from what the user's wording suggests:
 Small changes still go through the gates, but the artifacts scale down. A one-line bug fix
 gets a three-sentence spec section inside the issue, not a design document. If the user
 explicitly says to skip a phase, do so and say which gate was skipped.
+
+Supporting skills: `baton:parallel` (several tasks at once), `baton:debug` (unknown cause),
+`baton:retro` (turn lessons into conventions).
 
 Bugs: if the cause is unknown, start with `baton:debug`. Once it is understood, continue
 from the phase the fix needs.

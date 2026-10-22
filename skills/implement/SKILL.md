@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Use to implement one backlog task in a baton repo. Claims the task, creates its isolated worktree, and executes it test-first within the task's file boundaries.
+description: Use when starting or continuing work on a specific backlog task (given a task number, or inside a task worktree) in a baton repo.
 argument-hint: "<task number>"
 ---
 
@@ -9,16 +9,17 @@ argument-hint: "<task number>"
 ## 1. Claim and isolate
 
 ```bash
-baton start <n>      # race-safe claim + worktree + branch; prints the worktree path
+baton start <n>      # race-safe claim + worktree + branch, runs `setup`, then a baseline validation
 ```
 
 - If it says the task is claimed by someone else or has open dependencies, **stop** and
   report. Don't work around it. `--force` on dependencies only with the user's explicit OK.
 - `cd` into the printed worktree path. From now on, **every edit happens in that directory.**
   The main checkout and other worktrees are off limits.
-- Install dependencies in the worktree if the project needs it (e.g. `pnpm install`).
-  Worktrees don't share `node_modules`. Cargo's `target/` can be shared via `CARGO_TARGET_DIR`
-  if the project configured it.
+- `setup` commands from the config (e.g. `pnpm install`) already ran in the worktree.
+  Worktrees don't share `node_modules`. Cargo's `target/` can be shared via `CARGO_TARGET_DIR`.
+- **Read the baseline line.** If validation already failed before your change, that failure
+  isn't yours. Report it, don't fix it silently, and don't let it hide new failures.
 
 ## 2. Load the context
 
@@ -38,7 +39,8 @@ For each behavior in the acceptance criteria:
    not a typo or a missing import.
 2. **Green:** write the minimum code that makes it pass. Run it.
 3. **Refactor** with the tests green.
-4. **Commit** with a message that references the task: `feat(orgs): scope list to member org (#42)`.
+4. **Commit** with a Conventional Commit message that references the task:
+   `feat(orgs): scope list to member org (#42)`. Use small, focused commits.
 
 Tests check behavior through public interfaces. Don't mock the thing you are testing. For
 database code, test against a real Postgres (testcontainers or the project's test DB), not

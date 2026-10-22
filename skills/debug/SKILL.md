@@ -1,6 +1,6 @@
 ---
 name: debug
-description: Use when facing a bug, failing test, or unexpected behavior whose cause is not yet known. Finds the root cause before any fix is attempted.
+description: Use when facing a bug, failing test, build failure or unexpected behavior whose cause is not yet known, before proposing any fix.
 ---
 
 # Debug

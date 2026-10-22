@@ -1,6 +1,6 @@
 ---
 name: backlog
-description: Use to turn an approved plan into GitHub issues, or to inspect, prioritize, triage or pick tasks from the backlog ("what's next", "what's in progress", "create a task for X").
+description: Use when an approved plan needs to become GitHub issues, or when asked what is next, what is in progress, to create, triage or reprioritize a task in a baton repo.
 argument-hint: "[plan path | next | status]"
 ---
 
@@ -24,6 +24,13 @@ plus `status:blocked`. Priority is `priority:p0`..`p3`. Dependencies are a
    baton create --title "<title>" --body-file <file> --priority <0-3> --depends-on 12,14 --ready
    ```
    Only add `--ready` when the task is fully specified. Unclear tasks stay in triage.
+
+   **An issue is a prompt for an agent with zero context.** Before marking it ready, check
+   that someone who reads only this issue, the linked spec and the guides could do it:
+   - owned files listed, and what is out of scope
+   - every acceptance criterion checkable, plus the tests to write first
+   - existing patterns to follow named by path
+   - error cases, permissions and data changes stated, if any apply
 4. Write the issue numbers back into the plan doc next to each T-id and commit. Then report the
    map and what can start in parallel right away (`baton next`).
 
@@ -36,6 +43,7 @@ plus `status:blocked`. Priority is `priority:p0`..`p3`. Dependencies are a
 | My work | `baton list --mine`, `baton status` (local worktrees) |
 | One task | `baton show 42` (includes dependency state) |
 | Re-prioritize / block | `baton status-set 42 blocked`, or edit `priority:` labels with `gh` |
+| Release finished dependencies | `baton unblock` (blocked tasks whose `Depends on` are all closed -> ready) |
 
 Use `--json` when you need to process the output.
 

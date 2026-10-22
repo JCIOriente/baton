@@ -1,6 +1,16 @@
 {
   "project": "jci-bolivia",
-  "stacks": ["typescript", "react", "rust", "rust-tokio-postgres"],
+  "stacks": [
+    "typescript",
+    "react",
+    "rust",
+    "rust-tokio-postgres",
+    "postgres",
+    "api",
+    "openapi",
+    "i18n",
+    "e2e"
+  ],
   "tasks": {
     "provider": "github",
     "repo": null,
@@ -19,24 +29,70 @@
     "worktreeRoot": "../{repo}-worktrees",
     "mergeStrategy": "squash"
   },
+  "setup": [
+    {
+      "name": "web-install",
+      "run": "pnpm install --frozen-lockfile",
+      "cwd": "apps/web"
+    }
+  ],
   "validate": [
-    { "name": "fmt", "run": "cargo fmt --all -- --check" },
-    { "name": "clippy", "run": "cargo clippy --all-targets --all-features -- -D warnings" },
-    { "name": "cargo-test", "run": "cargo test --all" },
-    { "name": "web-typecheck", "run": "pnpm typecheck", "cwd": "apps/web" },
-    { "name": "web-lint", "run": "pnpm lint", "cwd": "apps/web" },
-    { "name": "web-test", "run": "pnpm test --run", "cwd": "apps/web" }
+    {
+      "name": "fmt",
+      "run": "cargo fmt --all -- --check"
+    },
+    {
+      "name": "clippy",
+      "run": "cargo clippy --all-targets --all-features -- -D warnings"
+    },
+    {
+      "name": "cargo-test",
+      "run": "cargo test --all"
+    },
+    {
+      "name": "web-typecheck",
+      "run": "pnpm typecheck",
+      "cwd": "apps/web"
+    },
+    {
+      "name": "web-lint",
+      "run": "pnpm lint",
+      "cwd": "apps/web"
+    },
+    {
+      "name": "web-test",
+      "run": "pnpm test --run",
+      "cwd": "apps/web"
+    },
+    {
+      "name": "secrets",
+      "run": "gitleaks git --no-banner --redact --log-opts=\"origin/main..HEAD\""
+    }
   ],
   "workflow": {
-    "phases": ["spec", "plan", "backlog", "implement", "verify", "review", "integrate"],
+    "phases": [
+      "spec",
+      "plan",
+      "backlog",
+      "implement",
+      "verify",
+      "review",
+      "integrate"
+    ],
     "custom": {},
     "requireSpec": true,
     "requireTdd": true,
-    "requireReview": true
+    "requireReview": true,
+    "baselineOnStart": true
   },
   "docs": {
     "specs": "docs/specs",
     "plans": "docs/plans"
   },
-  "conventions": ["docs/conventions.md"]
+  "conventions": [
+    "docs/conventions.md"
+  ],
+  "hooks": {
+    "factGate": false
+  }
 }

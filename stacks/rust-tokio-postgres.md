@@ -1,7 +1,8 @@
 # Rust + tokio-postgres guide
 
-Read together with `rust.md`. Covers `tokio-postgres` with a pool (`deadpool-postgres` or
-`bb8-postgres`).
+Read together with `rust.md` and `postgres.md` (schema, indexing, migrations, RLS). Covers
+`tokio-postgres` with a pool (`deadpool-postgres` or `bb8-postgres`). Project conventions
+override this.
 
 ## Connections
 
@@ -29,8 +30,7 @@ Read together with `rust.md`. Covers `tokio-postgres` with a pool (`deadpool-pos
 - Types: `uuid::Uuid` (feature `with-uuid-1`), `time`/`chrono` for `timestamptz` (pick one
   per project), `serde_json::Value` for `jsonb`, `rust_decimal` for money. **Never `f64` for
   money.**
-- Lists are paginated: keyset (`WHERE (created_at, id) < ($1, $2) ORDER BY ... LIMIT $3`) for
-  large or append-heavy tables, offset for small admin lists.
+- Lists are paginated (keyset or offset, see `postgres.md`). Bind the limit as `i64`.
 - Bulk inserts: `UNNEST($1::uuid[], $2::text[])` or `COPY ... FROM STDIN BINARY`, not N
   round trips.
 
@@ -52,24 +52,34 @@ Map `tokio_postgres::Error` via `err.code()` (`SqlState`) into domain errors:
 `SERIALIZATION_FAILURE` -> retry (bounded) or `Conflict`. Everything else is an internal error,
 logged with context and never returned to the client verbatim.
 
-## Schema and migrations
+## Tenant context (RLS)
+
+When the schema uses Row-Level Security keyed on a setting (see `postgres.md`), set it inside the
+transaction, never on the session, because pooled connections are reused:
+
+```rust
+let tx = client.transaction().await?;
+// org_ids_text is an array literal built from the principal, e.g. "{<uuid>,<uuid>}"
+tx.execute("SELECT set_config('app.org_ids', $1, true)", &[&org_ids_text]).await?;
+// ... scoped queries on `tx` ...
+tx.commit().await?;
+```
+
+Do this in one helper that every request-scoped repository call goes through.
+
+## Migrations
 
 - Versioned SQL migrations (`refinery`, `sqlx-cli` used only for migrations, or the project's
-  tool), run on deploy and in CI. Forward-only. A fix is a new migration.
-- Constraints live in the database: `NOT NULL`, `CHECK`, `UNIQUE`, foreign keys. Application
-  validation is not a substitute.
-- Index every foreign key and every column used in frequent filters. Check plans with
-  `EXPLAIN (ANALYZE, BUFFERS)` for new hot queries.
-- `timestamptz` for timestamps, UUIDs (v7 if available) or `bigint generated always as
-  identity` for IDs. Pick one convention per project.
-- Multi-tenant data (e.g. per local organization): the tenant column is on every scoped table,
-  and every scoped query filters on it. Consider Row-Level Security as a second line of
-  defense.
+  tool), embedded or run on deploy and in CI. The rules for writing them are in `postgres.md`.
+- `CREATE INDEX CONCURRENTLY` can't run in a transaction. Check how the tool runs each
+  migration and put such statements where it won't wrap them in one.
+- Run migrations with the owner role and the application with the restricted app role.
 
 ## Testing
 
 - Integration tests run against **real Postgres** (testcontainers-rs, or a CI service
-  container), with migrations applied.
+  container), with migrations applied, connected as the application role (not a superuser,
+  which bypasses RLS and hides missing grants).
 - Isolate tests: a transaction per test that is never committed, or a fresh schema/database
   per test.
 - Test constraint behavior (duplicates, FK violations) and permission-scoped queries, not

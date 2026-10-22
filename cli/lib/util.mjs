@@ -31,8 +31,10 @@ export function run(cmd, args, { cwd, input, allowFail = false, inherit = false 
 }
 
 /** Run a shell command line (used for project-defined validation commands). */
-export function runShell(line, { cwd } = {}) {
-  const res = spawnSync(line, { cwd, shell: true, stdio: 'inherit' });
+export function runShell(line, { cwd, stdout = 'inherit' } = {}) {
+  // stdout: 'stderr' keeps step output off our stdout so --json output stays parseable.
+  const out = stdout === 'stderr' ? process.stderr.fd : 'inherit';
+  const res = spawnSync(line, { cwd, shell: true, stdio: ['inherit', out, 'inherit'] });
   return res.status ?? 1;
 }
 

@@ -53,6 +53,17 @@ export function rankClaimable(tasks, labels, openNumbers) {
     .sort((a, b) => a.priority - b.priority || a.number - b.number);
 }
 
+/**
+ * Blocked tasks that can go back to ready: they declare dependencies and all of them are closed.
+ * Tasks blocked for other reasons (no declared dependencies) are left alone.
+ */
+export function unblockable(blockedTasks, openNumbers) {
+  return blockedTasks.filter((t) => {
+    const deps = parseDependencies(t.body);
+    return deps.length > 0 && deps.every((d) => !openNumbers.has(d));
+  });
+}
+
 // --- Claim protocol -------------------------------------------------------
 // GitHub has no atomic compare-and-set on issues, so a claim is a marker comment.
 // The earliest claim posted after the most recent release wins; losers roll back.

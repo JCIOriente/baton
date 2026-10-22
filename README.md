@@ -4,70 +4,85 @@ A Claude Code plugin with one opinionated, configurable workflow for humans and 
 working on the same codebase:
 
 ```
-spec -> plan -> backlog -> implement -> verify -> review -> integrate
+spec -> plan -> backlog -> implement -> verify -> review -> integrate (-> retro)
 ```
 
-It has no unrelated skills and no connectors. Stack guidance (TypeScript, React, Node, Rust,
-tokio-postgres) loads only in repos that enable it.
+A task is like a baton: exactly one holder at a time, handed off explicitly. The plugin has
+no unrelated skills and no connectors. Stack guides and reviewers load only in repos that
+enable them.
 
 ## Install
 
 ```bash
-# from a local checkout
-claude plugin marketplace add /path/to/baton
+claude plugin marketplace add <path-or-git-url-of-this-repo>
 claude plugin install baton@veloud
 ```
 
-Requirements: Node >= 20, `git`, and `gh` (authenticated) for backlog commands.
+Requirements: Node >= 20, `git`, and `gh` (authenticated) for backlog commands. The suggested
+`secrets` validation step uses [gitleaks](https://github.com/gitleaks/gitleaks).
 
 ## Use in a project
 
 ```
-/baton:init                 # creates .baton/config.json (detects stacks), reviews it with you
-/baton:spec <topic>         # idea -> approved spec in docs/specs/
-/baton:plan                 # spec -> parallelizable tasks in docs/plans/
+/baton:init                 # .baton/config.json: detects stacks, reviews setup/validation/gates with you
+/baton:spec <topic>         # idea -> approved spec (+ ADRs, CONTEXT.md glossary)
+/baton:plan                 # spec -> parallelizable tasks with file ownership, contract and impact
 /baton:backlog              # plan -> GitHub issues with deps and priorities
-/baton:implement 42         # claim #42, isolated worktree, test-first
-/baton:verify               # run the project's validation, evidence before claims
-/baton:review               # fresh-context review against spec + stack guides
-/baton:integrate            # rebase, re-verify, PR, merge per policy, cleanup
-/baton:parallel             # run several independent tasks at once
+/baton:implement 42         # claim #42, isolated worktree, setup + baseline, test-first
+/baton:verify               # project validation, evidence before claims
+/baton:review               # spec compliance gate, then parallel per-angle reviewers
+/baton:integrate            # rebase, re-verify, PR, merge per policy, unblock, retro
+/baton:parallel             # controller for several tasks at once (implementer subagents)
 /baton:debug                # root cause before fixes
+/baton:retro                # lessons -> conventions/ADRs via reviewed PRs
 ```
 
 `baton:workflow` is the router. When a session starts in a configured repo, a hook tells
-Claude to load it, along with the repo's phases, gates, stack guide paths and validation
-commands.
+Claude to load it, along with the repo's phases, gates, guide paths and validation commands.
 
 ## Architecture
 
 | Concern | Where it lives |
 |---|---|
 | Shared task state (ownership, status, deps, history) | GitHub Issues: labels, assignees, `Depends on: #N`, claim marker comments |
-| Local execution | one git worktree + branch per task (`../<repo>-worktrees/task-<n>-<slug>`); no shared mutable local files |
-| Integration | `baton verify` (project-defined commands) -> `baton done` (PR `Closes #N`) -> review gate -> merge policy |
+| Local execution | One git worktree + branch per task (`../<repo>-worktrees/task-<n>-<slug>`), `setup` and a baseline run on start. No shared mutable local files |
+| Integration | `baton verify` (project-defined commands) -> review (spec compliance, then quality angles) -> `baton done` (PR `Closes #N`) -> merge policy |
+| Learning | `baton:retro` turns review and verification evidence into convention/ADR changes, reviewed like code. Nothing is learned privately |
 | Workflow definition | `.baton/config.json` in each project, falling back to defaults |
-| Judgment (when/why) | `skills/*/SKILL.md` |
+| Judgment (when and why) | `skills/*/SKILL.md` |
 | Mechanics (how, the same way every time) | `baton` CLI (`cli/`, zero dependencies, on PATH via `bin/`) |
+| Coding rules | `stacks/*.md`, opt-in per project. `common.md` always applies |
+| Review angles | `reviewers/*.md`, chosen by `baton reviewers` from the enabled stacks |
 
 **Claims:** GitHub has no atomic compare-and-set, so `baton claim` posts a marker comment,
 re-reads the thread, and the earliest claim since the last release wins. The loser rolls
 back automatically. Markers count only when the comment author matches the claimed user.
 
-**Cross-tool:** all state and logic live in the CLI and in plain markdown, so a Codex/other-agent
-adapter only has to generate an `AGENTS.md` that points to the same skills and `baton` commands.
-Not built yet.
+**Fact gate (opt-in):** with `hooks.factGate`, the first edit of each file per session is
+refused once, until the agent states facts about it: importers, affected API, data, and the
+user's instruction. It's adapted from ECC's gateguard.
+
+**Cross-tool:** all state and logic live in the CLI and in plain markdown, so a
+Codex/other-agent adapter only has to generate an `AGENTS.md` that points to the same skills and
+`baton` commands. Not built yet.
+
+## Stacks and guides
+
+`typescript`, `javascript`, `react`, `node`, `rust`, `rust-tokio-postgres`, `postgres`,
+`api`, `openapi`, `i18n`, `e2e`, plus the always-on `common` baseline.
 
 ## Project config
 
 See [`templates/config.example.json`](templates/config.example.json). Key fields:
 
-- `stacks`: `typescript | javascript | react | node | rust | rust-tokio-postgres`
-- `validate`: `[{ name, run, cwd? }]`. All must pass before `baton done` opens a PR.
+- `stacks`: which guides and reviewers apply
+- `setup`: `[{ name, run, cwd? }]`, run in every new task worktree (e.g. dependency install)
+- `validate`: `[{ name, run, cwd? }]`. All must pass before `baton done` opens a PR
 - `workflow.phases`: reorder or drop built-in phases, or add your own with
-  `workflow.custom: { "<phase>": "docs/process/<phase>.md" }`.
-- `workflow.requireSpec | requireTdd | requireReview`: the gates.
-- `conventions`: project rule files that override the stack guides.
+  `workflow.custom: { "<phase>": "docs/process/<phase>.md" }`
+- `workflow.requireSpec | requireTdd | requireReview | baselineOnStart`: the gates
+- `hooks.factGate`: opt-in investigate-before-edit gate
+- `conventions`: project rule files that override the stack guides
 
 ## CLI
 
@@ -80,7 +95,10 @@ npm test                       # node:test, no dependencies
 claude plugin validate .
 ```
 
+Changes to skills follow `.claude/skills/writing-skills` (red/green scenarios with fresh
+subagents).
+
 ## Credits
 
-The spec, plan, debug, verify and review skills adapt ideas from
-[obra/superpowers](https://github.com/obra/superpowers) (MIT).
+Adapted from [obra/superpowers](https://github.com/obra/superpowers) and
+[affaan-m/ECC](https://github.com/affaan-m/ECC), both MIT. See [NOTICE](NOTICE) for details.

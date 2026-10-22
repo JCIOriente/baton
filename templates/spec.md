@@ -19,6 +19,10 @@ Who has what problem, and why it matters now. 2-5 sentences.
 |---|---|---|
 | | | |
 
+## Tenancy & localization
+Whose data is visible to whom (organization/nation scoping). Locales, time zones and
+currencies the feature must handle. Write "n/a" only if truly not applicable.
+
 ## Domain model
 Entities, key fields, relationships, ownership, lifecycle/states, invariants.
 
@@ -33,6 +37,9 @@ Schema changes, backfills, compatibility.
 
 ## Testing strategy
 What proves this works: unit, integration (real DB), e2e. Includes permission-denial cases.
+
+## Decisions
+ADRs created or relied on (docs/adr/...), and new terms added to CONTEXT.md.
 
 ## Open questions
 None at approval time. Resolve them or move them to non-goals.

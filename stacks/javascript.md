@@ -11,7 +11,8 @@ unless the project decided otherwise.
 - Validate external input at the boundary (schema library), same as in TypeScript.
 - Errors: throw `Error` instances with `cause`. Never throw strings. Never swallow errors silently.
 - Async: `async`/`await`, no floating promises, `Promise.all` for independent work.
-- No mutation of function arguments. Return new objects/arrays.
+- Don't mutate arguments or shared state. Local mutation inside a function is fine.
 - Avoid clever one-liners. Optimize for the next reader.
+- The TypeScript guide's Security and Dates and locale sections apply to JavaScript too.
 - Node built-ins via the `node:` prefix (`import { readFile } from 'node:fs/promises'`).
 - Tests with the project's runner (`node:test` for zero-dependency tooling).

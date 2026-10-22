@@ -1,13 +1,14 @@
 ---
 name: parallel
-description: Use when several ready backlog tasks could be worked at the same time, by subagents in this session or by separate agent sessions or developers. Picks independent tasks, gives each an isolated worktree and a self-contained brief, and gathers the results.
+description: Use when several ready backlog tasks could be worked at the same time, by subagents in this session or by separate agent sessions or developers, or when asked to "run the backlog", "work on several tasks" or "speed this up".
 argument-hint: "[max tasks]"
 ---
 
 # Parallel execution
 
-Parallel work only pays off when tasks really are independent. Coordination happens through
-the task provider and git, never through shared local files.
+You are the **controller**. Implementers and reviewers are fresh subagents. You prepare their
+context, answer their questions, verify their claims, and integrate. Coordination happens
+through the task provider and git, never through shared local files.
 
 ## 1. Pick a safe set
 
@@ -15,40 +16,63 @@ the task provider and git, never through shared local files.
 baton next --limit 10 --json
 ```
 
-From the candidates, choose tasks that:
-- have no dependency on each other (directly or through another open task)
-- **don't own the same files** (check the `Owns:` lines; overlap means serialize them)
-- don't all need the same shared migration or schema change
+Choose tasks that:
+- don't depend on each other (directly, or through another open task)
+- **don't own the same files** (compare the `Owns:` lines; any overlap means run them one after the other)
+- don't all need the same migration or shared-schema change
 
-If in doubt, run fewer. Two clean parallel tasks are better than four that conflict at
+When in doubt, run fewer. Two clean parallel tasks are better than four that conflict at
 integration.
 
-## 2. Dispatch
+## 2. Claim and prepare, from this session
 
-For each task, run `baton start <n>` **from this session** (so the claim and worktree exist
-before any agent starts), then give each subagent a self-contained brief:
+For each task: `baton start <n> --json`. This claims the task, creates the worktree, runs setup and
+records a baseline. Do this before dispatching, so ownership is on GitHub before any agent
+starts. If the baseline shows failures that already existed, tell the implementer they are
+pre-existing.
 
-- the worktree path, with an instruction to work only there
-- the task number, with an instruction to read it with `baton show <n>` and follow `baton:implement` then `baton:verify`
-- the stack guide paths from the `<baton>` block
-- explicit limits: no edits outside owned files, no `baton done`, no merges, no claiming other tasks
-- the expected report: commits made, validation output, acceptance criteria -> proof, open questions
+## 3. Dispatch implementers
 
-For separate sessions or developers, the same brief is simply "`baton start <n>`, then follow
-the workflow". The issue and the docs carry all the context.
+Fill `${CLAUDE_PLUGIN_ROOT}/templates/implementer-brief.md` for each task and dispatch them
+**in one message**. Paste the full task text, the relevant spec excerpt and the guide paths
+into the brief. Don't send the implementer to go and read the plan.
 
-## 3. Gather the results
+**Model choice:** use the cheapest model that can do the job.
+- Mechanical tasks (1-2 files, complete spec): a fast model.
+- Tasks that integrate across several files: a standard model.
+- Design judgment, debugging, and all reviewers: the most capable model.
 
-When each agent reports back:
-1. Don't trust the report as is. In its worktree, run `baton verify` yourself and look at the diff.
-2. Review with `baton:review` (fresh context).
-3. Integrate **one at a time** via `baton:integrate`. Each later task rebases on the earlier
-   merges and re-verifies.
+## 4. Handle implementer status
+
+Each implementer ends with one status:
+
+| Status | Your action |
+|---|---|
+| `DONE` | Go to review (step 5) |
+| `DONE_WITH_CONCERNS` | Read the concerns. If they're about correctness or scope, resolve them before review. If they're only notes, record them and review |
+| `NEEDS_CONTEXT` | Provide what's missing, then re-dispatch |
+| `BLOCKED` | Change something: more context, a more capable model, or split the task. If the plan is wrong, escalate to the user. Never re-dispatch unchanged |
+
+Questions from an implementer get complete answers before it continues.
+
+## 5. Verify and review each task
+
+Never relay an implementer's "tests pass" as a fact.
+1. In its worktree, run `baton verify` yourself and read the diff.
+2. Run `baton:review`: spec compliance first, then the quality angles in parallel. Findings
+   go back to the **same implementer** to fix, followed by a re-review. Don't fix it yourself
+   in the controller context.
+
+## 6. Integrate one at a time
+
+Use `baton:integrate` for each approved task. Each later task rebases on the earlier merges
+and re-verifies. If two tasks turn out to conflict, integrate the higher-priority one first;
+the other rebases and adapts.
 
 ## Failure handling
 
-- If an agent got stuck or went out of bounds, don't merge partial work. Either finish it in its
-  worktree or `baton release <n>` and discard the worktree (`baton worktree remove <n> --force`
-  only after showing the user what would be lost).
-- If two tasks turn out to conflict, integrate the higher-priority one first. The other
-  rebases and adapts.
+- An implementer went out of bounds or produced unusable work: don't merge partial work.
+  Re-dispatch with a corrected brief, or `baton release <n>` and remove the worktree. Use
+  `baton worktree remove <n> --force` only after showing the user what would be lost.
+- Separate sessions or developers don't need any of this machinery. For them the instruction is
+  "`baton start <n>`, then follow the workflow". The issue and the committed docs carry the context.

@@ -6,9 +6,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR } from './lib/config.mjs';
+import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, reviewersFor } from './lib/config.mjs';
 import { buildContext } from './lib/context.mjs';
-import { detectStacks, suggestValidate } from './lib/detect.mjs';
+import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
 import {
   branchName,
   currentBranch,
@@ -21,7 +21,7 @@ import {
   worktreeBase,
 } from './lib/git.mjs';
 import { getProvider } from './lib/providers/github.mjs';
-import { labelNames, parseDependencies, rankClaimable, statusOf } from './lib/tasks.mjs';
+import { labelNames, parseDependencies, rankClaimable, statusOf, unblockable } from './lib/tasks.mjs';
 import { BatonError, print, runShell } from './lib/util.mjs';
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,16 +40,18 @@ Backlog
   show <n>                         Task details with dependency state
   create --title T [--body B | --body-file F] [--priority 0-3] [--depends-on 1,2] [--ready]
   status-set <n> <status>          Move a task to ready|in-progress|review|blocked
+  unblock [--dry-run]              Move blocked tasks whose dependencies are all closed back to ready
 
 Execution
   claim <n>                        Claim a task (race-safe)
   release <n> [--reason R]         Give a task back
-  start <n>                        Claim + create an isolated worktree and branch; prints its path
+  start <n> [--no-baseline]        Claim + worktree + branch, run setup, then a baseline validation
   worktree list | remove <n> [--force] | prune
   status                           Local worktrees and the tasks they belong to
 
 Integration
   verify [--only NAME]             Run the project's validation commands in the current checkout
+  reviewers                        Reviewer briefs to dispatch for this repo (spec compliance first)
   done [--draft]                   Verify, push and open a PR for the current task, mark it review
 
 Add --json to any read command for machine-readable output.`;
@@ -64,6 +66,8 @@ const commands = {
   show,
   create,
   'status-set': statusSet,
+  unblock,
+  reviewers,
   claim,
   release,
   start,
@@ -118,13 +122,16 @@ function init(argv) {
     throw new BatonError(`${relative(root, path)} already exists`, { hint: 'Use --force to overwrite.' });
   }
   const detected = detectStacks(root);
+  const baseBranch = detectBaseBranch(root);
   const config = {
     project: root.split('/').pop(),
     stacks: detected.stacks,
     tasks: { provider: 'github', repo: null },
-    git: { baseBranch: detectBaseBranch(root), branchPrefix: DEFAULT_CONFIG.git.branchPrefix, worktreeRoot: DEFAULT_CONFIG.git.worktreeRoot, mergeStrategy: 'squash' },
-    validate: suggestValidate(detected),
+    git: { baseBranch, branchPrefix: DEFAULT_CONFIG.git.branchPrefix, worktreeRoot: DEFAULT_CONFIG.git.worktreeRoot, mergeStrategy: 'squash' },
+    setup: suggestSetup(detected),
+    validate: suggestValidate(detected, { remote: DEFAULT_CONFIG.git.remote, baseBranch }),
     workflow: DEFAULT_CONFIG.workflow,
+    hooks: DEFAULT_CONFIG.hooks,
     docs: DEFAULT_CONFIG.docs,
     conventions: [],
   };
@@ -254,6 +261,26 @@ function statusSet(argv) {
   print(`#${n} -> ${positionals[1]}`);
 }
 
+function unblock(argv) {
+  const { values } = opts(argv, { 'dry-run': { type: 'boolean' } });
+  const { root, config } = requireConfig();
+  const provider = getProvider(config, root);
+  const candidates = unblockable(provider.list({ label: config.tasks.labels.blocked }), provider.openNumbers());
+  if (!values['dry-run']) for (const t of candidates) provider.setStatus(t.number, 'ready');
+  const rows = candidates.map((t) => ({ number: t.number, title: t.title }));
+  if (values.json) return print(rows);
+  const verb = values['dry-run'] ? 'Would unblock' : 'Unblocked';
+  print(rows.length ? rows.map((t) => `${verb} #${t.number} ${t.title}`).join('\n') : 'Nothing to unblock.');
+}
+
+function reviewers(argv) {
+  const { values } = opts(argv);
+  const { config } = requireConfig();
+  const rows = reviewersFor(config).map((name) => ({ name, brief: join(PLUGIN_ROOT, 'reviewers', `${name}.md`) }));
+  if (values.json) return print(rows);
+  print(rows.map((r) => `${r.name.padEnd(16)} ${r.brief}`).join('\n'));
+}
+
 // --- Execution ------------------------------------------------------------
 
 function claim(argv) {
@@ -285,13 +312,27 @@ function release(argv) {
 }
 
 function start(argv) {
-  const { values, positionals } = opts(argv, { force: { type: 'boolean' } });
+  const { values, positionals } = opts(argv, { force: { type: 'boolean' }, 'no-baseline': { type: 'boolean' } });
   const { root, config } = requireConfig();
   const n = issueArg(positionals);
   const res = claimTask(getProvider(config, root), n, values.force);
   const path = createWorktree(root, config, n, res.task.title);
-  if (values.json) return print({ number: n, path, branch: currentBranch(path) });
-  print(`Task #${n} ready in ${path}\nbranch: ${currentBranch(path)}\nNext: work only inside that directory.`);
+
+  const setup = runSteps(config.setup, path, 'setup');
+  if (!setup.ok) {
+    throw new BatonError(`Setup failed in ${path}`, { hint: 'Fix the setup step (see output above), then rerun `baton start`. The claim and worktree are kept.' });
+  }
+  const baseline = config.workflow.baselineOnStart && !values['no-baseline'] ? runSteps(config.validate, path, 'baseline') : null;
+
+  const branch = currentBranch(path);
+  if (values.json) return print({ number: n, path, branch, baseline: baseline && { ok: baseline.ok, results: baseline.results } });
+  const lines = [`Task #${n} ready in ${path}`, `branch: ${branch}`];
+  if (baseline && !baseline.ok) {
+    const failed = baseline.results.at(-1);
+    lines.push(`baseline: '${failed.name}' ALREADY FAILS before any change. Report it; don't count it against this task or "fix" it silently.`);
+  } else if (baseline) lines.push('baseline: validation passes before any change.');
+  lines.push('Next: work only inside that directory.');
+  print(lines.join('\n'));
 }
 
 function createWorktree(root, config, n, title) {
@@ -349,17 +390,13 @@ function status(argv) {
 
 // --- Integration ----------------------------------------------------------
 
-function runValidation(config, top, only) {
-  const steps = config.validate.filter((v) => !only || v.name === only);
-  if (!steps.length) {
-    print(only ? `No validation step named '${only}'.` : 'No validation commands configured (.baton/config.json "validate").');
-    return { ok: !only, results: [] };
-  }
+/** Run configured steps ({ name, run, cwd? }) in order, stopping at the first failure. Output goes to stderr. */
+function runSteps(steps, top, label) {
   const results = [];
   for (const step of steps) {
     const name = step.name ?? step.run;
-    process.stderr.write(`\n▶ ${name}: ${step.run}\n`);
-    const code = runShell(step.run, { cwd: step.cwd ? join(top, step.cwd) : top });
+    process.stderr.write(`\n▶ [${label}] ${name}: ${step.run}\n`);
+    const code = runShell(step.run, { cwd: step.cwd ? join(top, step.cwd) : top, stdout: 'stderr' });
     results.push({ name, run: step.run, code });
     if (code !== 0) {
       process.stderr.write(`✖ ${name} failed (exit ${code})\n`);
@@ -368,6 +405,15 @@ function runValidation(config, top, only) {
     process.stderr.write(`✔ ${name}\n`);
   }
   return { ok: true, results };
+}
+
+function runValidation(config, top, only) {
+  const steps = config.validate.filter((v) => !only || v.name === only);
+  if (!steps.length) {
+    process.stderr.write(only ? `No validation step named '${only}'.\n` : 'No validation commands configured (.baton/config.json "validate").\n');
+    return { ok: !only, results: [] };
+  }
+  return runSteps(steps, top, 'verify');
 }
 
 function verify(argv) {

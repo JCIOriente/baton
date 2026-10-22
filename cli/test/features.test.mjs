@@ -1,0 +1,58 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DEFAULT_CONFIG, reviewersFor } from '../lib/config.mjs';
+import { detectStacks, suggestSetup, suggestValidate } from '../lib/detect.mjs';
+import { unblockable } from '../lib/tasks.mjs';
+import { deepMerge } from '../lib/util.mjs';
+import { classify, questions } from '../../hooks/fact-gate.mjs';
+
+test('unblockable: only blocked tasks whose declared deps are all closed', () => {
+  const tasks = [
+    { number: 1, body: 'Depends on: #10' },
+    { number: 2, body: 'Depends on: #10, #11' },
+    { number: 3, body: 'blocked waiting on a product decision' },
+  ];
+  assert.deepEqual(unblockable(tasks, new Set([11])).map((t) => t.number), [1]);
+});
+
+test('reviewersFor: spec compliance first, general reviewers always, stack reviewers deduplicated', () => {
+  const none = reviewersFor(DEFAULT_CONFIG);
+  assert.equal(none[0], 'spec-compliance');
+  assert.ok(['code-quality', 'security', 'tests', 'silent-failures'].every((r) => none.includes(r)));
+  const full = reviewersFor(deepMerge(DEFAULT_CONFIG, { stacks: ['react', 'typescript', 'rust-tokio-postgres'] }));
+  for (const r of ['react', 'typescript', 'types', 'rust', 'postgres']) assert.ok(full.includes(r), r);
+  assert.equal(full.length, new Set(full).size);
+});
+
+test('detectStacks: monorepo with React app, Rust API on tokio-postgres, Playwright and i18n', () => {
+  const root = mkdtempSync(join(tmpdir(), 'baton-detect-'));
+  mkdirSync(join(root, 'apps/web'), { recursive: true });
+  mkdirSync(join(root, 'crates/api'), { recursive: true });
+  writeFileSync(join(root, 'apps/web/package.json'), JSON.stringify({ dependencies: { react: '19', 'react-intl': '7' }, devDependencies: { typescript: '5', '@playwright/test': '1' } }));
+  writeFileSync(join(root, 'crates/api/Cargo.toml'), '[dependencies]\naxum = "0.8"\ntokio-postgres = "0.7"\n');
+  writeFileSync(join(root, 'pnpm-lock.yaml'), '');
+  const d = detectStacks(root);
+  for (const s of ['typescript', 'react', 'e2e', 'i18n', 'rust', 'rust-tokio-postgres', 'postgres', 'api']) assert.ok(d.stacks.includes(s), s);
+  assert.ok(!d.stacks.includes('javascript'));
+  assert.equal(d.packageManager, 'pnpm');
+  assert.deepEqual(suggestSetup(d), [{ name: 'install', run: 'pnpm install --frozen-lockfile' }]);
+  const v = suggestValidate(d, { remote: 'origin', baseBranch: 'develop' });
+  assert.equal(new Set(v.map((x) => x.name)).size, v.length, 'validation step names are unique');
+  assert.match(v.at(-1).run, /origin\/develop\.\.HEAD/);
+});
+
+test('fact gate: classifies targets and always asks for the user instruction', () => {
+  assert.equal(classify('skills/spec/SKILL.md'), 'instruction');
+  assert.equal(classify('apps/web/src/org.test.tsx'), 'test');
+  assert.equal(classify('crates/api/tests/orgs.rs'), 'test');
+  assert.equal(classify('migrations/0003_orgs.sql'), 'migration');
+  assert.equal(classify('.env.local'), 'config');
+  assert.equal(classify('docs/specs/x.md'), 'prose');
+  assert.equal(classify('crates/api/src/orgs.rs'), 'code');
+  for (const kind of ['code', 'test', 'migration', 'config', 'prose', 'instruction']) {
+    assert.match(questions(kind, false, 'f').at(-1), /verbatim/);
+  }
+});

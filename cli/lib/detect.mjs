@@ -45,6 +45,8 @@ export function detectStacks(root) {
     if (deps.typescript || existsSync(join(p, '..', 'tsconfig.json'))) stacks.add('typescript');
     if (deps.react) stacks.add('react');
     if (!deps.react || deps.express || deps.fastify || deps.hono || deps['@nestjs/core']) stacks.add('node');
+    if (deps['@playwright/test']) stacks.add('e2e');
+    if (deps['react-intl'] || deps.i18next || deps['@formatjs/intl'] || deps['@lingui/core']) stacks.add('i18n');
   }
   if (stacks.has('typescript')) stacks.delete('javascript');
 
@@ -55,14 +57,27 @@ export function detectStacks(root) {
 
   for (const p of manifests(root, 'Cargo.toml')) {
     stacks.add('rust');
-    if (/^\s*tokio-postgres\s*=/m.test(read(p))) stacks.add('rust-tokio-postgres');
+    const cargo = read(p);
+    if (/^\s*tokio-postgres\s*=/m.test(cargo)) stacks.add('rust-tokio-postgres').add('postgres');
+    if (/^\s*(fluent|fluent-bundle|icu|icu_\w+)\s*=/m.test(cargo)) stacks.add('i18n');
+    if (/^\s*(axum|actix-web|poem|rocket)\s*=/m.test(cargo)) stacks.add('api');
+  }
+  if (['openapi.yaml', 'openapi.yml', 'openapi.json'].some((f) => existsSync(join(root, f)) || existsSync(join(root, 'api', f)))) {
+    stacks.add('openapi').add('api');
   }
 
   return { stacks: [...stacks], packageManager };
 }
 
+/** Suggest per-worktree setup commands (worktrees don't share installed dependencies). */
+export function suggestSetup({ packageManager }) {
+  if (!packageManager) return [];
+  const install = { npm: 'npm ci', pnpm: 'pnpm install --frozen-lockfile', yarn: 'yarn install --immutable', bun: 'bun install --frozen-lockfile' }[packageManager];
+  return [{ name: 'install', run: install }];
+}
+
 /** Suggest validation commands for the detected stacks. The user is expected to review them. */
-export function suggestValidate({ stacks, packageManager }) {
+export function suggestValidate({ stacks, packageManager }, { remote = 'origin', baseBranch = 'main' } = {}) {
   const v = [];
   if (stacks.includes('rust') || stacks.includes('rust-tokio-postgres')) {
     v.push({ name: 'fmt', run: 'cargo fmt --all -- --check' });
@@ -75,5 +90,8 @@ export function suggestValidate({ stacks, packageManager }) {
     v.push({ name: 'lint', run: `${pm} lint` });
     v.push({ name: 'js-test', run: `${pm} test` });
   }
+  // Both target projects are public: refuse to ship secrets. Requires gitleaks on PATH.
+  // Scans only this branch's commits. Requires gitleaks >= 8.19 on PATH.
+  v.push({ name: 'secrets', run: `gitleaks git --no-banner --redact --log-opts="${remote}/${baseBranch}..HEAD"` });
   return v;
 }

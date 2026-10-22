@@ -53,9 +53,27 @@ Applies to all TypeScript code (frontend and backend). Project conventions overr
 - `Promise.all` for independent work. Sequential `await` in a loop only when order matters.
 - Pass `AbortSignal` through for cancellable work (fetch, long tasks).
 
+## Security
+
+- No `eval`, `new Function` or string arguments to `setTimeout`.
+- Untrusted objects are parsed with a schema before being merged or spread. Never
+  deep-merge raw input (prototype pollution). Use `Map` or `Object.create(null)` for
+  dictionaries keyed by user input, and `Object.hasOwn` to check keys.
+- Don't build regexes from user input without escaping, and keep regexes that run on user
+  input free of catastrophic backtracking.
+- Secrets never reach browser code. Anything bundled for the client is public.
+
+## Dates and locale
+
+Format dates, numbers and currency with `Intl` (or the project's i18n library), never by
+hand. Pass time zones explicitly. Don't depend on the machine's zone or locale. See the i18n
+guide.
+
 ## Testing
 
 - Vitest (or the project's runner). Test behavior through public APIs.
+- Control time with fake timers or an injected clock. Pin `TZ` in the test environment so
+  results don't depend on the machine.
 - Type-level tests (`expectTypeOf`) for non-trivial generic utilities.
 - No snapshot tests of large objects as the only assertion.
 

@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { currentBranch, currentTop, issueFromBranch } from './git.mjs';
+import { BASELINE_GUIDE } from './config.mjs';
 
 /**
  * Build the text injected at session start. Only the stacks and rules the project
@@ -29,7 +30,7 @@ export function buildContext({ root, found, config }, { pluginRoot, cwd = proces
 
   if (config.stacks.length) {
     lines.push('', 'Enabled stack guides. Read the relevant ones before writing or reviewing code in that stack:');
-    for (const s of config.stacks) lines.push(`- ${s}: ${join(pluginRoot, 'stacks', `${s}.md`)}`);
+    for (const s of [BASELINE_GUIDE, ...config.stacks]) lines.push(`- ${s}: ${join(pluginRoot, 'stacks', `${s}.md`)}`);
   }
   const conventions = config.conventions.map((c) => join(root, c)).filter((p) => existsSync(p));
   if (conventions.length) {

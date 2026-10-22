@@ -1,6 +1,6 @@
 ---
 name: integrate
-description: Use when a verified, reviewed task is ready to ship. Rebases on the base branch, re-verifies, opens the PR with baton done, merges according to project policy, and cleans up the worktree.
+description: Use when a task in a baton repo has passed verification and review and is ready to become a PR or be merged.
 argument-hint: "[task number]"
 ---
 
@@ -52,6 +52,12 @@ Merging with `Closes #N` closes the issue. Then clean up:
 baton worktree remove <n>     # refuses if uncommitted changes remain
 ```
 
-## 5. Report
+## 5. Unblock, learn, report
 
-Report the PR URL, merge commit, closed issue, and any tasks this unblocked (`baton next`).
+```bash
+baton unblock     # tasks waiting on this one become ready
+```
+
+Run `baton:retro` for the task, so that lessons from review and verification land in the repo.
+
+Report the PR URL, merge commit, closed issue, the tasks this unblocked, and any lessons proposed.

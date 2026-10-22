@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Use before building any new feature, module or behavior change in a baton repo. Turns an idea into an approved, committed spec through one-question-at-a-time dialogue. No code is written in this phase.
+description: Use before building a new feature, module or behavior change in a baton repo, when an idea or request is still ambiguous, or when the user asks to "design", "spec" or "think through" something.
 argument-hint: "[topic]"
 ---
 
@@ -20,12 +20,19 @@ lines. It still gets written and approved.
    before asking detail questions. Propose a split into sub-projects, each with its own
    spec -> plan -> implementation cycle and a build order. Then spec only the first one.
 3. **Ask clarifying questions one at a time.** Prefer multiple choice. Focus on purpose, users and
-   roles, constraints, success criteria and what is explicitly out of scope.
+   roles, constraints, success criteria and what is explicitly out of scope. Before presenting
+   a design, check that you know each of these. If not, it's the next question:
+   - scope (which modules/files), acceptance criteria, error and edge cases
+   - security: who may do what, what data is sensitive
+   - testing expectations, performance/volume, UI and accessibility needs
+   - data changes (schema, migrations), and existing patterns to follow
+   - audience: which locales, time zones, currencies, tenants (organizations) it must serve
 4. **Propose 2-3 approaches** with trade-offs. Lead with your recommendation and why.
 5. **Present the design in sections**, sized to their complexity. Get approval per section:
    - domain model and data (entities, ownership, lifecycle, invariants)
    - interfaces (API, UI flows, events)
    - authorization (who can do what; this feeds RBAC/permissions directly)
+   - tenancy and localization (whose data is visible to whom, and which locales/time zones it serves)
    - error handling and edge cases
    - testing strategy (what proves it works)
 6. **Write the spec** from `${CLAUDE_PLUGIN_ROOT}/templates/spec.md` to
@@ -33,8 +40,16 @@ lines. It still gets written and approved.
 7. **Self-review and fix inline:** look for placeholders ("TBD", "etc.", "handle errors
    appropriately"), sections that contradict each other, requirements with two readings
    (pick one and say which), and scope still too big for one plan.
-8. **Commit the spec** and ask the user to review the file. Iterate until they approve.
-9. **Hand off** to `baton:plan`.
+8. **Record decisions and vocabulary:**
+   - Every hard-to-reverse choice made along the way (framework, database, tenancy model, auth
+     approach) gets an ADR from `${CLAUDE_PLUGIN_ROOT}/templates/adr.md` in `docs/adr/`.
+     The spec links to it instead of re-arguing it.
+   - Domain terms that needed explaining, or that have more than one meaning, go in
+     `CONTEXT.md` at the repo root (template: `${CLAUDE_PLUGIN_ROOT}/templates/context.md`).
+     Use those terms consistently in the spec, the code and the issues.
+9. **Commit the spec** (with any ADRs and the glossary) and ask the user to review the file.
+   Iterate until they approve.
+10. **Hand off** to `baton:plan`.
 
 ## Design principles
 

@@ -7,6 +7,17 @@
 ## Overview
 How the spec is cut into tasks and why. Shared foundations first.
 
+## Contract
+API/contract changes this plan introduces, and the task that owns them (e.g. T1 updates
+`openapi.yaml`). Frontend and backend tasks depend on that task, not on each other.
+Write "none" if the plan has no contract changes.
+
+## Impact (risky changes only: schema, auth/permissions, public API, shared modules)
+- Affected call paths / consumers:
+- Data and migrations (expand -> migrate -> contract steps):
+- Tests and downstream checks that must stay green:
+- Rollout and rollback:
+
 ## Dependency graph
 ```
 T1 ──> T3 ──> T5
