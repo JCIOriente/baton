@@ -115,3 +115,26 @@ test('provenance: satisfies ranges, lockfile parsing, lint and consumer check', 
   const findings = factsVsInstalled(loadProvenance(pluginRoot), v);
   assert.deepEqual(findings.map((f) => `${f.pkg}@${f.installed}`).sort(), ['npm:@tanstack/query-core@5.96.2', 'npm:react@19.1.0']);
 });
+
+test('reviewersFor: workflow files and SQL in code keep reviewers; reviewerFocus scopes files', async () => {
+  const { reviewerFocus } = await import('../lib/config.mjs');
+  const config = deepMerge(DEFAULT_CONFIG, { stacks: ['react', 'typescript', 'rust-tokio-postgres', 'postgres'] });
+  assert.deepEqual(reviewersFor(config, ['.baton/config.json', 'README.md']), reviewersFor(config));
+  assert.deepEqual(reviewersFor(config, ['.github/workflows/ci.yml']), reviewersFor(config));
+  const sqlInTs = reviewersFor(config, ['apps/web/src/report.ts'], "+ const q = `SELECT id, name FROM orgs WHERE nation_id = $1`");
+  assert.ok(sqlInTs.includes('postgres') && !sqlInTs.includes('rust'));
+  assert.ok(!reviewersFor(config, ['apps/web/src/a.ts'], '+ const total = items.length').includes('postgres'));
+  const files = ['apps/web/src/a.tsx', 'crates/api/src/b.rs'];
+  assert.deepEqual(reviewerFocus(config, 'react', files), ['apps/web/src/a.tsx']);
+  assert.deepEqual(reviewerFocus(config, 'security', files), files);
+});
+
+test('reviewState: review must match HEAD exactly', async () => {
+  const { reviewState } = await import('../lib/tasks.mjs');
+  const head = 'abcdef1234567890abcdef1234567890abcdef12';
+  assert.ok(reviewState('## Reviews\nReviewed-at: abcdef1234\n', head).ok);
+  assert.ok(reviewState(`Reviewed-at: ${head}`, head).ok);
+  assert.match(reviewState('Reviewed-at: 1111111', head).reason, /commits were added after the review/);
+  assert.match(reviewState('## Reviews\nnone', head).reason, /no `Reviewed-at/);
+  assert.ok(!reviewState('Reviewed-at: <full sha>', head).ok);
+});

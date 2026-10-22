@@ -82,6 +82,8 @@ See [`templates/config.example.json`](templates/config.example.json). Key fields
 - `workflow.phases`: reorder or drop built-in phases, or add your own with
   `workflow.custom: { "<phase>": "docs/process/<phase>.md" }`
 - `workflow.requireSpec | requireTdd | requireReview | baselineOnStart`: the gates
+- `review.scopeToDiff`: off by default (every stack reviewer runs); on, a stack reviewer is
+  skipped only when the diff provably doesn't touch its stack
 - `hooks.factGate`: opt-in investigate-before-edit gate
 - `conventions`: project rule files that override the stack guides
 

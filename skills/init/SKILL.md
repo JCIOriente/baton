@@ -22,11 +22,17 @@ disable-model-invocation: true
      command really exists. Add a `cwd` for packages:
      `{ "name": "web-test", "run": "pnpm test", "cwd": "apps/web" }`. The suggested `secrets`
      step needs [gitleaks](https://github.com/gitleaks/gitleaks). For a public repo, keep it.
+     **Keep local and CI checks identical** by giving them one entry point: put the checks in a
+     single script (`make ci`, `just ci` or a `ci` package script), have `validate` run that
+     script, and have the CI workflow run the same script. Two separate lists drift apart.
      Modules that others depend on can add their own downstream checks here.
    - **workflow**: phases and gates (`requireSpec`, `requireTdd`, `requireReview`,
      `baselineOnStart`). For a project-specific phase, add it to `phases` and point
      `workflow.custom.<phase>` to an instructions file in the repo (e.g.
      `docs/process/security-audit.md`). Offer to draft that file.
+   - **review.scopeToDiff**: off by default, so every enabled stack's reviewer runs on every
+     change. Turning it on skips a stack reviewer only when the diff provably doesn't touch that
+     stack. Leave it off unless review cost becomes a problem.
    - **hooks.factGate**: opt-in. Before the first edit of each file in a session, the agent must
      state facts (importers, affected API, the user's instruction). It improves care on large
      codebases, but adds one round trip per file.

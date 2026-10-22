@@ -17,8 +17,11 @@ so never review your own diff in the same context you wrote it in.
 - Spec and plan paths linked from the task
 - Guide paths from the `<baton>` block
 - Reviewer briefs: `baton reviewers --json`. It lists `spec-compliance` first, then general
-  angles (code quality, security, tests, silent failures) and the stack reviewers whose files
-  this branch's diff touches. Skipped ones are listed. Use `--all` to include them anyway.
+  angles (code quality, security, tests, silent failures) and one per enabled stack, each with
+  the changed files it should focus on. Tell each reviewer its focus files, and that it may still
+  read anything else it needs. Every reviewer runs unless the project turned on
+  `review.scopeToDiff`, which skips a stack reviewer only when the diff provably doesn't touch
+  that stack.
 
 ## 2. Stage one: spec compliance (gate)
 
@@ -42,12 +45,15 @@ Then consolidate:
    Drop findings without a concrete failure scenario.
 3. Fix `blocker` and `major` findings, each with a test when it is a behavior bug. `minor`
    findings are fixed or listed in the PR description. Never ignore them silently.
-4. After fixes: `baton verify`, then **re-dispatch only the angles that had findings**. Repeat
-   until all approve.
+4. **Every change after a review gets reviewed.** After fixes: `baton verify`, then re-dispatch
+   the angles that had findings, plus spec compliance if a fix changed behavior. Repeat until all
+   approve.
 
-A task is reviewed when spec compliance and every quality angle report `APPROVE`. Record the
-consolidated outcome (angles run, findings fixed, minors deferred) in the **Reviews** section of
-the PR body (`baton:integrate`).
+A task is reviewed when spec compliance and every quality angle report `APPROVE` for the
+current commit. Record the consolidated outcome (angles run, findings fixed, minors deferred) in
+the **Reviews** section of the PR body (`baton:integrate`), ending with
+`Reviewed-at: <git rev-parse HEAD>`. `baton done` refuses a ready PR without it, or when
+commits were added after it. That is how "reviewers run after every change" is enforced.
 
 ## Built-in alternatives
 

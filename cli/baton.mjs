@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, reviewersFor } from './lib/config.mjs';
+import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, reviewerFocus, reviewersFor } from './lib/config.mjs';
 import { buildContext } from './lib/context.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
 import {
@@ -22,7 +22,7 @@ import {
 } from './lib/git.mjs';
 import { getProvider } from './lib/providers/github.mjs';
 import { factsVsInstalled, installedVersions, loadProvenance, upstreamFindings } from './lib/provenance.mjs';
-import { labelNames, parseDependencies, prBody, rankClaimable, statusOf, unblockable } from './lib/tasks.mjs';
+import { labelNames, parseDependencies, prBody, rankClaimable, reviewState, statusOf, unblockable } from './lib/tasks.mjs';
 import { BatonError, print, runShell } from './lib/util.mjs';
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -52,9 +52,10 @@ Execution
 
 Integration
   verify [--only NAME]             Run the project's validation commands in the current checkout
-  reviewers [--all]                Reviewer briefs for this branch's diff (spec compliance first)
-  done [--draft] [--title T] [--body-file F]
-                                   Verify, push and open a PR for the current task, mark it review
+  reviewers [--all]                Reviewer briefs to dispatch, with the changed files each should focus on
+  done [--draft] [--title T] [--body-file F] [--skip-review REASON]
+                                   Verify, push and open a PR for the current task, mark it review.
+                                   With requireReview, the body must hold `Reviewed-at: <HEAD sha>`
 
 Maintenance
   doctor                           This repo: config, tools on PATH, stacks not enabled, dependencies
@@ -286,22 +287,29 @@ function unblock(argv) {
 function reviewers(argv) {
   const { values } = opts(argv, { all: { type: 'boolean' } });
   const { config } = requireConfig();
-  const changed = values.all ? undefined : changedFiles(config);
-  const selected = reviewersFor(config, changed);
+  const diff = branchDiff(config);
+  const scoped = config.review.scopeToDiff && !values.all && diff;
+  const selected = reviewersFor(config, scoped ? diff.files : undefined, scoped ? diff.text : '');
   const skipped = reviewersFor(config).filter((r) => !selected.includes(r));
-  const rows = selected.map((name) => ({ name, brief: join(PLUGIN_ROOT, 'reviewers', `${name}.md`) }));
-  if (values.json) return print(values.all ? rows : { reviewers: rows, skipped });
+  const rows = selected.map((name) => ({
+    name,
+    brief: join(PLUGIN_ROOT, 'reviewers', `${name}.md`),
+    focus: diff ? reviewerFocus(config, name, diff.files) : undefined,
+  }));
+  if (values.json) return print({ reviewers: rows, skipped });
   const lines = rows.map((r) => `${r.name.padEnd(16)} ${r.brief}`);
-  if (skipped.length) lines.push(`(skipped, diff doesn't touch their files: ${skipped.join(', ')}; --all to include)`);
+  if (skipped.length) lines.push(`(skipped, the diff provably doesn't touch their stack: ${skipped.join(', ')}; --all to include)`);
   print(lines.join('\n'));
 }
 
-/** Files changed on this branch vs the base branch, or undefined if git can't tell (then nothing is skipped). */
-function changedFiles(config) {
+/** This branch's changes vs the base branch, or undefined if git can't tell (then nothing is skipped). */
+function branchDiff(config) {
   const { remote, baseBranch } = config.git;
   for (const base of [`${remote}/${baseBranch}`, baseBranch]) {
-    const res = git(['diff', '--name-only', `${base}...HEAD`], { allowFail: true });
-    if (res.code === 0) return res.stdout ? res.stdout.split('\n') : [];
+    const names = git(['diff', '--name-only', `${base}...HEAD`], { allowFail: true });
+    if (names.code !== 0) continue;
+    const text = git(['diff', '--unified=0', `${base}...HEAD`], { allowFail: true });
+    return { files: names.stdout ? names.stdout.split('\n') : [], text: text.code === 0 ? text.stdout : '' };
   }
   return undefined;
 }
@@ -450,12 +458,32 @@ function verify(argv) {
 }
 
 function done(argv) {
-  const { values } = opts(argv, { draft: { type: 'boolean' }, 'body-file': { type: 'string' }, title: { type: 'string' } });
+  const { values } = opts(argv, {
+    draft: { type: 'boolean' },
+    'body-file': { type: 'string' },
+    title: { type: 'string' },
+    'skip-review': { type: 'string' },
+  });
   const { root, config } = requireConfig();
   const top = currentTop();
   const n = currentTask(config);
-  const extra = values['body-file'] ? readFileSync(values['body-file'], 'utf8') : '';
+  let extra = values['body-file'] ? readFileSync(values['body-file'], 'utf8') : '';
   if (hasUncommittedChanges(top)) throw new BatonError('Uncommitted changes in this worktree', { hint: 'Commit your work before `baton done`.' });
+
+  // Review gate: a draft PR may precede review; a ready PR needs a review of exactly this commit,
+  // or an explicit, visible reason for skipping it.
+  if (config.workflow.requireReview && !values.draft) {
+    if (values['skip-review']) {
+      extra = `${extra.trim()}\n\n**Review skipped:** ${values['skip-review']}\n`;
+    } else {
+      const state = reviewState(extra, git(['rev-parse', 'HEAD'], { cwd: top }).stdout);
+      if (!state.ok) {
+        throw new BatonError(`Not reviewed: ${state.reason}`, {
+          hint: 'Run baton:review on the current HEAD, put `Reviewed-at: <sha>` in the Reviews section of --body-file, or pass --draft / --skip-review "<reason>".',
+        });
+      }
+    }
+  }
 
   const res = runValidation(config, top);
   if (!res.ok) throw new BatonError('Validation failed; not opening a PR.');

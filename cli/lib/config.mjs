@@ -71,6 +71,11 @@ export const DEFAULT_CONFIG = {
     // Run validation right after `baton start` so failures that predate the task are known.
     baselineOnStart: true,
   },
+  review: {
+    // Off by default: every enabled stack's reviewer runs on every change. On: skip a stack
+    // reviewer only when the diff provably doesn't touch that stack (see reviewersFor).
+    scopeToDiff: false,
+  },
   hooks: {
     // Opt-in: block the first edit of each file per session until the agent states facts about it.
     factGate: false,
@@ -154,18 +159,35 @@ export const STACK_PATHS = {
 };
 // Files no stack reviewer needs to see (docs, images, repo metadata).
 const NEUTRAL_FILES = /\.(md|mdx|txt|png|jpe?g|gif|svg|webp|ico)$|(^|\/)(LICENSE|NOTICE|\.gitignore|\.gitattributes)$/;
+// Changes to the workflow itself (config, agent setup, CI) never reduce review.
+const WORKFLOW_FILES = /(^|\/)(\.baton|\.claude|\.github)\//;
+// SQL written inside application code (strings in .ts/.rs files) still needs the Postgres review.
+const SQL_IN_CODE = /\b(SELECT\b[\s\S]{0,300}?\bFROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+(TABLE|INDEX|POLICY)|ALTER\s+TABLE)\b/i;
 
 /**
- * Reviewer briefs to dispatch, spec compliance first. With `changedFiles`, stack reviewers run
- * only for stacks the diff touches. A changed file that matches no stack and isn't neutral
- * keeps every stack reviewer (fail open), as does a missing file list.
+ * Reviewer briefs to dispatch, spec compliance first. Without `changedFiles` every reviewer for
+ * the enabled stacks runs (the default). With it, a stack reviewer is skipped only when the diff
+ * provably doesn't touch its stack: no file of that stack, no unclassified file, no change to
+ * the workflow files and, for Postgres, no SQL in the diff text.
  */
-export function reviewersFor(config, changedFiles) {
+export function reviewersFor(config, changedFiles, diffText = '') {
   const names = new Set(GENERAL_REVIEWERS);
   const unknown = changedFiles?.some((f) => !NEUTRAL_FILES.test(f) && !config.stacks.some((s) => STACK_PATHS[s]?.some((re) => re.test(f))));
+  const all = !changedFiles || unknown || changedFiles.some((f) => WORKFLOW_FILES.test(f));
   for (const s of config.stacks) {
-    const touched = !changedFiles || unknown || changedFiles.some((f) => STACK_PATHS[s]?.some((re) => re.test(f)) ?? true);
+    const touched =
+      all ||
+      changedFiles.some((f) => STACK_PATHS[s]?.some((re) => re.test(f)) ?? true) ||
+      (s === 'postgres' && SQL_IN_CODE.test(diffText));
     if (touched) for (const r of STACK_REVIEWERS[s] ?? []) names.add(r);
   }
   return ['spec-compliance', ...names];
+}
+
+/** Changed files each stack reviewer should focus on (all changed files for general reviewers). */
+export function reviewerFocus(config, name, changedFiles) {
+  const stacks = config.stacks.filter((s) => (STACK_REVIEWERS[s] ?? []).includes(name));
+  if (!changedFiles || !stacks.length) return changedFiles;
+  const mine = changedFiles.filter((f) => stacks.some((s) => STACK_PATHS[s]?.some((re) => re.test(f))));
+  return mine.length ? mine : changedFiles;
 }

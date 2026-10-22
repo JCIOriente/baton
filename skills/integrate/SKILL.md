@@ -32,7 +32,11 @@ baton done --draft ...   # when review is still needed before anyone should merg
 ```
 
 `baton done` requires a clean tree, re-runs validation, pushes, opens the PR with `Closes #N`,
-your sections and the validation results, and sets `status:review`. With squash merges the PR
+your sections and the validation results, and sets `status:review`. With `requireReview` on, a
+ready (non-draft) PR also needs `Reviewed-at: <HEAD sha>` in the body. If you rebased after the
+review, the SHA changed: re-run `baton verify`, confirm the rebase didn't change behavior (re-review
+if it did), and update the line. `--skip-review "<reason>"` exists for changes the user agreed need
+no review; the reason is shown in the PR. With squash merges the PR
 title becomes the commit message, so make it a Conventional Commit.
 
 `baton done` refuses to open a PR if validation fails. Never get around it by pushing and

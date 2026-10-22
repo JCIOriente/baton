@@ -71,6 +71,17 @@ export function prBody(number, extra, results) {
   return `Closes #${number}\n\n${middle}## Validation\n${validation}\n`;
 }
 
+/**
+ * Review gate for `baton done`: the PR body must record a review of exactly `head`
+ * (`Reviewed-at: <sha>`, 7+ hex chars). Any commit after the review makes it stale.
+ */
+export function reviewState(body, head) {
+  const m = (body ?? '').match(/^Reviewed-at:\s*([0-9a-f]{7,40})\s*$/im);
+  if (!m) return { ok: false, reason: 'no `Reviewed-at: <sha>` line in the PR body' };
+  if (!head.startsWith(m[1].toLowerCase())) return { ok: false, reason: `review recorded at ${m[1]}, but HEAD is ${head.slice(0, 12)}: commits were added after the review` };
+  return { ok: true };
+}
+
 // --- Claim protocol -------------------------------------------------------
 // GitHub has no atomic compare-and-set on issues, so a claim is a marker comment.
 // The earliest claim posted after the most recent release wins; losers roll back.
