@@ -1,7 +1,7 @@
 {
-  "name": "veloud",
-  "description": "Veloud engineering plugins",
-  "owner": { "name": "Arnold Gandarillas", "email": "arkgast@gmail.com" },
+  "name": "jcioriente",
+  "description": "JCI Oriente engineering plugins",
+  "owner": { "name": "JCI Oriente" },
   "plugins": [
     {
       "name": "baton",

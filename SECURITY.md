@@ -4,7 +4,7 @@ baton runs commands on your machine (its CLI, hooks, and the `setup`/`validate` 
 project configures), so security reports are welcome.
 
 Report vulnerabilities privately through
-[GitHub security advisories](https://github.com/arkgast/baton/security/advisories/new), not in
+[GitHub security advisories](https://github.com/JCIOriente/baton/security/advisories/new), not in
 public issues. Expect an acknowledgement within a week.
 
 In scope: the CLI, hooks, and anything in skills, reviewer briefs or guides that could lead an

@@ -3,6 +3,12 @@
 All notable changes. Versions follow [semver](https://semver.org); before 1.0, minor versions
 may change behavior.
 
+## Unreleased
+
+- Moved to [JCIOriente/baton](https://github.com/JCIOriente/baton) and renamed the marketplace
+  from `veloud` to `jcioriente`. Existing installs: `claude plugin marketplace add JCIOriente/baton`,
+  then `claude plugin install baton@jcioriente` (and uninstall `baton@veloud`).
+
 ## 0.1.0 — 2026-10-22
 
 First public release.

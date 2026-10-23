@@ -14,8 +14,8 @@ enable them.
 ## Install
 
 ```bash
-claude plugin marketplace add arkgast/baton
-claude plugin install baton@veloud
+claude plugin marketplace add JCIOriente/baton
+claude plugin install baton@jcioriente
 ```
 
 Pin a release for a project by installing from a tag (see [CHANGELOG](CHANGELOG.md)).
