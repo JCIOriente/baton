@@ -16,6 +16,3 @@ specs and issues. When a term is ambiguous or keeps needing explanation, add it 
 A spec has one plan doc. A plan doc becomes one plan issue with tasks as its sub-issues. A task has
 zero or more blockers, at most one holder (the assignee after a winning claim), and is done when a PR
 that closes it merges.
-
-## Decisions
-- [ADR-0001](docs/adr/0001-derive-task-status.md): derive task status from GitHub data.

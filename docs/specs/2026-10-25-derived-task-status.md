@@ -3,7 +3,7 @@
 - Status: draft
 - Date: 2026-10-25
 - Owner: Arnold Gandarillas
-- Related: [ADR-0001](../adr/0001-derive-task-status.md)
+- Related: none
 
 ## TL;DR
 - baton stops storing task status in labels. `ready`, `blocked`, `in-progress` and `review`
@@ -176,8 +176,7 @@ filled by `config.mjs` as today).
 - `make evals`: the trigger suite still passes after the `backlog` and `integrate` skill edits.
 
 ## Decisions
-- [ADR-0001](../adr/0001-derive-task-status.md): derive task status from GitHub data instead of
-  storing it.
+- No ADR: no other spec depends on how status is stored, so the reasoning lives in the FAQ below.
 - `CONTEXT.md` adds: task, triage, blocker, plan issue, claim.
 
 ## FAQ
@@ -189,6 +188,10 @@ top of this design without baton knowing about it.
 ### Why the assignee rather than the claim comment for in-progress?
 The claim comment would mean reading every issue's comments to build one list. The assignee comes
 back in the listing query, is visible in GitHub's UI and is written only by a winning claim.
+
+### What would make us revisit this?
+GitHub adding atomic issue updates, or teams needing workflow states that GitHub data cannot
+express (for example "in QA").
 
 ### Why keep priority labels?
 Priority is a decision people make and change on purpose. It cannot go stale the way "in progress"
