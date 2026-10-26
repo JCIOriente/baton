@@ -45,9 +45,10 @@ lines. It still gets written and approved.
    factual and brief, no promotional wording, concrete example first and the general rule
    second. The TL;DR and "change in a nutshell" must make sense to someone who reads nothing else.
 8. **Record decisions and vocabulary:**
-   - Every hard-to-reverse choice made along the way (framework, database, tenancy model, auth
+   - A choice that later specs will have to follow (framework, database, tenancy model, auth
      approach) gets an ADR from `${CLAUDE_PLUGIN_ROOT}/templates/adr.md` in `docs/adr/`.
-     The spec links to it instead of re-arguing it.
+     The spec links to it instead of re-arguing it. Being hard to reverse is not enough: if
+     only this spec depends on the choice, its reasoning goes in the spec's FAQ, not an ADR.
    - Domain terms that needed explaining, or that have more than one meaning, go in
      `CONTEXT.md` at the repo root (template: `${CLAUDE_PLUGIN_ROOT}/templates/context.md`).
      Use those terms consistently in the spec, the code and the issues.

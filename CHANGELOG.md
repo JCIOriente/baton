@@ -5,6 +5,8 @@ may change behavior.
 
 ## Unreleased
 
+- `baton:spec` and `baton:retro` write an ADR only for a choice later specs must follow. A choice
+  that is hard to reverse but local to one spec keeps its reasoning in the spec FAQ.
 - Moved to [JCIOriente/baton](https://github.com/JCIOriente/baton) and renamed the marketplace
   from `veloud` to `jcioriente`. Existing installs: `claude plugin marketplace add JCIOriente/baton`,
   then `claude plugin install baton@jcioriente` (and uninstall `baton@veloud`).
