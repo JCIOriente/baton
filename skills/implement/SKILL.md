@@ -42,7 +42,8 @@ For each behavior in the acceptance criteria:
 2. **Green:** write the minimum code that makes it pass. Run it.
 3. **Refactor** with the tests green.
 4. **Commit** with a Conventional Commit message that references the task:
-   `feat(orgs): scope list to member org (#42)`. Use small, focused commits.
+   `feat(orgs): scope list to member org (#42)`. Use small, focused commits. Usually the
+   subject is enough; a body, when the why needs one, is one or two short paragraphs.
 
 Tests check behavior through public interfaces. Don't mock the thing you are testing. For
 database code, test against a real Postgres (testcontainers or the project's test DB), not

@@ -5,6 +5,8 @@ may change behavior.
 
 ## Unreleased
 
+- Commit messages: the subject is usually enough, and a body is at most two short paragraphs
+  (common guide, `baton:implement`, implementer brief).
 - PR bodies are at most two paragraphs with no headings or attribution lines. `baton done` adds
   a single `Validated:` line instead of a `## Validation` checklist.
 - `baton:spec` and `baton:retro` write an ADR only for a choice later specs must follow. A choice

@@ -99,6 +99,9 @@ unstated assumptions, overbuild, and change code they don't understand as a side
 - Conventional Commits: `type(scope): imperative summary` (`feat`, `fix`, `refactor`,
   `test`, `docs`, `perf`, `build`, `ci`, `chore`). Follow the repo's history for scope use
   and subject length.
+- A clear subject is usually enough. Add a body only when the why isn't obvious from the
+  subject and the diff, and keep it to one or two short paragraphs. Don't list changed files or
+  restate the diff. Trailers (`BREAKING CHANGE:`, `Co-Authored-By:`) don't count as paragraphs.
 - Breaking changes use `!` and a `BREAKING CHANGE:` footer describing the migration.
 - Small and focused: one logical change per commit. Split unrelated fixes, refactors and
   formatting.
