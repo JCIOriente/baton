@@ -175,4 +175,4 @@ in the workflow changes.
 None.
 
 ## Implementation status
-- [ ] Plan: `docs/plans/2026-10-28-release-phase.md`
+- [ ] Plan: [docs/plans/2026-10-28-release-phase.md](../plans/2026-10-28-release-phase.md) (T1-T5)
