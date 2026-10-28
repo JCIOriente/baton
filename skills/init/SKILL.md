@@ -55,7 +55,14 @@ disable-model-invocation: true
    JSON
    ```
    Raise `required_approving_review_count` to 1 once the project has a second maintainer.
-7. **Commit** `.baton/config.json` (and the docs dirs) so every contributor and session
+7. **Squash commit message** (when `git.mergeStrategy` is `squash`; suggest, run only after the
+   user confirms). GitHub's default squash message stacks every commit message and trailer in
+   the PR. Use the PR title and body instead, so the commit on the base branch is the
+   Conventional Commit title plus the short PR body:
+   ```bash
+   gh api -X PATCH repos/{owner}/{repo} -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY
+   ```
+8. **Commit** `.baton/config.json` (and the docs dirs) so every contributor and session
    shares the same workflow.
 
 The full schema with defaults is in `${CLAUDE_PLUGIN_ROOT}/templates/config.example.json`.
