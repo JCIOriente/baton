@@ -5,6 +5,8 @@ may change behavior.
 
 ## Unreleased
 
+- `baton:init` suggests making squash commits use the PR title and body instead of GitHub's
+  default stacked commit messages.
 - PR bodies are at most two paragraphs with no headings or attribution lines. `baton done` adds
   a single `Validated:` line instead of a `## Validation` checklist.
 - `baton:spec` and `baton:retro` write an ADR only for a choice later specs must follow. A choice
