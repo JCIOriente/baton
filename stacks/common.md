@@ -105,5 +105,4 @@ unstated assumptions, overbuild, and change code they don't understand as a side
 - Breaking changes use `!` and a `BREAKING CHANGE:` footer describing the migration.
 - Small and focused: one logical change per commit. Split unrelated fixes, refactors and
   formatting.
-- Reference the task or issue in the footer (`Refs #123`, `Closes #123`). Add a body when
-  the why isn't obvious from the diff.
+- Reference the task or issue in the footer (`Refs #123`, `Closes #123`).
