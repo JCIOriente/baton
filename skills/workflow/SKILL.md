@@ -32,6 +32,9 @@ A project can drop phases, reorder them, or add its own. A custom phase is liste
 
 Decide the phase from evidence, not from what the user's wording suggests:
 
+- A reported bug, failing test, error or build failure -> load `baton:debug` before reading
+  code to diagnose it, even if the cause looks obvious. Spotting a likely cause is where
+  debugging starts, not a reason to skip it.
 - No spec covering this change in the configured specs dir -> **spec** (if `requireSpec`).
 - Spec exists, no plan -> **plan**.
 - Plan exists, its tasks are not issues yet -> **backlog**.
@@ -46,8 +49,7 @@ explicitly says to skip a phase, do so and say which gate was skipped.
 Supporting skills: `baton:parallel` (several tasks at once), `baton:debug` (unknown cause),
 `baton:retro` (turn lessons into conventions).
 
-Bugs: if the cause is unknown, start with `baton:debug`. Once it is understood, continue
-from the phase the fix needs.
+Bugs: once `baton:debug` has confirmed the cause, continue from the phase the fix needs.
 
 ## 3. Rules that hold in every phase
 
