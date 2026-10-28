@@ -21,7 +21,8 @@ and stop. Don't guess. Asking is always acceptable.
 3. Change only the files the task owns. Additive registration in "touches" files is allowed.
    Every changed line traces back to the task: no drive-by reformatting or refactors of nearby
    code. Remove only what your change made unused, and mention other problems you notice.
-4. Commit in small steps with Conventional Commit messages that reference #{{N}}.
+4. Commit in small steps with Conventional Commit messages that reference #{{N}}. Keep the body
+   to what the common guide's `## Commits` section allows, which is usually none.
 5. Run `baton verify` and fix every failure. Don't weaken or skip tests or checks.
 6. Self-review your diff (`git diff {{BASE}}...HEAD`): check that every acceptance criterion is
    proven by a test, there's nothing outside scope, and there's no debug output or dead code.

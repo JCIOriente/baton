@@ -5,6 +5,8 @@ may change behavior.
 
 ## Unreleased
 
+- Commit messages: the subject is usually enough, and a body is at most two short paragraphs
+  (common guide, `baton:implement`, implementer brief).
 - `baton:init` suggests making squash commits use the PR title and body instead of GitHub's
   default stacked commit messages.
 - PR bodies are at most two paragraphs with no headings or attribution lines. `baton done` adds
