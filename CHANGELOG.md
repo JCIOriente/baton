@@ -5,6 +5,8 @@ may change behavior.
 
 ## Unreleased
 
+- PR bodies are at most two paragraphs with no headings or attribution lines. `baton done` adds
+  a single `Validated:` line instead of a `## Validation` checklist.
 - `baton:spec` and `baton:retro` write an ADR only for a choice later specs must follow. A choice
   that is hard to reverse but local to one spec keeps its reasoning in the spec FAQ.
 - Skill trigger evals (`make evals`): one case per skill plus negative cases, run against a

@@ -64,11 +64,11 @@ export function unblockable(blockedTasks, openNumbers) {
   });
 }
 
-/** PR body: the closing reference, the author's sections, then the validation that actually ran. */
+/** PR body: the closing reference, the author's paragraphs, then the validation that actually ran. */
 export function prBody(number, extra, results) {
-  const validation = results.map((r) => `- [x] ${r.name}: \`${r.run}\``).join('\n') || '- (no validation configured)';
+  const validation = results.map((r) => `${r.name} (\`${r.run}\`)`).join(', ') || '(no validation configured)';
   const middle = extra?.trim() ? `${extra.trim()}\n\n` : '';
-  return `Closes #${number}\n\n${middle}## Validation\n${validation}\n`;
+  return `Closes #${number}\n\n${middle}Validated: ${validation}\n`;
 }
 
 /**

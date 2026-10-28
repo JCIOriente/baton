@@ -80,7 +80,8 @@ See [`templates/config.example.json`](templates/config.example.json). Key fields
 - `stacks`: which guides and reviewers apply
 - `setup`: `[{ name, run, cwd? }]`, run in every new task worktree (e.g. dependency install)
 - `validate`: `[{ name, run, cwd? }]`. All must pass before `baton done` opens a PR (its body
-  comes from [`templates/pr-body.md`](templates/pr-body.md) plus the validation results)
+  comes from [`templates/pr-body.md`](templates/pr-body.md), at most two paragraphs, plus a
+  `Validated:` line)
 - `workflow.phases`: reorder or drop built-in phases, or add your own with
   `workflow.custom: { "<phase>": "docs/process/<phase>.md" }`
 - `workflow.requireSpec | requireTdd | requireReview | baselineOnStart`: the gates

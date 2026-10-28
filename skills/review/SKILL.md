@@ -51,7 +51,7 @@ Then consolidate:
 
 A task is reviewed when spec compliance and every quality angle report `APPROVE` for the
 current commit. Record the consolidated outcome (angles run, findings fixed, minors deferred) in
-the **Reviews** section of the PR body (`baton:integrate`), ending with
+the second paragraph of the PR body (`baton:integrate`), followed by the line
 `Reviewed-at: <git rev-parse HEAD>`. `baton done` refuses a ready PR without it, or when
 commits were added after it. That is how "reviewers run after every change" is enforced.
 

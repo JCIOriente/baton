@@ -23,8 +23,10 @@ After any rebase, the earlier verification is stale. Run `baton verify` again.
 
 ## 2. Open the PR
 
-Fill `${CLAUDE_PLUGIN_ROOT}/templates/pr-body.md` into a temp file: Summary, a Test plan that
-states what was *not* verified, Reviews (from `baton:review`) and Not in this PR. Then:
+Fill `${CLAUDE_PLUGIN_ROOT}/templates/pr-body.md` into a temp file: at most two paragraphs, no
+headings. The first says what changes and why. The second says how it was verified and what was
+*not*, the review outcome (from `baton:review`) and related work left out. Don't add attribution
+or co-author lines; the commits carry those. Then:
 
 ```bash
 baton done --body-file <file> --title "feat(orgs): list organizations by nation"
@@ -32,7 +34,7 @@ baton done --draft ...   # when review is still needed before anyone should merg
 ```
 
 `baton done` requires a clean tree, re-runs validation, pushes, opens the PR with `Closes #N`,
-your sections and the validation results, and sets `status:review`. With `requireReview` on, a
+your paragraphs and a `Validated:` line, and sets `status:review`. With `requireReview` on, a
 ready (non-draft) PR also needs `Reviewed-at: <HEAD sha>` in the body. If you rebased after the
 review, the SHA changed: re-run `baton verify`, confirm the rebase didn't change behavior (re-review
 if it did), and update the line. `--skip-review "<reason>"` exists for changes the user agreed need

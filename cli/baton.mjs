@@ -479,7 +479,7 @@ function done(argv) {
       const state = reviewState(extra, git(['rev-parse', 'HEAD'], { cwd: top }).stdout);
       if (!state.ok) {
         throw new BatonError(`Not reviewed: ${state.reason}`, {
-          hint: 'Run baton:review on the current HEAD, put `Reviewed-at: <sha>` in the Reviews section of --body-file, or pass --draft / --skip-review "<reason>".',
+          hint: 'Run baton:review on the current HEAD, put a `Reviewed-at: <sha>` line in --body-file, or pass --draft / --skip-review "<reason>".',
         });
       }
     }
