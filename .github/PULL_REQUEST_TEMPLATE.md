@@ -1,14 +1,7 @@
-## Summary
-What changes and why, in 2-5 sentences. Mention anything that deviates from the plan or spec.
+<!-- At most two paragraphs. No headings, no attribution or co-author lines. -->
+What changes and why, in a few sentences. Mention anything that deviates from the spec or plan.
 
-## Test plan
-- [x] <command or scenario that was run, with its result>
-- [ ] Not verified: <what wasn't exercised, and why>
-
-## Reviews
-Angles run, findings fixed, minor findings deferred (with the issue they went to).
+How it was verified and what was not. Reviewers run, findings fixed, minor findings deferred
+(with issue links), and related work deliberately left out.
 
 Reviewed-at: <full sha of the commit the final review round approved, from `git rev-parse HEAD`>
-
-## Not in this PR
-Related work deliberately left out, with issue links.
