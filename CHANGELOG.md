@@ -5,6 +5,8 @@ may change behavior.
 
 ## Unreleased
 
+- `baton:spec` and `baton:retro` write an ADR only for a choice later specs must follow. A choice
+  that is hard to reverse but local to one spec keeps its reasoning in the spec FAQ.
 - Skill trigger evals (`make evals`): one case per skill plus negative cases, run against a
   scaffolded baton repo.
 - The workflow router sends bugs and failing tests to `baton:debug` even when the cause looks
