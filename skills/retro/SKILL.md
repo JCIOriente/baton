@@ -37,9 +37,9 @@ Write each lesson as a rule an agent can apply, with the reason behind it.
 
 ## 3. Weigh it
 
-- A lesson seen **once** goes in the PR description under "Lessons" as a candidate. Don't
+- A lesson seen **once** goes in a PR comment starting with "Lessons:" as a candidate. Don't
   turn it into a rule yet.
-- A lesson seen **twice or more** (search earlier PRs' "Lessons" sections and review
+- A lesson seen **twice or more** (search earlier PRs' "Lessons:" comments and review
   comments) becomes a rule now.
 - Never encode a lesson that contradicts the spec, an ADR or an existing convention without
   raising the conflict with the user.
