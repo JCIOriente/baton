@@ -7,6 +7,10 @@ may change behavior.
 
 - `baton:spec` and `baton:retro` write an ADR only for a choice later specs must follow. A choice
   that is hard to reverse but local to one spec keeps its reasoning in the spec FAQ.
+- Skill trigger evals (`make evals`): one case per skill plus negative cases, run against a
+  scaffolded baton repo.
+- The workflow router sends bugs and failing tests to `baton:debug` even when the cause looks
+  obvious. Before, it diagnosed them itself.
 - Moved to [JCIOriente/baton](https://github.com/JCIOriente/baton) and renamed the marketplace
   from `veloud` to `jcioriente`. Existing installs: `claude plugin marketplace add JCIOriente/baton`,
   then `claude plugin install baton@jcioriente` (and uninstall `baton@veloud`).
