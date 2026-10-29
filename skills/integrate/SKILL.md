@@ -41,6 +41,14 @@ if it did), and update the line. `--skip-review "<reason>"` exists for changes t
 no review; the reason is shown in the PR. With squash merges the PR
 title becomes the commit message, so make it a Conventional Commit.
 
+Pick `feat` or `fix` by effect. Skill or guide text that changes agent behavior is `feat` or
+`fix`, not `docs`. A breaking change puts `!` in the title and `BREAKING CHANGE:` in the PR
+body, which becomes the squash commit body.
+
+When the session context shows releases enabled, the PR title is the changelog entry, so write
+it for users. A task PR never edits `CHANGELOG.md` or version files, publishes a package or
+creates a tag.
+
 `baton done` refuses to open a PR if validation fails. Never get around it by pushing and
 opening the PR by hand.
 

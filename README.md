@@ -68,6 +68,14 @@ user's instruction. It's adapted from ECC's gateguard.
 Codex/other-agent adapter only has to generate an `AGENTS.md` that points to the same skills and
 `baton` commands. Not built yet.
 
+## Releases
+
+Releases and publishing are opt-in: set `release.enabled` and `release.publish` in
+`.baton/config.json`, or answer the release step of `baton:init`. When on, `baton:release`
+(on demand, not a phase) derives the next version from the merged PR titles, writes the
+changelog, and tags `vX.Y.Z` (e.g. `v0.2.0`, no package name). The tag publishes the
+configured packages. See the [release phase spec](docs/specs/2026-10-28-release-phase.md).
+
 ## Stacks and guides
 
 `typescript`, `javascript`, `react`, `node`, `rust`, `rust-tokio-postgres`, `postgres`,
