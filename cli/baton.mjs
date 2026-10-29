@@ -491,8 +491,11 @@ function done(argv) {
   // releases on can still remove the hand-written `## Unreleased` section.
   const diff = branchDiff(config);
   if (diff) {
-    const baseConfig = git(['show', `${diff.base}:${CONFIG_DIR}/${CONFIG_FILE}`], { cwd: top, allowFail: true });
-    const guard = changelogGuard({ files: diff.files, releaseEnabled: baseConfig.code === 0 && releaseEnabledIn(baseConfig.stdout) });
+    // Only "not in the base tree" means off; any other git failure is reported, not read as off.
+    const path = `${CONFIG_DIR}/${CONFIG_FILE}`;
+    const inBase = git(['ls-tree', '--name-only', diff.base, '--', path], { cwd: top }).stdout !== '';
+    const baseConfig = inBase ? git(['show', `${diff.base}:${path}`], { cwd: top }).stdout : '';
+    const guard = changelogGuard({ files: diff.files, releaseEnabled: releaseEnabledIn(baseConfig) });
     if (!guard.ok) throw new BatonError(guard.reason);
   }
 
