@@ -11,6 +11,8 @@ specs and issues. When a term is ambiguous or keeps needing explanation, add it 
 | Blocker | An issue linked with GitHub's "blocked by" relation. A task with an open blocker is `blocked` | A `Depends on:` line, which is no longer read |
 | Plan issue | The parent issue of the tasks created from one plan. Links the spec and plan docs. Not claimable | The plan doc in `docs/plans/` |
 | Claim | The marker comment that wins the race for a task. The assignee is set only after a claim wins | Assigning someone by hand |
+| Release | In repos with `release.enabled`: a version with its tag (`v<version>`, no package name), GitHub Release, generated `CHANGELOG.md` section and, when `release.publish` is set, the same version on each registry. Created only by merging the release PR | A merged task PR, or releasing a claim (`baton release <n>`) |
+| Release PR | The one open PR that release-please maintains (label `autorelease: pending`), holding the next version and its notes | A task PR |
 
 ## Relationships
 A spec has one plan doc. A plan doc becomes one plan issue with tasks as its sub-issues. A task has
