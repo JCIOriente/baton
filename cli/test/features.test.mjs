@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_CONFIG, reviewersFor } from '../lib/config.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from '../lib/detect.mjs';
-import { unblockable } from '../lib/tasks.mjs';
+import { releaseFindings, unblockable } from '../lib/tasks.mjs';
 import { deepMerge } from '../lib/util.mjs';
 import { classify, questions } from '../../hooks/fact-gate.mjs';
 
@@ -146,4 +146,69 @@ test('the CLI entry point loads and prints help', async () => {
   assert.equal(res.status, 0, res.stderr);
   assert.match(res.stdout, /baton <command>/);
   for (const cmd of ['claim', 'start', 'reviewers', 'done', 'doctor', 'upstream']) assert.match(res.stdout, new RegExp(`\\b${cmd}\\b`));
+});
+
+const RELEASE_LINE = 'Releases: on demand with baton:release. Never edit CHANGELOG.md or version files in a task PR; the PR title is the changelog entry.';
+
+test('context: mentions releases only when release.enabled', async () => {
+  const { buildContext } = await import('../lib/context.mjs');
+  const root = mkdtempSync(join(tmpdir(), 'baton-ctx-'));
+  const off = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
+  assert.ok(!off.includes('baton:release') && !off.includes('CHANGELOG'));
+  const on = buildContext({ root, found: true, config: deepMerge(DEFAULT_CONFIG, { release: { enabled: true } }) }, { pluginRoot: '/p', cwd: root });
+  assert.ok(on.includes(RELEASE_LINE));
+});
+
+test('releaseFindings: reports each mismatch between the release config and the repo', () => {
+  const on = (publish = []) => deepMerge(DEFAULT_CONFIG, { release: { enabled: true, publish } });
+  const goodTags = JSON.stringify({ 'include-component-in-tag': false, 'include-v-in-tag': true, packages: { '.': {} } });
+  const workflow = (...jobs) => `jobs:\n  release-please:\n    runs-on: ubuntu-latest\n${jobs.map((j) => `  ${j}:\n    needs: release-please\n`).join('')}`;
+  const complete = {
+    'release-please-config.json': goodTags,
+    '.release-please-manifest.json': '{ ".": "0.1.0" }',
+    '.github/workflows/release.yml': workflow(),
+  };
+  const messages = (config, files) => releaseFindings({ config, files }).map((f) => {
+    assert.equal(f.kind, 'release');
+    return f.message;
+  });
+
+  assert.deepEqual(messages(DEFAULT_CONFIG, {}), []);
+  assert.deepEqual(messages(on(), complete), []);
+
+  const [missing] = messages(on(), { 'release-please-config.json': goodTags });
+  assert.match(missing, /release\.enabled is true.*\.release-please-manifest\.json, \.github\/workflows\/release\.yml/);
+  const [leftover] = messages(DEFAULT_CONFIG, { '.github/workflows/release.yml': workflow() });
+  assert.match(leftover, /release\.enabled is false.*\.github\/workflows\/release\.yml/);
+
+  for (const tags of [{ 'include-v-in-tag': true }, { 'include-component-in-tag': false, 'include-v-in-tag': false }, { 'include-component-in-tag': false, 'include-v-in-tag': true, packages: { '.': { 'include-component-in-tag': true } } }]) {
+    const found = messages(on(), { ...complete, 'release-please-config.json': JSON.stringify(tags) });
+    assert.equal(found.length, 1, JSON.stringify(tags));
+    assert.match(found[0], /include-component-in-tag: false.*include-v-in-tag: true/);
+  }
+  assert.match(messages(on(), { ...complete, 'release-please-config.json': '{ nope' })[0], /not valid JSON/);
+
+  const npmJobs = { ...complete, '.github/workflows/release.yml': workflow('publish-npm') };
+  assert.match(messages(on(['npm']), npmJobs).join('\n'), /npm.*no root package\.json/);
+  assert.match(messages(on(['npm']), { ...npmJobs, 'package.json': '{ "private": true }' }).join('\n'), /npm.*private/);
+  assert.deepEqual(messages(on(['npm']), { ...npmJobs, 'package.json': '{ "name": "x" }' }), []);
+
+  const crateJobs = { ...complete, '.github/workflows/release.yml': workflow('publish-crates') };
+  assert.match(messages(on(['crates']), crateJobs).join('\n'), /crates.*no root Cargo\.toml/);
+  assert.match(messages(on(['crates']), { ...crateJobs, 'Cargo.toml': '[package]\nname = "x"\npublish = false\n' }).join('\n'), /crates.*publish = false/);
+  assert.deepEqual(messages(on(['crates']), { ...crateJobs, 'Cargo.toml': '[package]\nname = "x"\n' }), []);
+
+  const noJob = messages(on(['npm', 'crates']), { ...npmJobs, 'package.json': '{}', 'Cargo.toml': '[package]\n' });
+  assert.deepEqual(noJob, ["release.publish has 'crates' but .github/workflows/release.yml has no publish-crates job."]);
+});
+
+test('baton init writes the release switch, off', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { readFileSync } = await import('node:fs');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const root = mkdtempSync(join(tmpdir(), 'baton-init-'));
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  const res = spawnSync(process.execPath, [cli, 'init'], { cwd: root, encoding: 'utf8' });
+  assert.equal(res.status, 0, res.stderr);
+  assert.deepEqual(JSON.parse(readFileSync(join(root, '.baton/config.json'), 'utf8')).release, { enabled: false, publish: [] });
 });

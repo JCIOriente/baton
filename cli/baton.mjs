@@ -28,7 +28,9 @@ import {
   parseDependencies,
   prBody,
   rankClaimable,
+  RELEASE_FILES,
   releaseEnabledIn,
+  releaseFindings,
   reviewState,
   statusOf,
   unblockable,
@@ -153,6 +155,7 @@ function init(argv) {
     validate: suggestValidate(detected, { remote: DEFAULT_CONFIG.git.remote, baseBranch }),
     workflow: DEFAULT_CONFIG.workflow,
     hooks: DEFAULT_CONFIG.hooks,
+    release: DEFAULT_CONFIG.release,
     docs: DEFAULT_CONFIG.docs,
     conventions: [],
   };
@@ -547,6 +550,14 @@ function doctor(argv) {
 
   for (const f of factsVsInstalled(loadProvenance(PLUGIN_ROOT), installedVersions(root))) {
     findings.push({ ...f, message: `${f.pkg.replace(/^\w+:/, '')} ${f.installed} installed, but ${f.file} assumes ${f.requires} (${f.fact}). Upgrade, or record the exception in the project conventions.` });
+  }
+
+  if (loaded.found) {
+    const files = {};
+    for (const path of [...RELEASE_FILES, 'package.json', 'Cargo.toml']) {
+      if (existsSync(join(root, path))) files[path] = readFileSync(join(root, path), 'utf8');
+    }
+    findings.push(...releaseFindings({ config, files }));
   }
 
   if (values.json) print(findings);
