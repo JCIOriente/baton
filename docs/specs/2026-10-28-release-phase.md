@@ -191,8 +191,8 @@ leaves `release.enabled: false` and writes nothing. On yes, it:
    environment, limited to the base branch; for each publish target, add this repo,
    `release.yml` and the `release` environment as a trusted publisher on the registry. If the
    package isn't on the registry yet, let the first release happen: its publish job fails for
-   lack of a trusted publisher, then check out that release's tag and publish that version once
-   by hand; both registries need the package to exist before a trusted publisher can be added.
+   lack of a trusted publisher, then clone that release's tag into a clean directory, review
+   `npm pack --dry-run` / `cargo package --list` and publish that version once by hand; both registries need the package to exist before a trusted publisher can be added.
    Once CI has published a release, revoke any old registry tokens.
 4. Suggests, and runs only after the user confirms: a tag ruleset that blocks updating or
    deleting `v*` tags, turning on immutable releases for the repo and creating the `release`
@@ -281,8 +281,9 @@ the file is generated.
   registry and succeeds, so re-runs are safe.
 - **First version of a new package:** the registry needs the package before a trusted publisher
   can be set up. The first release happens anyway and its publish job fails (no trusted
-  publisher yet). The maintainer then checks out that release's tag (`git checkout v<version>`),
-  publishes that version by hand and adds the trusted publisher; CI publishes every later
+  publisher yet). The maintainer then clones that release's tag into a clean directory
+  (`git clone --depth 1 --branch v<version> <repo-url> <tmp dir>`), reviews
+  `npm pack --dry-run` / `cargo package --list`, publishes that version by hand and adds the trusted publisher; CI publishes every later
   version, and a re-run skips a version already on the registry.
 - **Tag and package version disagree** in the publish job: it fails before publishing. This only
   happens if someone edited version files by hand. Fix them in a PR and release with a
