@@ -139,7 +139,7 @@ test('publish_jobs_check_the_registry_right_before_publishing', () => {
   const npm = job('publish-npm');
   const crates = job('publish-crates');
   // Each publish job asks the registry itself, so a re-run of only that job sees a hand publish.
-  for (const [name, j, publish] of [['publish-npm', npm, /^ {8}run: npm publish "\$\{\{ steps\.tarball\.outputs\.file \}\}" --ignore-scripts$/m], ['publish-crates', crates, /^ {8}run: cargo publish --no-verify$/m]]) {
+  for (const [name, j, publish] of [['publish-npm', npm, /^ {8}run: \|\n(?: {10}.*\n)*? {10}npm publish "\$1" --ignore-scripts$/m], ['publish-crates', crates, /^ {8}run: cargo publish --no-verify$/m]]) {
     const steps = stepsOf(j);
     const check = steps.findIndex((s) => /^id: registry$|^name: Skip a version[\s\S]*id: registry/m.test(s) || /^ {8}id: registry$/m.test(s));
     const last = steps.findIndex((s) => publish.test(s));
@@ -193,6 +193,43 @@ test('npm_builds_without_credentials_and_uploads_the_tarball', () => {
   assert.match(steps[upload], /retention-days: 7$/m);
 });
 
+// No expression is spliced into a shell script: values reach it through env, so a crafted
+// artifact filename or package name can't run commands where the registry login is available.
+test('no_expression_in_any_run_script', () => {
+  for (const name of [...BUILD_JOBS, ...PUBLISH_JOBS]) {
+    for (const step of stepsOf(job(name))) {
+      const run = step.match(/^(?: {8})?run: ([\s\S]*?)(?=\n {8}[\w-]+:|$)/m);
+      if (run) assert.doesNotMatch(run[1], /\$\{\{/, `${name} has no \${{ }} inside a run script`);
+    }
+  }
+});
+
+test('publish_npm_validates_the_tarball_name_and_package_name', () => {
+  const j = job('publish-npm');
+  assert.match(j, /\^\(@\[a-z0-9~-\]\[a-z0-9\._~-\]\*\/\)\?\[a-z0-9~-\]\[a-z0-9\._~-\]\*\$/, 'package name is checked against the npm name pattern');
+  assert.match(j, /::error::[^\n]*package name/, 'a bad package name fails');
+  assert.match(j, /::error::[^\n]*tarball file name/, 'a bad tarball file name fails');
+  assert.match(j, /case "\$\{1##\*\/\}" in\n\s+\*\[!A-Za-z0-9@\._~-\]\*\|\.\*\|-\*\) echo "::error::unexpected tarball file name"; exit 1 ;;/, 'only a plain file name is accepted');
+  const check = j.indexOf('package name');
+  assert.ok(check > 0 && check < j.indexOf('>> "$GITHUB_OUTPUT"'), 'names are validated before anything is written to GITHUB_OUTPUT');
+  assert.doesNotMatch(j, /steps\.tarball\.outputs\.file/, 'the file name is never passed on as an output');
+  assert.match(j, /^ {10}npm publish "\$1" --ignore-scripts$/m, 'publishes the re-globbed, validated tarball');
+});
+
+test('registry_check_inputs_come_from_the_right_place', () => {
+  const npm = job('publish-npm');
+  const tarball = stepsOf(npm).find((x) => /id: tarball/.test(x));
+  assert.match(tarball, /^ {8}env:\n {10}VERSION: \$\{\{ needs\.release-please\.outputs\.version \}\}$/m, 'tarball step gets the release version');
+  assert.match(tarball, /^ {10}echo "name=\$name" >> "\$GITHUB_OUTPUT"$/m, 'tarball step exports the validated name');
+  assert.doesNotMatch(tarball, /file=/, 'tarball step exports no file name');
+  const registry = stepsOf(npm).find((x) => /id: registry/.test(x));
+  assert.match(registry, /^ {10}NAME: \$\{\{ steps\.tarball\.outputs\.name \}\}$/m, 'npm NAME comes from the tarball step');
+  assert.match(registry, /^ {10}VERSION: \$\{\{ needs\.release-please\.outputs\.version \}\}$/m);
+  const crates = stepsOf(job('publish-crates')).find((x) => /id: registry/.test(x));
+  assert.match(crates, /^ {10}NAME: \$\{\{ needs\.verify-crates\.outputs\.name \}\}$/m, 'crates NAME comes from verify-crates');
+  assert.match(crates, /^ {10}VERSION: \$\{\{ needs\.release-please\.outputs\.version \}\}$/m);
+});
+
 test('publish_npm_publishes_only_the_prepared_tarball', () => {
   const j = job('publish-npm');
   assert.doesNotMatch(j, /npm (ci|install)|actions\/checkout/, 'no install and no source checkout in the job with id-token');
@@ -200,7 +237,7 @@ test('publish_npm_publishes_only_the_prepared_tarball', () => {
   assert.match(j, /name: npm-package/);
   assert.match(j, /tar -xOf "\$1" package\/package\.json/, 'reads the tarball package.json');
   assert.match(j, /if \[ "\$actual" != "\$VERSION" \]; then\n {12}echo "::error::tarball version[^\n]*\n {12}exit 1/, 'fails when the tarball version differs');
-  assert.match(j, /npm publish "\$\{\{ steps\.tarball\.outputs\.file \}\}" --ignore-scripts$/m, 'publishes the tarball without lifecycle scripts');
+  assert.match(j, /npm publish "\$1" --ignore-scripts$/m, 'publishes the tarball without lifecycle scripts');
   assert.ok(j.indexOf('tar -xOf') < j.indexOf('npm publish'), 'checks the tarball before publishing');
   assert.doesNotMatch(j, /npm run|npm pack/, 'no build code runs here');
 });
