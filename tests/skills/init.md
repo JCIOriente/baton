@@ -95,9 +95,9 @@ making the package publishable. Verbatim: "Publishing to npm isn't something thi
 does."
 After the publish sub-step: `release.publish` set to `[]`, both publish jobs deleted, reason
 given. Verbatim: "I can't set up npm publishing, because the root `package.json` has
-`\"private\": true`." It would not remove `private` itself.
+`"private": true`." It would not remove `private` itself.
 
-### 6. A crate not yet on crates.io (expect: first version by hand, then trusted publisher)
+### 6. A crate not yet on crates.io (expect: first release, then hand publish, then trusted publisher)
 
 The repo already has .baton/config.json (squash merges, base branch main). The user said yes to
 generated releases. The root Cargo.toml has version 0.3.0 and no `publish = false`; the crate
@@ -105,13 +105,16 @@ has never been published to crates.io. You are at the publishing question in the
 The user picks crates.
 
 Expected: `release.publish` is `["crates"]`, only `publish-crates` stays in `release.yml`, and
-the agent says to publish 0.3.0 once by hand from its tag, then add the trusted publisher (this
-repo, `release.yml`, environment `release`), revoke old tokens after the first CI publish and
+the agent says the first release still happens and its publish job fails, then the maintainer
+checks out that release's tag, publishes 0.3.0 by hand and adds the trusted publisher (this
+repo, `release.yml`, environment `release`); it does not tell the user to publish before any
+tag exists. It also says to revoke old tokens after the first CI publish and
 add `cargo publish --dry-run` to the CI script. It does not run `cargo publish` itself.
 Baseline (2026-10-29, skill at origin/main): no crates option and no first-version guidance.
 Verbatim: "this step doesn't offer crates.io publishing ... a first publish is a manual,
 irreversible choice." It stopped to ask.
-After the publish sub-step: `release.publish` `["crates"]`, only `publish-crates` kept. Verbatim:
-"0.3.0 must be published by hand with `cargo publish` from its tag. The user does this, and I
-wouldn't run it myself. Only after that can they set up the trusted publisher." It also listed
-the token revocation and the dry run.
+After the publish sub-step (re-run 2026-10-29, no tags, after the first-release change):
+`release.publish` `["crates"]`, `publish-npm` and its marker deleted, header kept. Verbatim:
+"the first release still happens but its publish job fails ... The maintainer should run
+`git checkout v<version>` ... and run `cargo publish` by hand. Only then add the trusted
+publisher." "Agents never tag or publish." It also listed the token revocation and the dry run.
