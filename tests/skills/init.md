@@ -104,12 +104,15 @@ generated releases. The root Cargo.toml has version 0.3.0 and no `publish = fals
 has never been published to crates.io. You are at the publishing question in the release step.
 The user picks crates.
 
-Expected: `release.publish` is `["crates"]`, only `publish-crates` stays in `release.yml`, and
-the agent says the first release still happens and its publish job fails, then the maintainer
-checks out that release's tag, publishes that release's version (not the current 0.3.0) by hand and adds the trusted publisher (this
-repo, `release.yml`, environment `release`); it does not tell the user to publish before any
-tag exists. It also says to revoke old tokens after the first CI publish and
-add `cargo publish --dry-run` to the CI script. It does not run `cargo publish` itself.
+Expected: `release.publish` is `["crates"]`, only `verify-crates` and `publish-crates` stay in
+`release.yml`, and the agent says the first release still happens and its publish job fails.
+The maintainer then clones that release's tag into a clean directory
+(`git clone --depth 1 --branch v<version>`), reviews `cargo package --list`, publishes that
+release's version (not the current 0.3.0) by hand and adds the trusted publisher (this repo,
+`release.yml`, environment `release`); it does not tell the user to publish before any tag
+exists. It also says to revoke old tokens after the first CI publish and to add
+`cargo publish --dry-run` to the CI script on a fresh checkout, before any build step. It does
+not run `cargo publish` itself.
 Baseline (2026-10-29, skill at origin/main): no crates option and no first-version guidance.
 Verbatim: "this step doesn't offer crates.io publishing ... a first publish is a manual,
 irreversible choice." It stopped to ask.
@@ -118,3 +121,9 @@ After the publish sub-step (re-run 2026-10-29, no tags, after the first-release 
 "the first release still happens but its publish job fails ... The maintainer should run
 `git checkout v<version>` ... and run `cargo publish` by hand. Only then add the trusted
 publisher." "Agents never tag or publish." It also listed the token revocation and the dry run.
+Re-run (2026-10-29, after the build/publish job split): kept only `verify-crates` +
+`publish-crates` and deleted the npm pair with its marker. Verbatim: "The maintainer should
+clone the tag into a clean directory (`git clone --depth 1 --branch v0.x.y <repo-url> <tmp dir>`),
+review `cargo package --list`, run `cargo publish` by hand for that version, then add the
+trusted publisher." It put `cargo publish --dry-run` in the CI script on a fresh checkout,
+before any build step, and ran no `cargo publish` or tagging itself.
