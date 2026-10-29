@@ -70,11 +70,13 @@ Codex/other-agent adapter only has to generate an `AGENTS.md` that points to the
 
 ## Releases
 
-Releases and publishing are opt-in: set `release.enabled` and `release.publish` in
-`.baton/config.json`, or answer the release step of `baton:init`. When on, `baton:release`
-(on demand, not a phase) derives the next version from the merged PR titles, writes the
-changelog, and tags `vX.Y.Z` (e.g. `v0.2.0`, no package name). The tag publishes the
-configured packages. See the [release phase spec](docs/specs/2026-10-28-release-phase.md).
+Releases and publishing are opt-in. The release step of `baton:init` turns them on: it sets
+`release.enabled` and `release.publish` in `.baton/config.json` and writes the release-please
+files and workflow. When on, release-please keeps a release PR with the next version (from the
+merged PR titles) and the generated changelog. Merging it, which `baton:release` does on demand
+when you ask, tags `vX.Y.Z` (e.g. `v0.2.0`, no package name), and CI publishes that tagged
+version to the configured registries. See the
+[release phase spec](docs/specs/2026-10-28-release-phase.md).
 
 ## Stacks and guides
 
