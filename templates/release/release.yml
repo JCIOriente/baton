@@ -91,8 +91,6 @@ jobs:
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
-      - if: steps.registry.outputs.published != 'true'
-        run: npm ci
       # No token: npm exchanges the job's OIDC identity and adds provenance for a public repo.
       - if: steps.registry.outputs.published != 'true'
         run: npm publish
