@@ -39,6 +39,8 @@ disable-model-invocation: true
    - **conventions**: project rule files that override the guides (e.g. `docs/conventions.md`).
      Offer to create it. `baton:retro` adds lessons to it over time.
    - **git**: base branch, branch prefix, worktree root, merge strategy.
+   - **release.enabled**: opt-in, off by default. Generated versions, CHANGELOG and releases.
+     Step 8 sets it up; leave it `false` here.
 4. **Validate:** `baton config` must print the config without errors, and `baton doctor` reports
    missing tools, stacks not enabled, and dependency versions older than the guides assume.
 5. **Labels:** `baton labels` creates the status/priority labels on GitHub. Confirm with the
@@ -62,7 +64,93 @@ disable-model-invocation: true
    ```bash
    gh api -X PATCH repos/{owner}/{repo} -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY
    ```
-8. **Commit** `.baton/config.json` (and the docs dirs) so every contributor and session
+8. **Releases** (only when `git.mergeStrategy` is `squash`). Ask whether the project wants
+   generated releases: release-please keeps a release PR open, and merging it bumps the version,
+   updates `CHANGELOG.md`, tags `v<version>` and creates the GitHub Release. The trade-off:
+   versions and notes come from PR titles, and it needs a token only a maintainer can create.
+   **Default no.** On no, leave `release.enabled: false` and write nothing. On yes:
+   1. Set `release.enabled: true` in `.baton/config.json`.
+   2. Read the current version: root `package.json` (`release-type: node`), else root
+      `Cargo.toml` (`rust`), else `version.txt` (`simple`, which keeps the version there). With
+      none, use `0.0.0`.
+   3. Write the three files from `${CLAUDE_PLUGIN_ROOT}/templates/release/`:
+      - `release-please-config.json`: set `release-type`. List other files that carry the
+        version in `extra-files`, e.g.
+        `{ "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" }`.
+        Set `"last-release-sha"` (top level) to the last release's commit when release-please
+        can't find it from a `v<version>` tag, or it lists every past commit:
+        - latest tag (`git describe --tags --abbrev=0`) isn't `v<version>`: its commit
+          (`git rev-list -n 1 <tag>`);
+        - no tags and the version isn't `0.0.0`: the commit that set the current version,
+          confirmed with the user. Find it with
+          `git log -1 --format=%H -S'"version": "<version>"' -- package.json`
+          (`-S'version = "<version>"' -- Cargo.toml`, or `git log -1 --format=%H -- version.txt`).
+          Never default to `HEAD` while `## Unreleased` has entries: release-please ignores
+          commits at or before `last-release-sha`, so those entries would be lost;
+        - no tags and `0.0.0`: leave it out.
+      - `.release-please-manifest.json`: `{ ".": "<version>" }`.
+      - `.github/workflows/release.yml`: replace `<base-branch>` with `git.baseBranch`. If the
+        file exists and lacks the "Written by baton:init" header, show it and ask before
+        replacing it.
+   4. If `CHANGELOG.md` has a `## Unreleased` section, match each entry to the commits since
+      the last release (`git log <last release commit>..HEAD`, or `git log HEAD` for `0.0.0`).
+      For each entry no `feat` or `fix` commit covers, propose an override on its source PR's
+      body, and edit the body only after the user confirms. Check first that the PR's merge
+      commit comes after the last release commit
+      (`git merge-base --is-ancestor <last release commit> <merge commit>` and not equal to it);
+      release-please never reads an older PR, so its entry can't be kept this way:
+      ```text
+      BEGIN_COMMIT_OVERRIDE
+      <feat or fix>(<scope>): <the entry>
+      END_COMMIT_OVERRIDE
+      ```
+      The block replaces that PR's commit message, so keep the PR's own line in it if it had
+      one. An entry with no source PR goes as an extra line in another PR's block, or ask the
+      user what to do with it.
+      **Remove `## Unreleased` only once every uncovered entry has a confirmed override on a PR
+      after the last release.**
+      Otherwise keep the section and list the entries the generated notes would lose. Keep the
+      header and older sections; release-please adds new versions above them. Never create
+      `CHANGELOG.md`; release-please does on the first release.
+   5. The token lives in a `release` environment limited to the base branch, so a workflow on
+      another branch can't read it. **The environment must exist with that branch policy before
+      the token is saved.** Offer to create it, and run only after the user confirms (on a
+      re-run, skip the POST if `gh api repos/{owner}/{repo}/environments/release/deployment-branch-policies`
+      already lists the base branch):
+      ```bash
+      gh api -X PUT repos/{owner}/{repo}/environments/release --input - <<'JSON'
+      { "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true } }
+      JSON
+      gh api -X POST repos/{owner}/{repo}/environments/release/deployment-branch-policies -f name=<baseBranch>
+      ```
+      If the user declines or a call fails (e.g. 403), tell them to create it in Settings >
+      Environments: name `release`, deployment branches "Selected branches" with
+      `git.baseBranch`. Never fall back to a repo secret, and don't let the first workflow run
+      create the environment, since that one has no branch limit.
+      Then tell the user to create a fine-grained personal access token: Repository access
+      "Only select repositories" with this repo; permissions Contents, Pull requests and Issues
+      set to read and write (Metadata read is added automatically); and an expiry. Save it with
+      `gh secret set RELEASE_PLEASE_TOKEN --env release`. Note the expiry date. The release
+      PR's author is the token owner, so once approvals are required, another maintainer
+      approves it.
+   6. Suggest, and run only after the user confirms, protecting tags and releases. Skip the
+      ruleset if `gh api repos/{owner}/{repo}/rulesets --jq '.[] | select(.name=="release tags")'`
+      prints one:
+      ```bash
+      gh api -X POST repos/{owner}/{repo}/rulesets --input - <<'JSON'
+      { "name": "release tags", "target": "tag", "enforcement": "active",
+        "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
+        "rules": [ { "type": "update", "parameters": { "update_allows_fetch_and_merge": false } },
+                   { "type": "deletion" } ] }
+      JSON
+      gh api -X PUT repos/{owner}/{repo}/immutable-releases
+      ```
+   7. Run `baton doctor`; it must report no release mismatch.
+
+   To turn releases on later, or after a config change, run step 1 (preconditions) and then
+   all of step 8, skipping `baton init` (it refuses when a config exists). Step 8 rewrites the
+   three files from the templates and the current config.
+9. **Commit** `.baton/config.json` (and the docs dirs) so every contributor and session
    shares the same workflow.
 
 The full schema with defaults is in `${CLAUDE_PLUGIN_ROOT}/templates/config.example.json`.

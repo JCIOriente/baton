@@ -95,7 +95,8 @@ changelog on repos that don't.
 
 The release-please token is a fine-grained personal access token scoped to the one repo, with
 write access to contents, pull requests and issues (release-please labels its PRs). It is stored
-as the repo secret `RELEASE_PLEASE_TOKEN`. The default `GITHUB_TOKEN` is not used, because PRs
+as `RELEASE_PLEASE_TOKEN`, an environment secret in the `release` environment, limited to the
+base branch, so a workflow pushed to another branch can't read it. The default `GITHUB_TOKEN` is not used, because PRs
 it opens don't trigger other workflows, so the required `ci` check would never run on the
 release PR. A fine-grained PAT expires (at most after a year), so note the date. The release
 PR's author is the token owner, who can't approve it; once approvals are required, another
@@ -154,7 +155,8 @@ hear about a changelog from baton.
   version file, or `0.0.0` if there is none.
 - `.github/workflows/release.yml`:
   - job `release-please`: runs `googleapis/release-please-action` on push to the base branch and
-    on `workflow_dispatch`, with `token: ${{ secrets.RELEASE_PLEASE_TOKEN }}`, and exposes
+    on `workflow_dispatch`, in the environment `release`, with
+    `token: ${{ secrets.RELEASE_PLEASE_TOKEN }}`, and exposes
     `release_created`, `tag_name` and `version` as job outputs. Actions are pinned to a full
     commit SHA with the released version in a comment. The workflow sets top-level `permissions:
     {}` (each job declares its own) and `concurrency: { group: release, cancel-in-progress:
@@ -185,14 +187,15 @@ leaves `release.enabled: false` and writes nothing. On yes, it:
    `publish = false`). Default none. It records the answer in `release.publish` and includes
    only those publish jobs.
 3. Gives the exact manual steps: create the fine-grained PAT (Contents, Pull requests and Issues
-   read and write) and save it as `RELEASE_PLEASE_TOKEN`; for each publish target, add this repo,
+   read and write) and save it as `RELEASE_PLEASE_TOKEN`, an environment secret in the `release`
+   environment, limited to the base branch; for each publish target, add this repo,
    `release.yml` and the `release` environment as a trusted publisher on the registry. If the
    package isn't on the registry yet, publish its current version once by hand from its tag
    first: both registries need the package to exist before a trusted publisher can be added.
    Once CI has published a release, revoke any old registry tokens.
 4. Suggests, and runs only after the user confirms: a tag ruleset that blocks updating or
-   deleting `v*` tags, turning on immutable releases for the repo and, when publishing, creating
-   the `release` environment limited to the base branch.
+   deleting `v*` tags, turning on immutable releases for the repo and creating the `release`
+   environment limited to the base branch.
 5. For each publish target, suggests adding a dry run (`npm publish --dry-run`,
    `cargo publish --dry-run`) to the repo's CI script, so a package that can't publish fails on
    the PR instead of at release.
@@ -300,7 +303,8 @@ no change. For baton itself: set `release.enabled: true` with `publish: []` (its
 is private), add the three files with manifest version `0.1.0`, `extra-files` for
 `.claude-plugin/plugin.json` (`$.version`) and `include-component-in-tag: false`, add commit
 overrides for the `## Unreleased` entries that no `feat` or `fix` commit covers (#2, #3, #18),
-remove that section, and add the `RELEASE_PLEASE_TOKEN` secret. The existing tag is `v0.1.0`
+remove that section, and add `RELEASE_PLEASE_TOKEN` as an environment secret in the `release`
+environment, limited to the base branch. The existing tag is `v0.1.0`
 with a GitHub Release, which matches, so no `last-release-sha` is needed. The first release PR
 will be 0.2.0, because there are `feat` commits since `v0.1.0`. Adopting repos opt in through
 `baton:init`.
