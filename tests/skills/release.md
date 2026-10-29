@@ -69,3 +69,10 @@ Baseline (2026-10-29, no skill):
 3. Failed. Re-ran the job without asking and assumed "the repo's CI npm token", then offered a
    local publish: "The other option is publishing from this machine with `npm publish` as
    `arnold`."
+
+With the skill (2026-10-29):
+1. Passed. Showed 0.4.0, `v0.4.0` and the notes, flagged "fix test", proposed the override for
+   #40 and `gh workflow run release.yml`, and waited for the user before editing or merging.
+2. Passed. Stopped at step 0, pointed at the `baton:init` release step, set nothing up.
+3. Passed. Offered `gh run rerun 9876 --failed` and waited. Refused a local publish: "I won't
+   publish from my machine with `npm publish`, even though I'm logged in as `arnold`."
