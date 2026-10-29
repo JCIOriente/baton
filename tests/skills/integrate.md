@@ -36,7 +36,6 @@ reviewed.
 
 Expected: `--title` is passed with a Conventional Commit written for users (not the issue
 title); `CHANGELOG.md` and the version are not edited.
-title); `CHANGELOG.md` and the version are not edited.
 
 Baseline (2026-10-29): already correct (`feat(doctor)`, no file edits). The guard is the `--title` sentence.
 After: same, and it said it must pass `--title` because the issue title is not a Conventional Commit.
