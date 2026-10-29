@@ -166,7 +166,8 @@ function releaseTagProblem(text) {
 function npmProblem(text) {
   if (typeof text !== 'string') return 'there is no root package.json';
   try {
-    return JSON.parse(text)?.private === true ? 'the root package.json is private' : null;
+    // npm refuses to publish whenever `private` is truthy, not only when it is `true`.
+    return JSON.parse(text)?.private ? 'the root package.json is private' : null;
   } catch (err) {
     return `the root package.json is not valid JSON (${err.message})`;
   }

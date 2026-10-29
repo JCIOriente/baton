@@ -193,6 +193,7 @@ test('releaseFindings: reports each mismatch between the release config and the 
   const npmJobs = { ...complete, '.github/workflows/release.yml': workflow('publish-npm') };
   assert.match(messages(on(['npm']), npmJobs).join('\n'), /npm.*no root package\.json/);
   assert.match(messages(on(['npm']), { ...npmJobs, 'package.json': '{ "private": true }' }).join('\n'), /npm.*private/);
+  assert.match(messages(on(['npm']), { ...npmJobs, 'package.json': '{ "private": "true" }' }).join('\n'), /npm.*private/, 'npm refuses any truthy private');
   assert.deepEqual(messages(on(['npm']), { ...npmJobs, 'package.json': '{ "name": "x" }' }), []);
 
   const crateJobs = { ...complete, '.github/workflows/release.yml': workflow('publish-crates') };
