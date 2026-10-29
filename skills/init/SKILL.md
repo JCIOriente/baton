@@ -138,12 +138,15 @@ disable-model-invocation: true
       `crates` for a root `Cargo.toml` without `publish = false`. If the user asks for a target
       that isn't offered, say why. **Default none.** Set `release.publish` to the answer
       (`[]`, `["npm"]`, `["crates"]` or both). In `.github/workflows/release.yml`, keep only
-      the jobs marked for the chosen targets (`publish-npm`, `publish-crates`). Delete each
-      other job with its `# baton:init: keep ...` marker line, and delete the marker lines of
-      the kept jobs. Keep the file header ("Written by baton:init"). Keep the "Publish jobs"
+      the job pairs marked for the chosen targets (`build-npm` + `publish-npm`, `verify-crates`
+      + `publish-crates`). Delete each other job with the `# baton:init: keep ...` marker line
+      above it, and delete the marker lines of the kept jobs. The build and verify jobs run
+      dependency and build code without credentials; the publish jobs hold the registry login
+      and only publish what they built. Keep the file header ("Written by baton:init"). Keep the "Publish jobs"
       comment when a job stays, drop it when none does. Then tell the user, per target:
-      - `publish-npm` installs with `npm ci` only when `package-lock.json` exists. A repo using
-        pnpm, yarn or bun must adapt that step.
+      - `build-npm` installs with `npm ci` only when `package-lock.json` exists, then runs
+        `npm run build --if-present` and `npm pack`. A repo using pnpm, yarn or bun must adapt
+        the install step.
       - On the registry, add a trusted publisher: this repo, workflow `release.yml`,
         environment `release`. No registry token is stored.
       - A package not yet on the registry: the first release still happens, and its publish
@@ -155,8 +158,9 @@ disable-model-invocation: true
         later version; a re-run skips a version already on the registry. Agents never tag or
         publish.
       - After the first CI publish, revoke any old registry tokens.
-      - Add `npm publish --dry-run` / `cargo publish --dry-run` to the repo's CI script, so a
-        package that can't publish fails before the release.
+      - Add `npm publish --dry-run` / `cargo publish --dry-run` to the repo's CI script
+        on a fresh checkout, before any build step, so a package that can't publish or a missing
+        build fails before the release.
    7. Suggest, and run only after the user confirms, protecting tags and releases. Skip the
       ruleset if `gh api repos/{owner}/{repo}/rulesets --jq '.[] | select(.name=="release tags")'`
       prints one:
