@@ -45,5 +45,9 @@
     "plans": "docs/plans",
     "commonIssues": "docs/common-issues.md"
   },
-  "conventions": []
+  "conventions": [],
+  "release": {
+    "enabled": true,
+    "publish": []
+  }
 }
