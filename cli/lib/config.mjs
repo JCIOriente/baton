@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { deepMerge, BatonError } from './util.mjs';
+import { deepMerge, BatonError, isPlainObject } from './util.mjs';
 import { repoRoot } from './git.mjs';
 
 export const CONFIG_DIR = '.baton';
@@ -21,6 +21,9 @@ export const KNOWN_STACKS = [
   'i18n',
   'e2e',
 ];
+
+// Registries a release can publish to (release.publish).
+export const PUBLISH_TARGETS = ['npm', 'crates'];
 
 // Loaded whenever any stack is enabled.
 export const BASELINE_GUIDE = 'common';
@@ -80,6 +83,8 @@ export const DEFAULT_CONFIG = {
     // Opt-in: block the first edit of each file per session until the agent states facts about it.
     factGate: false,
   },
+  // Opt-in: changelog and version generated at release by release-please; see baton:release.
+  release: { enabled: false, publish: [] },
   docs: {
     specs: 'docs/specs',
     plans: 'docs/plans',
@@ -140,6 +145,26 @@ export function validateConfig(config) {
   }
   if (!['squash', 'merge', 'rebase'].includes(config.git.mergeStrategy)) {
     problems.push(`git.mergeStrategy must be squash|merge|rebase`);
+  }
+  problems.push(...validateRelease(config));
+  return problems;
+}
+
+function validateRelease(config) {
+  const { release } = config;
+  if (!isPlainObject(release)) return ['release must be an object'];
+  const problems = [];
+  if (typeof release.enabled !== 'boolean') problems.push('release.enabled must be a boolean');
+  if (release.enabled === true && config.git.mergeStrategy !== 'squash') {
+    problems.push('release.enabled requires git.mergeStrategy squash: every commit on the base branch must be a Conventional Commit.');
+  }
+  if (!Array.isArray(release.publish)) {
+    problems.push('release.publish must be an array');
+    return problems;
+  }
+  if (release.publish.length && release.enabled !== true) problems.push('release.publish requires release.enabled.');
+  for (const target of release.publish) {
+    if (!PUBLISH_TARGETS.includes(target)) problems.push(`unknown release.publish target '${target}' (known: ${PUBLISH_TARGETS.join(', ')}).`);
   }
   return problems;
 }

@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, reviewerFocus, reviewersFor } from './lib/config.mjs';
+import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, CONFIG_FILE, reviewerFocus, reviewersFor } from './lib/config.mjs';
 import { buildContext } from './lib/context.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
 import {
@@ -22,7 +22,17 @@ import {
 } from './lib/git.mjs';
 import { getProvider } from './lib/providers/github.mjs';
 import { factsVsInstalled, installedVersions, loadProvenance, upstreamFindings } from './lib/provenance.mjs';
-import { labelNames, parseDependencies, prBody, rankClaimable, reviewState, statusOf, unblockable } from './lib/tasks.mjs';
+import {
+  changelogGuard,
+  labelNames,
+  parseDependencies,
+  prBody,
+  rankClaimable,
+  releaseEnabledIn,
+  reviewState,
+  statusOf,
+  unblockable,
+} from './lib/tasks.mjs';
 import { BatonError, print, runShell } from './lib/util.mjs';
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -302,14 +312,17 @@ function reviewers(argv) {
   print(lines.join('\n'));
 }
 
-/** This branch's changes vs the base branch, or undefined if git can't tell (then nothing is skipped). */
+/**
+ * This branch's changes vs the base branch, with the base ref it compared against, or undefined
+ * if git can't tell (then nothing is skipped).
+ */
 function branchDiff(config) {
   const { remote, baseBranch } = config.git;
   for (const base of [`${remote}/${baseBranch}`, baseBranch]) {
     const names = git(['diff', '--name-only', `${base}...HEAD`], { allowFail: true });
     if (names.code !== 0) continue;
     const text = git(['diff', '--unified=0', `${base}...HEAD`], { allowFail: true });
-    return { files: names.stdout ? names.stdout.split('\n') : [], text: text.code === 0 ? text.stdout : '' };
+    return { base, files: names.stdout ? names.stdout.split('\n') : [], text: text.code === 0 ? text.stdout : '' };
   }
   return undefined;
 }
@@ -469,6 +482,15 @@ function done(argv) {
   const n = currentTask(config);
   let extra = values['body-file'] ? readFileSync(values['body-file'], 'utf8') : '';
   if (hasUncommittedChanges(top)) throw new BatonError('Uncommitted changes in this worktree', { hint: 'Commit your work before `baton done`.' });
+
+  // Changelog gate: read the switch from the base branch, not the worktree, so the PR that turns
+  // releases on can still remove the hand-written `## Unreleased` section.
+  const diff = branchDiff(config);
+  if (diff) {
+    const baseConfig = git(['show', `${diff.base}:${CONFIG_DIR}/${CONFIG_FILE}`], { cwd: top, allowFail: true });
+    const guard = changelogGuard({ files: diff.files, releaseEnabled: baseConfig.code === 0 && releaseEnabledIn(baseConfig.stdout) });
+    if (!guard.ok) throw new BatonError(guard.reason);
+  }
 
   // Review gate: a draft PR may precede review; a ready PR needs a review of exactly this commit,
   // or an explicit, visible reason for skipping it.

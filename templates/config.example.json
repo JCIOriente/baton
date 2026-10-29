@@ -97,5 +97,9 @@
   },
   "hooks": {
     "factGate": false
+  },
+  "release": {
+    "enabled": false,
+    "publish": []
   }
 }

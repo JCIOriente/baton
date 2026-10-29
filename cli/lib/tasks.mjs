@@ -82,6 +82,101 @@ export function reviewState(body, head) {
   return { ok: true };
 }
 
+// --- Releases ----------------------------------------------------------------
+
+// Written by release-please at release time (only the root one, for the package at `.`).
+export const CHANGELOG_FILE = 'CHANGELOG.md';
+// The files baton:init writes when a repo enables releases.
+export const RELEASE_FILES = ['release-please-config.json', '.release-please-manifest.json', '.github/workflows/release.yml'];
+const RELEASE_WORKFLOW = '.github/workflows/release.yml';
+
+/**
+ * Whether a raw `.baton/config.json` text (the base branch's copy) enables releases.
+ * Missing, empty or invalid JSON means off: the guard must never block a repo that didn't opt in.
+ */
+export function releaseEnabledIn(configText) {
+  try {
+    return JSON.parse(configText)?.release?.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * CHANGELOG gate for `baton done`: with releases enabled on the base branch, the changelog is
+ * generated at release, so a task PR must not touch it.
+ */
+export function changelogGuard({ files, releaseEnabled }) {
+  if (releaseEnabled && files.includes(CHANGELOG_FILE)) {
+    return { ok: false, reason: 'CHANGELOG.md is generated at release. Revert it; the PR title is the changelog entry.' };
+  }
+  return { ok: true };
+}
+
+/**
+ * `baton doctor` release checks. `files` maps repo-relative paths (RELEASE_FILES, `package.json`,
+ * `Cargo.toml`) to their contents; a missing key means the file doesn't exist.
+ */
+export function releaseFindings({ config, files }) {
+  const { enabled, publish } = config.release;
+  const findings = [];
+  const add = (message) => findings.push({ kind: 'release', message });
+  const has = (path) => typeof files[path] === 'string';
+
+  const missing = RELEASE_FILES.filter((f) => !has(f));
+  if (enabled && missing.length) add(`release.enabled is true but ${missing.join(', ')} ${missing.length > 1 ? 'are' : 'is'} missing (re-run the baton:init release step).`);
+  const present = RELEASE_FILES.filter(has);
+  if (!enabled && present.length) add(`release.enabled is false but ${present.join(', ')} ${present.length > 1 ? 'exist' : 'exists'}: finish turning releases on or off.`);
+
+  if (has('release-please-config.json')) {
+    const tagProblem = releaseTagProblem(files['release-please-config.json']);
+    if (tagProblem) add(tagProblem);
+  }
+  if (publish.includes('npm')) {
+    const problem = npmProblem(files['package.json']);
+    if (problem) add(`release.publish has 'npm' but ${problem}.`);
+  }
+  if (publish.includes('crates')) {
+    const problem = cratesProblem(files['Cargo.toml']);
+    if (problem) add(`release.publish has 'crates' but ${problem}.`);
+  }
+  if (has(RELEASE_WORKFLOW)) {
+    for (const target of publish) {
+      const job = `publish-${target}`;
+      if (!new RegExp(`^[ \\t]+${job}:`, 'm').test(files[RELEASE_WORKFLOW])) add(`release.publish has '${target}' but ${RELEASE_WORKFLOW} has no ${job} job.`);
+    }
+  }
+  return findings;
+}
+
+// Tags must be `v<version>`, never `<component>-v<version>`. A package entry overrides the top level.
+function releaseTagProblem(text) {
+  let rp;
+  try {
+    rp = JSON.parse(text);
+  } catch (err) {
+    return `release-please-config.json is not valid JSON: ${err.message}`;
+  }
+  const pkg = rp?.packages?.['.'] ?? {};
+  const setting = (key) => pkg[key] ?? rp?.[key];
+  if (setting('include-component-in-tag') === false && setting('include-v-in-tag') === true) return null;
+  return 'release-please-config.json must set include-component-in-tag: false and include-v-in-tag: true, so tags are v<version>.';
+}
+
+function npmProblem(text) {
+  if (typeof text !== 'string') return 'there is no root package.json';
+  try {
+    return JSON.parse(text)?.private === true ? 'the root package.json is private' : null;
+  } catch (err) {
+    return `the root package.json is not valid JSON (${err.message})`;
+  }
+}
+
+function cratesProblem(text) {
+  if (typeof text !== 'string') return 'there is no root Cargo.toml';
+  return /^\s*publish\s*=\s*false\b/m.test(text) ? 'the root Cargo.toml sets publish = false' : null;
+}
+
 // --- Claim protocol -------------------------------------------------------
 // GitHub has no atomic compare-and-set on issues, so a claim is a marker comment.
 // The earliest claim posted after the most recent release wins; losers roll back.

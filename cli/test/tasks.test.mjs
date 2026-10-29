@@ -1,16 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   activeClaim,
+  changelogGuard,
   claimComment,
   parseDependencies,
   priorityOf,
   rankClaimable,
   releaseComment,
+  releaseEnabledIn,
   statusOf,
 } from '../lib/tasks.mjs';
-import { DEFAULT_CONFIG, validateConfig } from '../lib/config.mjs';
-import { branchName, issueFromBranch, parseWorktreeList } from '../lib/git.mjs';
+import { DEFAULT_CONFIG, loadConfig, validateConfig } from '../lib/config.mjs';
+import { branchName, git, issueFromBranch, parseWorktreeList } from '../lib/git.mjs';
 import { deepMerge, slugify } from '../lib/util.mjs';
 
 const labels = DEFAULT_CONFIG.tasks.labels;
@@ -135,4 +140,48 @@ test('activeClaim: a release posted by someone else is ignored', () => {
 test('activeClaim: the claimant releases its own claim by nonce', () => {
   const comments = [c('ana', claimComment('ana', 'a1')), c('ana', releaseComment('ana', 'done', 'a1')), c('bob', claimComment('bob', 'b1'))];
   assert.deepEqual(activeClaim(comments), { user: 'bob', nonce: 'b1' });
+});
+
+const CHANGELOG_REFUSAL = 'CHANGELOG.md is generated at release. Revert it; the PR title is the changelog entry.';
+
+test('changelogGuard: blocks a CHANGELOG.md edit when releases are enabled on the base branch', () => {
+  const baseConfig = JSON.stringify({ release: { enabled: true, publish: [] } });
+  const state = changelogGuard({ files: ['cli/baton.mjs', 'CHANGELOG.md'], releaseEnabled: releaseEnabledIn(baseConfig) });
+  assert.deepEqual(state, { ok: false, reason: CHANGELOG_REFUSAL });
+  assert.ok(changelogGuard({ files: ['cli/baton.mjs', 'docs/CHANGELOG.md'], releaseEnabled: true }).ok, 'only the root changelog is generated');
+});
+
+test('changelogGuard: allows a CHANGELOG.md edit when the base branch has releases off or no config', () => {
+  const files = ['.baton/config.json', 'CHANGELOG.md'];
+  // The worktree may turn releases on in this PR; only the base branch's config counts.
+  for (const baseConfig of [JSON.stringify({ release: { enabled: false, publish: [] } }), JSON.stringify({ stacks: [] }), '', '{ not json']) {
+    assert.ok(changelogGuard({ files, releaseEnabled: releaseEnabledIn(baseConfig) }).ok, baseConfig);
+  }
+});
+
+test('validateConfig: release.enabled requires the squash merge strategy', () => {
+  const cfg = deepMerge(DEFAULT_CONFIG, { git: { mergeStrategy: 'merge' }, release: { enabled: true } });
+  assert.deepEqual(validateConfig(cfg), ['release.enabled requires git.mergeStrategy squash: every commit on the base branch must be a Conventional Commit.']);
+  assert.deepEqual(validateConfig(deepMerge(DEFAULT_CONFIG, { release: { enabled: true, publish: ['npm', 'crates'] } })), []);
+});
+
+test('validateConfig: release.publish requires release.enabled', () => {
+  const cfg = deepMerge(DEFAULT_CONFIG, { release: { publish: ['npm'] } });
+  assert.deepEqual(validateConfig(cfg), ['release.publish requires release.enabled.']);
+});
+
+test('validateConfig: rejects unknown publish targets and wrongly typed release keys', () => {
+  const unknown = deepMerge(DEFAULT_CONFIG, { release: { enabled: true, publish: ['pypi'] } });
+  assert.deepEqual(validateConfig(unknown), ["unknown release.publish target 'pypi' (known: npm, crates)."]);
+  assert.deepEqual(validateConfig(deepMerge(DEFAULT_CONFIG, { release: { enabled: 'yes' } })), ['release.enabled must be a boolean']);
+  assert.deepEqual(validateConfig(deepMerge(DEFAULT_CONFIG, { release: { publish: 'npm' } })), ['release.publish must be an array']);
+});
+
+test('DEFAULT_CONFIG: releases are off, and a config without the key loads that way', () => {
+  assert.deepEqual(DEFAULT_CONFIG.release, { enabled: false, publish: [] });
+  const root = mkdtempSync(join(tmpdir(), 'baton-release-'));
+  git(['init', '-q'], { cwd: root });
+  mkdirSync(join(root, '.baton'));
+  writeFileSync(join(root, '.baton/config.json'), JSON.stringify({ stacks: [] }));
+  assert.deepEqual(loadConfig(root).config.release, { enabled: false, publish: [] });
 });
