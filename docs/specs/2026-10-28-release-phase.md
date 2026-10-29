@@ -190,8 +190,9 @@ leaves `release.enabled: false` and writes nothing. On yes, it:
    read and write) and save it as `RELEASE_PLEASE_TOKEN`, an environment secret in the `release`
    environment, limited to the base branch; for each publish target, add this repo,
    `release.yml` and the `release` environment as a trusted publisher on the registry. If the
-   package isn't on the registry yet, publish its current version once by hand from its tag
-   first: both registries need the package to exist before a trusted publisher can be added.
+   package isn't on the registry yet, let the first release happen: its publish job fails for
+   lack of a trusted publisher, then check out that release's tag and publish that version once
+   by hand; both registries need the package to exist before a trusted publisher can be added.
    Once CI has published a release, revoke any old registry tokens.
 4. Suggests, and runs only after the user confirms: a tag ruleset that blocks updating or
    deleting `v*` tags, turning on immutable releases for the repo and creating the `release`
@@ -279,8 +280,10 @@ the file is generated.
 - **Version already on the registry** (a re-run, or a past hand publish): the job skips that
   registry and succeeds, so re-runs are safe.
 - **First version of a new package:** the registry needs the package before a trusted publisher
-  can be set up, so the maintainer publishes that one version by hand from its tag. CI publishes
-  every later version.
+  can be set up. The first release happens anyway and its publish job fails (no trusted
+  publisher yet). The maintainer then checks out that release's tag (`git checkout v<version>`),
+  publishes that version by hand and adds the trusted publisher; CI publishes every later
+  version, and a re-run skips a version already on the registry.
 - **Tag and package version disagree** in the publish job: it fails before publishing. This only
   happens if someone edited version files by hand. Fix them in a PR and release with a
   `Release-As` override.
@@ -358,8 +361,8 @@ Yes. The version comes from one file, the manifest. release-please bumps `packag
 `Cargo.toml` to it, tags that exact commit `v<version>`, and the publish job checks out that tag
 and refuses to publish if the package file disagrees. Publishing a crate or package as `0.2.0`
 therefore always comes from tag `v0.2.0`. Registries never carry the `v`; the tag always does.
-Only the first version of a new package is published by hand, from its tag, because the registry
-needs it before trusted publishing works.
+Only the first version of a new package is published by hand, from its first release tag,
+because the registry needs it before trusted publishing works.
 
 ### Why does the tag come before the publish?
 release-please creates the tag and Release in the same step that detects the release, and the
