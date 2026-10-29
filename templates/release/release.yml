@@ -49,6 +49,9 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -83,14 +86,27 @@ jobs:
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
           NAME=$(node -p "require('./package.json').name")
-          # Exits 0 with empty output for a missing version, and non-zero for a missing package.
-          found=$(npm view "$NAME@$VERSION" version 2>/dev/null || true)
+          # Exits 0 with empty output for a missing version, and E404 for a missing package.
+          # Only E404 means "not published"; any other failure (network, auth) fails the job.
+          if found=$(npm view "$NAME@$VERSION" version 2>"$RUNNER_TEMP/npm-view.err"); then
+            :
+          elif grep -q E404 "$RUNNER_TEMP/npm-view.err"; then
+            found=""
+          else
+            cat "$RUNNER_TEMP/npm-view.err" >&2
+            echo "::error::could not check npm for $NAME@$VERSION"
+            exit 1
+          fi
           if [ "$found" = "$VERSION" ]; then
             echo "$NAME@$VERSION is already on npm; skipping."
             echo "published=true" >> "$GITHUB_OUTPUT"
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
+      # Installs for a prepare or prepublishOnly build. Only npm repos with a package-lock.json get
+      # it: with pnpm, yarn or bun, replace this step with your package manager's install.
+      - if: steps.registry.outputs.published != 'true' && hashFiles('package-lock.json') != ''
+        run: npm ci
       # No token: npm exchanges the job's OIDC identity and adds provenance for a public repo.
       - if: steps.registry.outputs.published != 'true'
         run: npm publish
@@ -105,6 +121,9 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -119,6 +138,7 @@ jobs:
           # The package defined by the root Cargo.toml (resolves version.workspace = true).
           pkg=$(cargo metadata --no-deps --format-version 1 \
             | jq -c --arg manifest "$PWD/Cargo.toml" '.packages[] | select(.manifest_path == $manifest)')
+          [ -n "$pkg" ] || { echo "::error::root Cargo.toml defines no package"; exit 1; }
           actual=$(jq -r .version <<<"$pkg")
           if [ "$actual" != "$VERSION" ] || [ "$TAG" != "v$VERSION" ]; then
             echo "::error::Cargo.toml version $actual, release version $VERSION and tag $TAG must match (tag v<version>)"
