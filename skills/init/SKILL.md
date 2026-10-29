@@ -81,8 +81,12 @@ disable-model-invocation: true
         can't find it from a `v<version>` tag, or it lists every past commit:
         - latest tag (`git describe --tags --abbrev=0`) isn't `v<version>`: its commit
           (`git rev-list -n 1 <tag>`);
-        - no tags and the version isn't `0.0.0`: the commit the user names as the last release
-          (default `HEAD`; confirm it with the user);
+        - no tags and the version isn't `0.0.0`: the commit that set the current version,
+          confirmed with the user. Find it with
+          `git log -1 --format=%H -S'"version": "<version>"' -- package.json`
+          (`-S'version = "<version>"' -- Cargo.toml`, or `git log -1 --format=%H -- version.txt`).
+          Never default to `HEAD` while `## Unreleased` has entries: release-please ignores
+          commits at or before `last-release-sha`, so those entries would be lost;
         - no tags and `0.0.0`: leave it out.
       - `.release-please-manifest.json`: `{ ".": "<version>" }`.
       - `.github/workflows/release.yml`: replace `<base-branch>` with `git.baseBranch`. If the
@@ -91,7 +95,10 @@ disable-model-invocation: true
    4. If `CHANGELOG.md` has a `## Unreleased` section, match each entry to the commits since
       the last release (`git log <last release commit>..HEAD`, or `git log HEAD` for `0.0.0`).
       For each entry no `feat` or `fix` commit covers, propose an override on its source PR's
-      body, and edit the body only after the user confirms:
+      body, and edit the body only after the user confirms. Check first that the PR's merge
+      commit comes after the last release commit
+      (`git merge-base --is-ancestor <last release commit> <merge commit>` and not equal to it);
+      release-please never reads an older PR, so its entry can't be kept this way:
       ```text
       BEGIN_COMMIT_OVERRIDE
       <feat or fix>(<scope>): <the entry>
@@ -100,13 +107,15 @@ disable-model-invocation: true
       The block replaces that PR's commit message, so keep the PR's own line in it if it had
       one. An entry with no source PR goes as an extra line in another PR's block, or ask the
       user what to do with it.
-      **Remove `## Unreleased` only once every uncovered entry has a confirmed override.**
+      **Remove `## Unreleased` only once every uncovered entry has a confirmed override on a PR
+      after the last release.**
       Otherwise keep the section and list the entries the generated notes would lose. Keep the
       header and older sections; release-please adds new versions above them. Never create
       `CHANGELOG.md`; release-please does on the first release.
    5. The token lives in a `release` environment limited to the base branch, so a workflow on
-      another branch can't read it. Suggest creating it, and run only after the user confirms
-      (on a re-run, skip the POST if `gh api repos/{owner}/{repo}/environments/release/deployment-branch-policies`
+      another branch can't read it. **The environment must exist with that branch policy before
+      the token is saved.** Offer to create it, and run only after the user confirms (on a
+      re-run, skip the POST if `gh api repos/{owner}/{repo}/environments/release/deployment-branch-policies`
       already lists the base branch):
       ```bash
       gh api -X PUT repos/{owner}/{repo}/environments/release --input - <<'JSON'
@@ -114,6 +123,10 @@ disable-model-invocation: true
       JSON
       gh api -X POST repos/{owner}/{repo}/environments/release/deployment-branch-policies -f name=<baseBranch>
       ```
+      If the user declines or a call fails (e.g. 403), tell them to create it in Settings >
+      Environments: name `release`, deployment branches "Selected branches" with
+      `git.baseBranch`. Never fall back to a repo secret, and don't let the first workflow run
+      create the environment, since that one has no branch limit.
       Then tell the user to create a fine-grained personal access token: Repository access
       "Only select repositories" with this repo; permissions Contents, Pull requests and Issues
       set to read and write (Metadata read is added automatically); and an expiry. Save it with
