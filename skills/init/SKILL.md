@@ -142,12 +142,16 @@ disable-model-invocation: true
       other job with its `# baton:init: keep ...` marker line, and delete the marker lines of
       the kept jobs. Keep the file header ("Written by baton:init"). Keep the "Publish jobs"
       comment when a job stays, drop it when none does. Then tell the user, per target:
+      - `publish-npm` installs with `npm ci` only when `package-lock.json` exists. A repo using
+        pnpm, yarn or bun must adapt that step.
       - On the registry, add a trusted publisher: this repo, workflow `release.yml`,
         environment `release`. No registry token is stored.
       - A package not yet on the registry: the first release still happens, and its publish
         job fails because no trusted publisher exists yet. The registry only accepts one for a
-        package that exists, so the maintainer runs `git checkout v<version>` for that release,
-        publishes that version by hand, then adds the trusted publisher. CI publishes every
+        package that exists, so the maintainer clones that release's tag into a clean directory
+        (`git clone --depth 1 --branch v<version> <repo-url> <tmp dir>`), reviews
+        `npm pack --dry-run` / `cargo package --list`, publishes that version by hand, then
+        adds the trusted publisher. CI publishes every
         later version; a re-run skips a version already on the registry. Agents never tag or
         publish.
       - After the first CI publish, revoke any old registry tokens.
