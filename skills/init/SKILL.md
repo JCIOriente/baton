@@ -157,6 +157,8 @@ disable-model-invocation: true
         adds the trusted publisher. CI publishes every
         later version; a re-run skips a version already on the registry. Agents never tag or
         publish.
+      - To retry a failed publish, use "Re-run failed jobs" (`gh run rerun <id> --failed`) within
+        7 days; "Re-run all jobs" doesn't publish. A re-run skips a version the registry has.
       - After the first CI publish, revoke any old registry tokens.
       - Add `npm publish --dry-run` / `cargo publish --dry-run` to the repo's CI script
         on a fresh checkout, before any build step, so a package that can't publish or a missing
