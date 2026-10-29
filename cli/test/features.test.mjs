@@ -212,3 +212,47 @@ test('baton init writes the release switch, off', async () => {
   assert.equal(res.status, 0, res.stderr);
   assert.deepEqual(JSON.parse(readFileSync(join(root, '.baton/config.json'), 'utf8')).release, { enabled: false, publish: [] });
 });
+
+test('baton done refuses CHANGELOG.md edits by the base branch release switch, offline', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const refusal = 'CHANGELOG.md is generated at release. Revert it; the PR title is the changelog entry.';
+  // No remote is configured, so nothing can reach the network: a run past the guard fails at push.
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', GH_TOKEN: '' };
+  const sh = (root, ...args) => {
+    const res = spawnSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: root, env, encoding: 'utf8' });
+    assert.equal(res.status, 0, res.stderr);
+  };
+  const config = (enabled) => JSON.stringify({ release: { enabled }, workflow: { requireReview: false } });
+  const repo = (baseEnabled) => {
+    const root = mkdtempSync(join(tmpdir(), 'baton-done-'));
+    sh(root, 'init', '-q', '-b', 'main');
+    mkdirSync(join(root, '.baton'));
+    writeFileSync(join(root, '.baton/config.json'), config(baseEnabled));
+    writeFileSync(join(root, 'CHANGELOG.md'), '# Changelog\n');
+    sh(root, 'add', '-A');
+    sh(root, 'commit', '-qm', 'init');
+    sh(root, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    sh(root, 'checkout', '-qb', `${DEFAULT_CONFIG.git.branchPrefix}/1-x`);
+    return root;
+  };
+  const done = (root, ...args) => spawnSync(process.execPath, [cli, 'done', ...args], { cwd: root, env, encoding: 'utf8' });
+
+  const edited = repo(true);
+  writeFileSync(join(edited, 'CHANGELOG.md'), '# Changelog\n\n## Unreleased\n- x\n');
+  sh(edited, 'commit', '-qam', 'edit');
+  for (const flags of [['--draft'], ['--skip-review', 'r']]) {
+    const res = done(edited, ...flags);
+    assert.notEqual(res.status, 0);
+    assert.ok(res.stderr.includes(refusal), res.stderr);
+  }
+
+  const turningOn = repo(false);
+  writeFileSync(join(turningOn, '.baton/config.json'), config(true));
+  writeFileSync(join(turningOn, 'CHANGELOG.md'), '');
+  sh(turningOn, 'commit', '-qam', 'enable releases');
+  const allowed = done(turningOn, '--draft');
+  assert.notEqual(allowed.status, 0, 'fails later, at push: there is no remote');
+  assert.ok(!allowed.stderr.includes(refusal), allowed.stderr);
+  assert.match(allowed.stderr, /push/);
+});
