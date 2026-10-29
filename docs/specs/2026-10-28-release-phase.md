@@ -161,15 +161,29 @@ hear about a changelog from baton.
     commit SHA with the released version in a comment. The workflow sets top-level `permissions:
     {}` (each job declares its own) and `concurrency: { group: release, cancel-in-progress:
     false }`.
-  - one publish job per `release.publish` entry (`publish-npm`, `publish-crates`), present only
-    when that target is configured. Each has `needs: release-please`, `if:
-    needs.release-please.outputs.release_created == 'true'`, `permissions: { contents: read,
-    id-token: write }`, and runs in a GitHub environment named `release`, limited to the base
-    branch. Each checks out `tag_name`, fails unless the version in `package.json` (npm) or
-    `Cargo.toml` (crates) equals `version` and `tag_name` is `v<version>`, skips if that version
-    already exists on the registry, then publishes:
-    - npm: `npm publish` with trusted publishing; provenance is attached automatically.
-    - crates: `rust-lang/crates-io-auth-action` for a short-lived token, then `cargo publish`.
+  - per `release.publish` entry, a pair of jobs present only when that target is configured. A
+    build job (`build-npm`, `verify-crates`) runs dependency and build code with
+    `permissions: { contents: read }`, no id-token and no environment. It has `needs:
+    release-please`, `if: needs.release-please.outputs.release_created == 'true'`, checks out the
+    release commit (`sha`, a release-please output, so a moved tag can't change the tree), and
+    fails unless the version in `package.json` (npm) or `Cargo.toml` (crates) equals `version`
+    and `tag_name` is `v<version>`:
+    - npm: `npm ci` when `package-lock.json` exists, `npm run build --if-present`, then
+      `npm pack`; the tarball is uploaded as an artifact kept 7 days.
+    - crates: `cargo package`, which compiles the crate.
+  - A publish job (`publish-npm`, `publish-crates`) needs its build job, runs on every release
+    (never skipped by a build job's result), uses `permissions: { contents: read, id-token:
+    write }` and a GitHub environment named `release`, limited to the base branch. It runs no
+    dependency or build code, so a compromised dependency never sees the registry login. Right
+    before publishing it asks the registry itself whether the version exists and, if so, skips
+    the publish and succeeds, so re-running only the failed job after a hand publish is safe:
+    - npm: downloads the tarball, fails unless its `package.json` version equals `version`, then
+      `npm publish <file>.tgz --ignore-scripts` with trusted publishing; provenance is attached
+      automatically.
+    - crates: `rust-lang/crates-io-auth-action` for a short-lived token, then
+      `cargo publish --no-verify`.
+    To retry a publish, use "Re-run failed jobs" within 7 days; "Re-run all jobs" doesn't
+    publish, since the release was already created.
 
 baton never writes `CHANGELOG.md` itself. release-please creates it on the first release if the
 repo has none.
@@ -190,8 +204,9 @@ leaves `release.enabled: false` and writes nothing. On yes, it:
    read and write) and save it as `RELEASE_PLEASE_TOKEN`, an environment secret in the `release`
    environment, limited to the base branch; for each publish target, add this repo,
    `release.yml` and the `release` environment as a trusted publisher on the registry. If the
-   package isn't on the registry yet, publish its current version once by hand from its tag
-   first: both registries need the package to exist before a trusted publisher can be added.
+   package isn't on the registry yet, let the first release happen: its publish job fails for
+   lack of a trusted publisher, then clone that release's tag into a clean directory, review
+   `npm pack --dry-run` / `cargo package --list` and publish that version once by hand; both registries need the package to exist before a trusted publisher can be added.
    Once CI has published a release, revoke any old registry tokens.
 4. Suggests, and runs only after the user confirms: a tag ruleset that blocks updating or
    deleting `v*` tags, turning on immutable releases for the repo and creating the `release`
@@ -279,8 +294,11 @@ the file is generated.
 - **Version already on the registry** (a re-run, or a past hand publish): the job skips that
   registry and succeeds, so re-runs are safe.
 - **First version of a new package:** the registry needs the package before a trusted publisher
-  can be set up, so the maintainer publishes that one version by hand from its tag. CI publishes
-  every later version.
+  can be set up. The first release happens anyway and its publish job fails (no trusted
+  publisher yet). The maintainer then clones that release's tag into a clean directory
+  (`git clone --depth 1 --branch v<version> <repo-url> <tmp dir>`), reviews
+  `npm pack --dry-run` / `cargo package --list`, publishes that version by hand and adds the trusted publisher; CI publishes every later
+  version, and a re-run skips a version already on the registry.
 - **Tag and package version disagree** in the publish job: it fails before publishing. This only
   happens if someone edited version files by hand. Fix them in a PR and release with a
   `Release-As` override.
@@ -319,7 +337,7 @@ will be 0.2.0, because there are `feat` commits since `v0.1.0`. Adopting repos o
 - Templates: `make ci` parses the JSON templates, checks `include-component-in-tag: false` and
   `include-v-in-tag: true`, checks that the workflow references `RELEASE_PLEASE_TOKEN` and runs
   on `workflow_dispatch`, that every publish job needs `release-please`, is gated on
-  `release_created`, checks out `tag_name`, has `id-token: write` only on publish jobs, and
+  `release_created`, checks out the release `sha`, has `id-token: write` only on publish jobs, and
   checks the version against the tag before publishing, and that every `uses:` is pinned to a
   40-character SHA.
 - Skill: red/green subagent scenarios for `baton:release`: a release PR with a badly worded
@@ -358,8 +376,8 @@ Yes. The version comes from one file, the manifest. release-please bumps `packag
 `Cargo.toml` to it, tags that exact commit `v<version>`, and the publish job checks out that tag
 and refuses to publish if the package file disagrees. Publishing a crate or package as `0.2.0`
 therefore always comes from tag `v0.2.0`. Registries never carry the `v`; the tag always does.
-Only the first version of a new package is published by hand, from its tag, because the registry
-needs it before trusted publishing works.
+Only the first version of a new package is published by hand, from its first release tag,
+because the registry needs it before trusted publishing works.
 
 ### Why does the tag come before the publish?
 release-please creates the tag and Release in the same step that detects the release, and the

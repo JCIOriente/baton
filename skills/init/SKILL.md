@@ -133,7 +133,37 @@ disable-model-invocation: true
       `gh secret set RELEASE_PLEASE_TOKEN --env release`. Note the expiry date. The release
       PR's author is the token owner, so once approvals are required, another maintainer
       approves it.
-   6. Suggest, and run only after the user confirms, protecting tags and releases. Skip the
+   6. **Publishing.** Ask whether to publish packages from the release tag. Offer only what
+      the repo can publish: `npm` for a root `package.json` without a truthy `private`,
+      `crates` for a root `Cargo.toml` without `publish = false`. If the user asks for a target
+      that isn't offered, say why. **Default none.** Set `release.publish` to the answer
+      (`[]`, `["npm"]`, `["crates"]` or both). In `.github/workflows/release.yml`, keep only
+      the job pairs marked for the chosen targets (`build-npm` + `publish-npm`, `verify-crates`
+      + `publish-crates`). Delete each other job with the `# baton:init: keep ...` marker line
+      above it, and delete the marker lines of the kept jobs. The build and verify jobs run
+      dependency and build code without credentials; the publish jobs hold the registry login
+      and only publish what they built. Keep the file header ("Written by baton:init"). Keep the "Publish jobs"
+      comment when a job stays, drop it when none does. Then tell the user, per target:
+      - `build-npm` installs with `npm ci` only when `package-lock.json` exists, then runs
+        `npm run build --if-present` and `npm pack`. A repo using pnpm, yarn or bun must adapt
+        the install step.
+      - On the registry, add a trusted publisher: this repo, workflow `release.yml`,
+        environment `release`. No registry token is stored.
+      - A package not yet on the registry: the first release still happens, and its publish
+        job fails because no trusted publisher exists yet. The registry only accepts one for a
+        package that exists, so the maintainer clones that release's tag into a clean directory
+        (`git clone --depth 1 --branch v<version> <repo-url> <tmp dir>`), reviews
+        `npm pack --dry-run` / `cargo package --list`, publishes that version by hand, then
+        adds the trusted publisher. CI publishes every
+        later version; a re-run skips a version already on the registry. Agents never tag or
+        publish.
+      - To retry a failed publish, use "Re-run failed jobs" (`gh run rerun <id> --failed`) within
+        7 days; "Re-run all jobs" doesn't publish. A re-run skips a version the registry has.
+      - After the first CI publish, revoke any old registry tokens.
+      - Add `npm publish --dry-run` / `cargo publish --dry-run` to the repo's CI script
+        on a fresh checkout, before any build step, so a package that can't publish or a missing
+        build fails before the release.
+   7. Suggest, and run only after the user confirms, protecting tags and releases. Skip the
       ruleset if `gh api repos/{owner}/{repo}/rulesets --jq '.[] | select(.name=="release tags")'`
       prints one:
       ```bash
@@ -145,7 +175,7 @@ disable-model-invocation: true
       JSON
       gh api -X PUT repos/{owner}/{repo}/immutable-releases
       ```
-   7. Run `baton doctor`; it must report no release mismatch.
+   8. Run `baton doctor`; it must report no release mismatch.
 
    To turn releases on later, or after a config change, run step 1 (preconditions) and then
    all of step 8, skipping `baton init` (it refuses when a config exists). Step 8 rewrites the
