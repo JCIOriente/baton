@@ -133,7 +133,22 @@ disable-model-invocation: true
       `gh secret set RELEASE_PLEASE_TOKEN --env release`. Note the expiry date. The release
       PR's author is the token owner, so once approvals are required, another maintainer
       approves it.
-   6. Suggest, and run only after the user confirms, protecting tags and releases. Skip the
+   6. **Publishing.** Ask whether to publish packages from the release tag. Offer only what
+      the repo can publish: `npm` for a root `package.json` without a truthy `private`,
+      `crates` for a root `Cargo.toml` without `publish = false`. If the user asks for a target
+      that isn't offered, say why. **Default none.** Set `release.publish` to the answer
+      (`[]`, `["npm"]`, `["crates"]` or both). In `.github/workflows/release.yml`, keep only
+      the jobs marked for the chosen targets (`publish-npm`, `publish-crates`) and delete the
+      other job and every `baton:init` comment. Then tell the user, per target:
+      - On the registry, add a trusted publisher: this repo, workflow `release.yml`,
+        environment `release`. No registry token is stored.
+      - A package not yet on the registry needs its current version published once by hand
+        from its tag first; the registry only accepts a trusted publisher for a package that
+        exists. Only that first version is published by hand.
+      - After the first CI publish, revoke any old registry tokens.
+      - Add `npm publish --dry-run` / `cargo publish --dry-run` to the repo's CI script, so a
+        package that can't publish fails before the release.
+   7. Suggest, and run only after the user confirms, protecting tags and releases. Skip the
       ruleset if `gh api repos/{owner}/{repo}/rulesets --jq '.[] | select(.name=="release tags")'`
       prints one:
       ```bash
@@ -145,7 +160,7 @@ disable-model-invocation: true
       JSON
       gh api -X PUT repos/{owner}/{repo}/immutable-releases
       ```
-   7. Run `baton doctor`; it must report no release mismatch.
+   8. Run `baton doctor`; it must report no release mismatch.
 
    To turn releases on later, or after a config change, run step 1 (preconditions) and then
    all of step 8, skipping `baton init` (it refuses when a config exists). Step 8 rewrites the
