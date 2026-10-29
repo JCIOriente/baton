@@ -7,8 +7,8 @@
 
 ## TL;DR
 - Releases are an opt-in feature: `release.enabled` in `.baton/config.json`, off by default.
-  `baton:init` offers to turn it on. A repo that leaves it off gets no release skill, no
-  `CHANGELOG.md` and no changelog rules from baton.
+  `baton:init` offers to turn it on. A repo that leaves it off gets no release setup
+  (`baton:release` only says releases are off), no `CHANGELOG.md` and no changelog rules.
 - When it is on, PRs never edit `CHANGELOG.md` or version files. The PR title is the changelog
   entry.
 - release-please, a GitHub Action, keeps one open **release PR** with the next version and the
@@ -234,8 +234,8 @@ turns releases on also remove `## Unreleased`. The release PR is never opened th
   a missing root `Cargo.toml` or `publish = false`;
 - a publish target with no matching job in `release.yml`.
 
-**Skills and docs:** the workflow skill lists `baton:release` as on demand, run when someone
-asks to cut a release and only when the session context shows releases enabled. `baton:integrate`
+**Skills and docs:** the workflow skill lists `baton:release` as on demand and routes "cut a
+release" to it in every repo; the skill stops at step 0 when releases are off. `baton:integrate`
 says, for repos with releases enabled, that the PR title is the changelog entry: write it for
 users and never edit `CHANGELOG.md` or version files, and never publish or tag by hand. In every
 repo, it says to pick `feat`/`fix` by effect: skill or guide text that changes agent behavior is
