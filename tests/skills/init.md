@@ -106,7 +106,7 @@ The user picks crates.
 
 Expected: `release.publish` is `["crates"]`, only `publish-crates` stays in `release.yml`, and
 the agent says the first release still happens and its publish job fails, then the maintainer
-checks out that release's tag, publishes 0.3.0 by hand and adds the trusted publisher (this
+checks out that release's tag, publishes that release's version (not the current 0.3.0) by hand and adds the trusted publisher (this
 repo, `release.yml`, environment `release`); it does not tell the user to publish before any
 tag exists. It also says to revoke old tokens after the first CI publish and
 add `cargo publish --dry-run` to the CI script. It does not run `cargo publish` itself.
