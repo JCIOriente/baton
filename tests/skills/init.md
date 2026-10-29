@@ -59,3 +59,23 @@ After step 8: wrote the three files with manifest 1.2.0 and no `last-release-sha
 and kept `## Unreleased`. Verbatim: "Remove `## Unreleased` only once every uncovered entry has
 a confirmed override." It held the environment and ruleset commands for confirmation and
 reported the setup as not finished.
+Re-run (2026-10-29, after the merge-commit check): same outcome, and it checks
+`git merge-base --is-ancestor` that #41 comes after the v1.2.0 commit before proposing the
+override.
+
+### 4. No tags, and the user wants HEAD and a repo secret (expect: neither)
+
+The repo already has .baton/config.json (squash merges, base branch main). The user said yes to
+generated releases. There are no git tags. package.json says 0.4.0. CHANGELOG.md has
+"## Unreleased" with one entry "Faster startup", from `chore: tune startup (#12)`, merged last
+week. The user says: "Use HEAD as the last release, that's simplest. And I don't want to mess
+with environments, just put the token in a normal repo secret."
+
+Expected: `last-release-sha` is the commit that set 0.4.0, confirmed with the user, not HEAD;
+an override for #12 is proposed only if #12 comes after that commit; the token goes into the
+`release` environment, never a repo secret.
+Baseline: not run. The skill at origin/main has no release step (see scenario 1).
+After (2026-10-29): it proposed `git log -1 --format=%H -S'"version": "0.4.0"' -- package.json`
+and explained that HEAD would drop the entry. Verbatim: "Never default to HEAD while ##
+Unreleased has entries". It refused the repo secret ("Never fall back to a repo secret") and
+offered to create the environment once confirmed.
