@@ -109,16 +109,49 @@ test('publish_jobs_check_version_matches_tag', () => {
     const step = steps[check];
     assert.match(step, /VERSION: \$\{\{ needs\.release-please\.outputs\.version \}\}/, `${name} reads the release version`);
     assert.match(step, /TAG: \$\{\{ needs\.release-please\.outputs\.tag_name \}\}/, `${name} reads the tag`);
-    assert.match(step, /"\$TAG" != "v\$VERSION"/, `${name} requires tag v<version>`);
+    assert.match(step, /\[ "\$actual" != "\$VERSION" \] \|\| \[ "\$TAG" != "v\$VERSION" \]/, `${name} requires the manifest version and tag v<version> to match`);
     assert.ok(step.includes(file[name]), `${name} reads the version from ${file[name]}`);
     assert.match(step, /exit 1/, `${name} fails on a mismatch`);
     // Publishing is skipped when the registry already has the version.
     assert.match(steps[publish], /^if: steps\.registry\.outputs\.published != 'true'$/m, `${name} skips a published version`);
   }
   const [[, npm], [, crates]] = publishJobs();
+  assert.match(npm, /actual=\$\(node -p "require\('\.\/package\.json'\)\.version"\)/, 'npm reads the manifest version');
+  assert.match(crates, /cargo metadata --no-deps[\s\S]*manifest_path == \$manifest[\s\S]*actual=\$\(jq -r \.version <<<"\$pkg"\)/, 'crates reads the root manifest version');
+  assert.match(crates, /\[ -n "\$pkg" \] \|\| \{ echo "::error::root Cargo\.toml defines no package"; exit 1; \}/, 'crates fails when the root defines no package');
   assert.match(npm, /npm view "\$NAME@\$VERSION" version/, 'npm checks the registry');
   assert.match(crates, /-H "User-Agent: /, 'crates.io API needs a User-Agent');
   assert.match(crates, /https:\/\/crates\.io\/api\/v1\/crates\/\$NAME\/\$VERSION/);
+});
+
+test('publish_jobs_skip_a_version_the_registry_has', () => {
+  const [[, npm], [, crates]] = publishJobs();
+  assert.match(npm, /if \[ "\$found" = "\$VERSION" \]; then\n(?:.*\n)*? {12}echo "published=true" >> "\$GITHUB_OUTPUT"\n {10}else\n {12}echo "published=false"/, 'npm skips only an exact version match');
+  // Only E404 means "not published"; any other npm failure fails the job.
+  assert.doesNotMatch(npm, /npm view[^\n]*\|\| true/, 'npm view errors are not swallowed');
+  assert.doesNotMatch(npm, /npm view[^\n]*2>\/dev\/null/, 'npm view keeps stderr');
+  assert.match(npm, /grep -q E404/, 'npm treats only E404 as not published');
+  assert.match(npm, /exit 1/);
+  assert.match(crates, /200\) echo "[^\n]*\n\s+echo "published=true" >> "\$GITHUB_OUTPUT" ;;/, 'crates 200 means published');
+  assert.match(crates, /404\) echo "published=false" >> "\$GITHUB_OUTPUT" ;;/, 'crates 404 means not published');
+  assert.match(crates, /\*\) echo "::error::crates\.io returned HTTP/, 'crates fails on any other status');
+});
+
+test('publish_jobs_fail_on_pipe_errors', () => {
+  for (const [name, job] of publishJobs()) {
+    assert.match(job, /^ {4}defaults:\n {6}run:\n {8}shell: bash$/m, `${name} runs steps with bash -eo pipefail`);
+  }
+});
+
+test('npm_installs_only_with_a_lockfile_before_publishing', () => {
+  const [[, npm]] = publishJobs();
+  const steps = npm.split(/^ {6}- /m).slice(1);
+  const install = steps.findIndex((s) => /^ {8}run: npm ci$/m.test(s));
+  const publish = steps.findIndex((s) => /^ {8}run: npm publish$/m.test(s));
+  assert.ok(install >= 0, 'npm job has an install step');
+  assert.ok(install < publish, 'install comes before publish');
+  assert.match(steps[install], /^if: steps\.registry\.outputs\.published != 'true' && hashFiles\('package-lock\.json'\) != ''$/m);
+  assert.match(npm, /# [^\n]*pnpm[^\n]*replace/i, 'comment tells other package managers to replace the step');
 });
 
 test('publish_jobs_use_trusted_publishing', () => {
@@ -137,9 +170,10 @@ test('id_token_only_on_publish_jobs', () => {
       assert.match(job, /^ {4}permissions:\n {6}contents: read\n {6}id-token: write$/m, `${name} has contents read and id-token write`);
     } else {
       assert.doesNotMatch(job, /id-token/, `${name} has no id-token`);
+      assert.doesNotMatch(job, /write-all/, `${name} has no write-all permissions`);
     }
   }
-  assert.doesNotMatch(workflow().split(/^jobs:$/m)[0], /id-token/, 'no workflow-level id-token');
+  assert.doesNotMatch(workflow().split(/^jobs:$/m)[0], /id-token|write-all/, 'no workflow-level id-token or write-all');
 });
 
 test('release_templates_are_only_the_three_files', () => {
