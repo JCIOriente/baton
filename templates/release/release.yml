@@ -35,5 +35,120 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # Publish jobs go here: publish-npm and publish-crates, one per release.publish entry.
-  # Each needs release-please and runs only when release_created is 'true'.
+  # Publish jobs: trusted publishing (OIDC), so no registry token is stored. Each publishes the
+  # tag release-please just created, refuses a package version that differs from the tag, and
+  # skips a version the registry already has, so re-running a failed job is safe.
+
+  # baton:init: keep publish-npm only when release.publish has "npm".
+  publish-npm:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          persist-credentials: false
+      # Trusted publishing needs npm >= 11.5.1 and Node >= 22.14.0; Node 24 ships both.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Check the version matches the tag
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          actual=$(node -p "require('./package.json').version")
+          if [ "$actual" != "$VERSION" ] || [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::package.json version $actual, release version $VERSION and tag $TAG must match (tag v<version>)"
+            exit 1
+          fi
+      - name: Check npm supports trusted publishing
+        run: |
+          npm_version=$(npm --version)
+          if [ "$(printf '%s\n' 11.5.1 "$npm_version" | sort -V | head -n1)" != 11.5.1 ]; then
+            echo "::error::npm $npm_version is older than 11.5.1, which trusted publishing needs"
+            exit 1
+          fi
+      - name: Skip a version npm already has
+        id: registry
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          # Exits 0 with empty output for a missing version, and non-zero for a missing package.
+          found=$(npm view "$NAME@$VERSION" version 2>/dev/null || true)
+          if [ "$found" = "$VERSION" ]; then
+            echo "$NAME@$VERSION is already on npm; skipping."
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.registry.outputs.published != 'true'
+        run: npm ci
+      # No token: npm exchanges the job's OIDC identity and adds provenance for a public repo.
+      - if: steps.registry.outputs.published != 'true'
+        run: npm publish
+
+  # baton:init: keep publish-crates only when release.publish has "crates".
+  publish-crates:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          persist-credentials: false
+      - name: Check the version matches the tag
+        id: version
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          # The package defined by the root Cargo.toml (resolves version.workspace = true).
+          pkg=$(cargo metadata --no-deps --format-version 1 \
+            | jq -c --arg manifest "$PWD/Cargo.toml" '.packages[] | select(.manifest_path == $manifest)')
+          actual=$(jq -r .version <<<"$pkg")
+          if [ "$actual" != "$VERSION" ] || [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::Cargo.toml version $actual, release version $VERSION and tag $TAG must match (tag v<version>)"
+            exit 1
+          fi
+          echo "name=$(jq -r .name <<<"$pkg")" >> "$GITHUB_OUTPUT"
+      - name: Skip a version crates.io already has
+        id: registry
+        env:
+          NAME: ${{ steps.version.outputs.name }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          # The crates.io API rejects requests without a User-Agent.
+          status=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "User-Agent: $REPO release workflow" \
+            "https://crates.io/api/v1/crates/$NAME/$VERSION")
+          case "$status" in
+            200) echo "$NAME $VERSION is already on crates.io; skipping."
+                 echo "published=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "published=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::crates.io returned HTTP $status for $NAME $VERSION"; exit 1 ;;
+          esac
+      # A short-lived token from the job's OIDC identity, revoked when the job ends.
+      - id: auth
+        if: steps.registry.outputs.published != 'true'
+        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+      - if: steps.registry.outputs.published != 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish

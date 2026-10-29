@@ -53,7 +53,93 @@ test('release_workflow_pins_actions_to_sha', () => {
     assert.match(ref, /^[\w.-]+\/[\w.\/-]+@[0-9a-f]{40}$/, `${ref} is pinned to a full commit SHA`);
     assert.match(rest, /^\s+# v\d+\.\d+\.\d+$/, `${ref} names the released version in a comment`);
   }
-  assert.ok(uses.some(([, ref]) => ref.startsWith('googleapis/release-please-action@')));
+  for (const action of ['googleapis/release-please-action', 'actions/checkout', 'actions/setup-node', 'rust-lang/crates-io-auth-action']) {
+    assert.ok(uses.some(([, ref]) => ref.startsWith(`${action}@`)), `${action} is used`);
+  }
+});
+
+// Each job's text, keyed by job id. A comment between jobs ends up in the job above it.
+const jobsOf = (yml) =>
+  Object.fromEntries(
+    yml
+      .split(/^jobs:$/m)[1]
+      .split(/^ {2}(?=[\w-]+:$)/m)
+      .filter((j) => j.trim() && !j.trim().startsWith('#'))
+      .map((j) => [j.split(':')[0], j]),
+  );
+const PUBLISH_JOBS = ['publish-npm', 'publish-crates'];
+const publishJobs = () => {
+  const jobs = jobsOf(workflow());
+  return PUBLISH_JOBS.map((name) => {
+    assert.ok(jobs[name], `job ${name} exists`);
+    return [name, jobs[name]];
+  });
+};
+
+test('publish_jobs_need_release_created', () => {
+  for (const [name, job] of publishJobs()) {
+    assert.match(job, /^ {4}needs: release-please$/m, `${name} needs release-please`);
+    assert.match(job, /^ {4}if: needs\.release-please\.outputs\.release_created == 'true'$/m, `${name} runs only on a release`);
+    assert.match(job, /^ {4}environment: release$/m, `${name} runs in the release environment`);
+  }
+  // init keeps each job only when its target is in release.publish.
+  const yml = workflow();
+  assert.match(yml, /^ {2}# baton:init: keep publish-npm only when release\.publish has "npm"\.$/m);
+  assert.match(yml, /^ {2}# baton:init: keep publish-crates only when release\.publish has "crates"\.$/m);
+});
+
+test('publish_jobs_check_out_the_tag', () => {
+  for (const [name, job] of publishJobs()) {
+    assert.match(
+      job,
+      /^ {6}- uses: actions\/checkout@\S+ # v\S+\n {8}with:\n {10}ref: \$\{\{ needs\.release-please\.outputs\.tag_name \}\}$/m,
+      `${name} checks out tag_name`,
+    );
+  }
+});
+
+test('publish_jobs_check_version_matches_tag', () => {
+  const file = { 'publish-npm': 'package.json', 'publish-crates': 'Cargo.toml' };
+  for (const [name, job] of publishJobs()) {
+    const steps = job.split(/^ {6}- /m).slice(1);
+    const check = steps.findIndex((s) => /^name: Check the version matches the tag$/m.test(s));
+    const publish = steps.findIndex((s) => /^ {8}run: (npm|cargo) publish$/m.test(s));
+    assert.ok(check >= 0, `${name} has the version check step`);
+    assert.ok(publish > check, `${name} checks the version before publishing`);
+    const step = steps[check];
+    assert.match(step, /VERSION: \$\{\{ needs\.release-please\.outputs\.version \}\}/, `${name} reads the release version`);
+    assert.match(step, /TAG: \$\{\{ needs\.release-please\.outputs\.tag_name \}\}/, `${name} reads the tag`);
+    assert.match(step, /"\$TAG" != "v\$VERSION"/, `${name} requires tag v<version>`);
+    assert.ok(step.includes(file[name]), `${name} reads the version from ${file[name]}`);
+    assert.match(step, /exit 1/, `${name} fails on a mismatch`);
+    // Publishing is skipped when the registry already has the version.
+    assert.match(steps[publish], /^if: steps\.registry\.outputs\.published != 'true'$/m, `${name} skips a published version`);
+  }
+  const [[, npm], [, crates]] = publishJobs();
+  assert.match(npm, /npm view "\$NAME@\$VERSION" version/, 'npm checks the registry');
+  assert.match(crates, /-H "User-Agent: /, 'crates.io API needs a User-Agent');
+  assert.match(crates, /https:\/\/crates\.io\/api\/v1\/crates\/\$NAME\/\$VERSION/);
+});
+
+test('publish_jobs_use_trusted_publishing', () => {
+  const yml = workflow();
+  assert.doesNotMatch(yml, /NPM_TOKEN|NODE_AUTH_TOKEN|secrets\.CARGO_REGISTRY_TOKEN/, 'no stored registry token');
+  const [[, npm], [, crates]] = publishJobs();
+  assert.match(npm, /^ {6}- uses: actions\/setup-node@\S+ # v\S+\n {8}with:\n(?: {10}.*\n)*? {10}registry-url: https:\/\/registry\.npmjs\.org$/m);
+  assert.match(crates, /^ {8}uses: rust-lang\/crates-io-auth-action@/m);
+  assert.match(crates, /^ {10}CARGO_REGISTRY_TOKEN: \$\{\{ steps\.auth\.outputs\.token \}\}$/m);
+});
+
+test('id_token_only_on_publish_jobs', () => {
+  const jobs = jobsOf(workflow());
+  for (const [name, job] of Object.entries(jobs)) {
+    if (PUBLISH_JOBS.includes(name)) {
+      assert.match(job, /^ {4}permissions:\n {6}contents: read\n {6}id-token: write$/m, `${name} has contents read and id-token write`);
+    } else {
+      assert.doesNotMatch(job, /id-token/, `${name} has no id-token`);
+    }
+  }
+  assert.doesNotMatch(workflow().split(/^jobs:$/m)[0], /id-token/, 'no workflow-level id-token');
 });
 
 test('release_templates_are_only_the_three_files', () => {
