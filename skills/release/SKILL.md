@@ -6,7 +6,8 @@ description: Use when asked to cut, ship or check a release in a baton repo, or 
 # Release
 
 On demand, outside the per-task phases. This is not `baton release <n>`, the CLI command that
-gives a task back. Never run that command here.
+gives a task back. Never run that command here. If "release it" could mean merging a task's PR,
+ask which one the user means before merging anything.
 
 Releases come from release-please: it keeps one open release PR, and merging it creates the tag
 `v<version>`, the GitHub Release and, if configured, the publish jobs in
@@ -25,23 +26,36 @@ no release-please files, workflow, config change, tag, `gh release create`, vers
 
 ```bash
 gh pr list --label "autorelease: pending"
+gh run list --workflow release.yml --branch <baseBranch> -L 1
 ```
 
-None means nothing releasable merged since the last tag (only `docs`, `chore` and the like), or
-the release run failed. Check `gh run list --workflow release.yml`. Report which one it is,
-point at a failed run (a missing or expired `RELEASE_PLEASE_TOKEN` is the usual cause), and stop.
+If there is no release PR:
+- The latest run is queued or in progress: wait for it (`gh run watch <run-id>`) and list again.
+- The latest run failed: report it with `gh run view <run-id> --log-failed` and stop. A missing
+  or expired `RELEASE_PLEASE_TOKEN` is the usual cause, and only a maintainer can replace it.
+- Otherwise nothing releasable merged since the last tag (only `docs`, `chore` and the like).
+  Say so and stop.
+
+**Never tag or create a Release by hand** to make up for a missing release PR, and don't offer
+to, even when the user says you may.
 
 ## 2. Show what will ship
 
-Show the version, the tag it creates (`v<version>`) and the notes (`gh pr diff <pr>`). Flag each
-entry that doesn't read as a user-facing change ("fix test", "wip"), and each commit whose type
-doesn't match its effect: a `docs` or `chore` that changed behavior, or a `fix` that is really
-a feature.
+Show the version, the tag it creates (`v<version>`) and the notes (`gh pr diff <pr>`). Note the
+PR's head SHA (`gh pr view <pr> --json headRefOid`). Flag each entry that doesn't read as a
+user-facing change ("fix test", "wip"), and each commit whose type doesn't match its effect: a
+`docs` or `chore` that changed behavior, or a `fix` that is really a feature.
 
 ## 3. Fix entries at their source
 
-**Never edit `CHANGELOG.md`, version files or the release PR branch.** release-please rebuilds
-them on every run. Instead, edit the body of the merged source PR and add:
+**Never edit `CHANGELOG.md`, version files or the release PR branch, even when asked to.**
+release-please rebuilds them on every run. Fix the merged source PR's body instead:
+
+```bash
+gh pr view <source-pr> --json body -q .body > <file>
+```
+
+Append a block with the corrected Conventional Commit line. The same block fixes a wrong type:
 
 ```text
 BEGIN_COMMIT_OVERRIDE
@@ -49,34 +63,48 @@ fix(profile): show dates in the member's language
 END_COMMIT_OVERRIDE
 ```
 
-The block holds the corrected Conventional Commit line. Use the same block to fix a wrong type.
-To set the version yourself, add a `Release-As: x.y.z` footer in the block, or on a new commit.
-Propose the text first, then edit with `gh pr edit <source-pr> --body-file <file>`, keeping the
-existing body. Then regenerate the release PR and show it again:
+Only when the user asks for a specific version, add a `Release-As: x.y.z` footer under that line
+in the block, or in the body of a normal task PR (it becomes the squash commit body). Never push
+to the base branch.
+
+Show the new body and wait for the user's go-ahead. Then:
 
 ```bash
+gh pr edit <source-pr> --body-file <file>
 gh workflow run release.yml
+gh run list --workflow release.yml --event workflow_dispatch -L 1
+gh run watch <run-id> --exit-status
+gh pr diff <pr>
 ```
+
+If the run fails, report it. The fix is done only when the diff shows the corrected entry, type
+or version. If it doesn't, say the override didn't take effect. Then show the PR again (step 2).
 
 ## 4. Merge only when told
 
 Merge the release PR only after the user says to in this conversation, and not because they are
-in a hurry or said "cut a release". Releases require `git.mergeStrategy` squash:
+in a hurry or said "cut a release". Releases require squash merges:
 
 ```bash
-gh pr merge <pr> --squash
+gh pr merge <pr> --squash --match-head-commit <head-sha>
 ```
+
+If the merge is rejected or the head changed, show the PR again and ask again.
 
 ## 5. Confirm the release
 
+The release run starts after the merge. Find the run for the merge commit and wait for it:
+
 ```bash
+gh run list --workflow release.yml --commit <merge-sha>
+gh run watch <run-id> --exit-status
+gh run view <run-id>
 gh release view v<version>
-gh run list --workflow release.yml
 ```
 
-The tag and the Release must exist. For each target in `release.publish`, the job `publish-npm`
-or `publish-crates` must have succeeded, and the registry must show the version
-(`npm view <package> version`, `cargo search <crate>`).
+For each target in `release.publish`, the job `publish-npm` or `publish-crates` must show
+success. A `skipped` publish job counts as a failure. Then check the registry for that exact
+version: `npm view <package>@<version> version` or `cargo info <crate>@<version>`.
 
 If a publish job failed, the tag and Release stay. Report the error and offer
 `gh run rerun <run-id> --failed`. The job skips registries that already have the version, so a
