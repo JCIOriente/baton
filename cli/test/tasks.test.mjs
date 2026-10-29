@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -175,11 +175,14 @@ test('validateConfig: rejects unknown publish targets and wrongly typed release 
   assert.deepEqual(validateConfig(unknown), ["unknown release.publish target 'pypi' (known: npm, crates)."]);
   assert.deepEqual(validateConfig(deepMerge(DEFAULT_CONFIG, { release: { enabled: 'yes' } })), ['release.enabled must be a boolean']);
   assert.deepEqual(validateConfig(deepMerge(DEFAULT_CONFIG, { release: { publish: 'npm' } })), ['release.publish must be an array']);
+  assert.deepEqual(validateConfig(deepMerge(DEFAULT_CONFIG, { release: true })), ['release must be an object']);
+  assert.deepEqual(validateConfig(deepMerge(DEFAULT_CONFIG, { release: null })), ['release must be an object']);
 });
 
-test('DEFAULT_CONFIG: releases are off, and a config without the key loads that way', () => {
+test('DEFAULT_CONFIG: releases are off, and a config without the key loads that way', (t) => {
   assert.deepEqual(DEFAULT_CONFIG.release, { enabled: false, publish: [] });
   const root = mkdtempSync(join(tmpdir(), 'baton-release-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   git(['init', '-q'], { cwd: root });
   mkdirSync(join(root, '.baton'));
   writeFileSync(join(root, '.baton/config.json'), JSON.stringify({ stacks: [] }));

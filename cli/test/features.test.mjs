@@ -150,9 +150,11 @@ test('the CLI entry point loads and prints help', async () => {
 
 const RELEASE_LINE = 'Releases: on demand with baton:release. Never edit CHANGELOG.md or version files in a task PR; the PR title is the changelog entry.';
 
-test('context: mentions releases only when release.enabled', async () => {
+test('context: mentions releases only when release.enabled', async (t) => {
   const { buildContext } = await import('../lib/context.mjs');
+  const { rmSync } = await import('node:fs');
   const root = mkdtempSync(join(tmpdir(), 'baton-ctx-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   const off = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
   assert.ok(!off.includes('baton:release') && !off.includes('CHANGELOG'));
   const on = buildContext({ root, found: true, config: deepMerge(DEFAULT_CONFIG, { release: { enabled: true } }) }, { pluginRoot: '/p', cwd: root });
@@ -202,19 +204,21 @@ test('releaseFindings: reports each mismatch between the release config and the 
   assert.deepEqual(noJob, ["release.publish has 'crates' but .github/workflows/release.yml has no publish-crates job."]);
 });
 
-test('baton init writes the release switch, off', async () => {
+test('baton init writes the release switch, off', async (t) => {
   const { spawnSync } = await import('node:child_process');
-  const { readFileSync } = await import('node:fs');
+  const { readFileSync, rmSync } = await import('node:fs');
   const cli = new URL('../baton.mjs', import.meta.url).pathname;
   const root = mkdtempSync(join(tmpdir(), 'baton-init-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   spawnSync('git', ['init', '-q'], { cwd: root });
   const res = spawnSync(process.execPath, [cli, 'init'], { cwd: root, encoding: 'utf8' });
   assert.equal(res.status, 0, res.stderr);
   assert.deepEqual(JSON.parse(readFileSync(join(root, '.baton/config.json'), 'utf8')).release, { enabled: false, publish: [] });
 });
 
-test('baton done refuses CHANGELOG.md edits by the base branch release switch, offline', async () => {
+test('baton done refuses CHANGELOG.md edits by the base branch release switch, offline', async (t) => {
   const { spawnSync } = await import('node:child_process');
+  const { rmSync } = await import('node:fs');
   const cli = new URL('../baton.mjs', import.meta.url).pathname;
   const refusal = 'CHANGELOG.md is generated at release. Revert it; the PR title is the changelog entry.';
   // No remote is configured, so nothing can reach the network: a run past the guard fails at push.
@@ -224,11 +228,13 @@ test('baton done refuses CHANGELOG.md edits by the base branch release switch, o
     assert.equal(res.status, 0, res.stderr);
   };
   const config = (enabled) => JSON.stringify({ release: { enabled }, workflow: { requireReview: false } });
+  // baseEnabled: true/false writes a base config with that switch; null commits no base config.
   const repo = (baseEnabled) => {
     const root = mkdtempSync(join(tmpdir(), 'baton-done-'));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
     sh(root, 'init', '-q', '-b', 'main');
     mkdirSync(join(root, '.baton'));
-    writeFileSync(join(root, '.baton/config.json'), config(baseEnabled));
+    if (baseEnabled !== null) writeFileSync(join(root, '.baton/config.json'), config(baseEnabled));
     writeFileSync(join(root, 'CHANGELOG.md'), '# Changelog\n');
     sh(root, 'add', '-A');
     sh(root, 'commit', '-qm', 'init');
@@ -260,4 +266,29 @@ test('baton done refuses CHANGELOG.md edits by the base branch release switch, o
   assert.notEqual(allowed.status, 0, 'fails later, at push: there is no remote');
   assert.ok(!allowed.stderr.includes(refusal), allowed.stderr);
   assert.match(allowed.stderr, /push/);
+
+  const noBaseConfig = repo(null);
+  writeFileSync(join(noBaseConfig, '.baton/config.json'), config(true));
+  writeFileSync(join(noBaseConfig, 'CHANGELOG.md'), '');
+  sh(noBaseConfig, 'add', '-A');
+  sh(noBaseConfig, 'commit', '-qm', 'adopt baton with releases');
+  const adopted = done(noBaseConfig, '--draft');
+  assert.ok(!adopted.stderr.includes(refusal), adopted.stderr);
+  assert.match(adopted.stderr, /push/);
+});
+
+test('baton doctor reports missing release files, offline', async (t) => {
+  const { spawnSync } = await import('node:child_process');
+  const { rmSync } = await import('node:fs');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const root = mkdtempSync(join(tmpdir(), 'baton-doctor-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  mkdirSync(join(root, '.baton'));
+  writeFileSync(join(root, '.baton/config.json'), JSON.stringify({ git: { mergeStrategy: 'squash' }, release: { enabled: true, publish: [] } }));
+  const res = spawnSync(process.execPath, [cli, 'doctor', '--json'], { cwd: root, encoding: 'utf8' });
+  assert.equal(res.status, 1, res.stderr);
+  const release = JSON.parse(res.stdout).filter((f) => f.kind === 'release');
+  assert.equal(release.length, 1);
+  for (const file of ['release-please-config.json', '.release-please-manifest.json', '.github/workflows/release.yml']) assert.ok(release[0].message.includes(file), file);
 });
