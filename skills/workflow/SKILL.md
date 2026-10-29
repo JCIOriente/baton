@@ -49,8 +49,8 @@ explicitly says to skip a phase, do so and say which gate was skipped.
 Supporting skills: `baton:parallel` (several tasks at once), `baton:debug` (unknown cause),
 `baton:retro` (turn lessons into conventions).
 
-On demand, outside the per-task phases: `baton:release`, only when the session context shows
-releases enabled. "Cut a release" routes there.
+On demand, outside the per-task phases: `baton:release`. "Cut a release" routes there; it stops
+by itself when releases aren't enabled.
 
 Bugs: once `baton:debug` has confirmed the cause, continue from the phase the fix needs.
 
