@@ -33,3 +33,5 @@ files.
 Conventional Commits (`feat(cli): ...`, `fix(hooks): ...`). The subject is usually enough; a
 body, when the why needs one, is one or two short paragraphs. PRs use the template: at most two
 paragraphs, the second saying what was not verified.
+
+`CHANGELOG.md` is generated at release. baton's own PRs never edit it or version files.
