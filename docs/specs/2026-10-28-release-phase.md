@@ -161,15 +161,25 @@ hear about a changelog from baton.
     commit SHA with the released version in a comment. The workflow sets top-level `permissions:
     {}` (each job declares its own) and `concurrency: { group: release, cancel-in-progress:
     false }`.
-  - one publish job per `release.publish` entry (`publish-npm`, `publish-crates`), present only
-    when that target is configured. Each has `needs: release-please`, `if:
-    needs.release-please.outputs.release_created == 'true'`, `permissions: { contents: read,
-    id-token: write }`, and runs in a GitHub environment named `release`, limited to the base
-    branch. Each checks out `tag_name`, fails unless the version in `package.json` (npm) or
-    `Cargo.toml` (crates) equals `version` and `tag_name` is `v<version>`, skips if that version
-    already exists on the registry, then publishes:
-    - npm: `npm publish` with trusted publishing; provenance is attached automatically.
-    - crates: `rust-lang/crates-io-auth-action` for a short-lived token, then `cargo publish`.
+  - per `release.publish` entry, a pair of jobs present only when that target is configured. A
+    build job (`build-npm`, `verify-crates`) runs dependency and build code with
+    `permissions: { contents: read }`, no id-token and no environment. It has `needs:
+    release-please`, `if: needs.release-please.outputs.release_created == 'true'`, checks out
+    `tag_name`, fails unless the version in `package.json` (npm) or `Cargo.toml` (crates) equals
+    `version` and `tag_name` is `v<version>`, and checks whether that version already exists on
+    the registry, exposing `published` as an output:
+    - npm: `npm ci` when `package-lock.json` exists, `npm run build --if-present`, then
+      `npm pack`; the tarball is uploaded as an artifact.
+    - crates: `cargo package`, which compiles the crate.
+  - A publish job (`publish-npm`, `publish-crates`) needs its build job, runs only when
+    `published` is not `true`, uses `permissions: { contents: read, id-token: write }` and a
+    GitHub environment named `release`, limited to the base branch. It runs no dependency or
+    build code, so a compromised dependency never sees the registry login:
+    - npm: downloads the tarball, fails unless its `package.json` version equals `version`, then
+      `npm publish <file>.tgz --ignore-scripts` with trusted publishing; provenance is attached
+      automatically.
+    - crates: `rust-lang/crates-io-auth-action` for a short-lived token, then
+      `cargo publish --no-verify`.
 
 baton never writes `CHANGELOG.md` itself. release-please creates it on the first release if the
 repo has none.
