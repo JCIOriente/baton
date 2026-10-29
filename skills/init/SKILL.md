@@ -77,27 +77,52 @@ disable-model-invocation: true
       - `release-please-config.json`: set `release-type`. List other files that carry the
         version in `extra-files`, e.g.
         `{ "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" }`.
-        If the latest tag (`git describe --tags --abbrev=0`) isn't `v<version>`, add a
-        top-level `"last-release-sha"` with that release's commit (`git rev-list -n 1 <tag>`);
-        otherwise release-please lists every past commit.
+        Set `"last-release-sha"` (top level) to the last release's commit when release-please
+        can't find it from a `v<version>` tag, or it lists every past commit:
+        - latest tag (`git describe --tags --abbrev=0`) isn't `v<version>`: its commit
+          (`git rev-list -n 1 <tag>`);
+        - no tags and the version isn't `0.0.0`: the commit the user names as the last release
+          (default `HEAD`; confirm it with the user);
+        - no tags and `0.0.0`: leave it out.
       - `.release-please-manifest.json`: `{ ".": "<version>" }`.
-      - `.github/workflows/release.yml`: replace `main` with `git.baseBranch`.
+      - `.github/workflows/release.yml`: replace `<base-branch>` with `git.baseBranch`. If the
+        file exists and lacks the "Written by baton:init" header, show it and ask before
+        replacing it.
    4. If `CHANGELOG.md` has a `## Unreleased` section, match each entry to the commits since
-      the last tag (`git log <tag>..HEAD`). For an entry no `feat` or `fix` commit covers,
-      propose adding this to the source PR's body, and edit it only after the user confirms:
+      the last release (`git log <last release commit>..HEAD`, or `git log HEAD` for `0.0.0`).
+      For each entry no `feat` or `fix` commit covers, propose an override on its source PR's
+      body, and edit the body only after the user confirms:
       ```text
       BEGIN_COMMIT_OVERRIDE
       <feat or fix>(<scope>): <the entry>
       END_COMMIT_OVERRIDE
       ```
-      Then remove the section. Keep the header and older sections; release-please adds new
-      versions above them. Never create `CHANGELOG.md`; release-please does on the first release.
-   5. Tell the user the token steps: create a fine-grained personal access token for this repo
-      only, with Contents, Pull requests and Issues set to read and write, and save it as the
-      repo secret `RELEASE_PLEASE_TOKEN` (`gh secret set RELEASE_PLEASE_TOKEN`). It expires, so
-      note the date. The release PR's author is the token owner, so once approvals are
-      required, another maintainer approves it.
-   6. Suggest, and run only after the user confirms, protecting tags and releases:
+      The block replaces that PR's commit message, so keep the PR's own line in it if it had
+      one. An entry with no source PR goes as an extra line in another PR's block, or ask the
+      user what to do with it.
+      **Remove `## Unreleased` only once every uncovered entry has a confirmed override.**
+      Otherwise keep the section and list the entries the generated notes would lose. Keep the
+      header and older sections; release-please adds new versions above them. Never create
+      `CHANGELOG.md`; release-please does on the first release.
+   5. The token lives in a `release` environment limited to the base branch, so a workflow on
+      another branch can't read it. Suggest creating it, and run only after the user confirms
+      (on a re-run, skip the POST if `gh api repos/{owner}/{repo}/environments/release/deployment-branch-policies`
+      already lists the base branch):
+      ```bash
+      gh api -X PUT repos/{owner}/{repo}/environments/release --input - <<'JSON'
+      { "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true } }
+      JSON
+      gh api -X POST repos/{owner}/{repo}/environments/release/deployment-branch-policies -f name=<baseBranch>
+      ```
+      Then tell the user to create a fine-grained personal access token: Repository access
+      "Only select repositories" with this repo; permissions Contents, Pull requests and Issues
+      set to read and write (Metadata read is added automatically); and an expiry. Save it with
+      `gh secret set RELEASE_PLEASE_TOKEN --env release`. Note the expiry date. The release
+      PR's author is the token owner, so once approvals are required, another maintainer
+      approves it.
+   6. Suggest, and run only after the user confirms, protecting tags and releases. Skip the
+      ruleset if `gh api repos/{owner}/{repo}/rulesets --jq '.[] | select(.name=="release tags")'`
+      prints one:
       ```bash
       gh api -X POST repos/{owner}/{repo}/rulesets --input - <<'JSON'
       { "name": "release tags", "target": "tag", "enforcement": "active",
@@ -109,10 +134,9 @@ disable-model-invocation: true
       ```
    7. Run `baton doctor`; it must report no release mismatch.
 
-   To turn releases on later, or after a config change, run step 1 and then this step on its
-   own in a repo that already has `.baton/config.json`. Skip `baton init`, which refuses when a
-   config exists.
-   Rewrite the three files from the templates and the current config.
+   To turn releases on later, or after a config change, run step 1 (preconditions) and then
+   all of step 8, skipping `baton init` (it refuses when a config exists). Step 8 rewrites the
+   three files from the templates and the current config.
 9. **Commit** `.baton/config.json` (and the docs dirs) so every contributor and session
    shares the same workflow.
 
