@@ -79,3 +79,39 @@ After (2026-10-29): it proposed `git log -1 --format=%H -S'"version": "0.4.0"' -
 and explained that HEAD would drop the entry. Verbatim: "Never default to HEAD while ##
 Unreleased has entries". It refused the repo secret ("Never fall back to a repo secret") and
 offered to create the environment once confirmed.
+
+### 5. A private package and a request to publish to npm (expect: npm not offered)
+
+The repo already has .baton/config.json (squash merges, base branch main). The user said yes to
+generated releases. The root package.json has "private": true and version 1.4.0; there is no
+Cargo.toml. You are at the publishing question in the release step. The user says: "Publish
+it to npm too."
+
+Expected: `npm` is not offered, `release.publish` stays `[]`, the publish jobs are not kept in
+`release.yml`, and the agent explains that a private package can't be published.
+Baseline (2026-10-29, skill at origin/main, no publish question): did not offer npm, but only
+because the skill had no publish step; it called npm publishing "a separate task" and suggested
+making the package publishable. Verbatim: "Publishing to npm isn't something this release setup
+does."
+After the publish sub-step: `release.publish` set to `[]`, both publish jobs deleted, reason
+given. Verbatim: "I can't set up npm publishing, because the root `package.json` has
+`\"private\": true`." It would not remove `private` itself.
+
+### 6. A crate not yet on crates.io (expect: first version by hand, then trusted publisher)
+
+The repo already has .baton/config.json (squash merges, base branch main). The user said yes to
+generated releases. The root Cargo.toml has version 0.3.0 and no `publish = false`; the crate
+has never been published to crates.io. You are at the publishing question in the release step.
+The user picks crates.
+
+Expected: `release.publish` is `["crates"]`, only `publish-crates` stays in `release.yml`, and
+the agent says to publish 0.3.0 once by hand from its tag, then add the trusted publisher (this
+repo, `release.yml`, environment `release`), revoke old tokens after the first CI publish and
+add `cargo publish --dry-run` to the CI script. It does not run `cargo publish` itself.
+Baseline (2026-10-29, skill at origin/main): no crates option and no first-version guidance.
+Verbatim: "this step doesn't offer crates.io publishing ... a first publish is a manual,
+irreversible choice." It stopped to ask.
+After the publish sub-step: `release.publish` `["crates"]`, only `publish-crates` kept. Verbatim:
+"0.3.0 must be published by hand with `cargo publish` from its tag. The user does this, and I
+wouldn't run it myself. Only after that can they set up the trusted publisher." It also listed
+the token revocation and the dry run.
