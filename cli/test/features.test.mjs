@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_CONFIG, reviewersFor } from '../lib/config.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from '../lib/detect.mjs';
-import { unblockable } from '../lib/tasks.mjs';
+import { releaseFindings, unblockable } from '../lib/tasks.mjs';
 import { deepMerge } from '../lib/util.mjs';
 import { classify, questions } from '../../hooks/fact-gate.mjs';
 
@@ -146,4 +146,150 @@ test('the CLI entry point loads and prints help', async () => {
   assert.equal(res.status, 0, res.stderr);
   assert.match(res.stdout, /baton <command>/);
   for (const cmd of ['claim', 'start', 'reviewers', 'done', 'doctor', 'upstream']) assert.match(res.stdout, new RegExp(`\\b${cmd}\\b`));
+});
+
+const RELEASE_LINE = 'Releases: on demand with baton:release. Never edit CHANGELOG.md or version files in a task PR; the PR title is the changelog entry.';
+
+test('context: mentions releases only when release.enabled', async (t) => {
+  const { buildContext } = await import('../lib/context.mjs');
+  const { rmSync } = await import('node:fs');
+  const root = mkdtempSync(join(tmpdir(), 'baton-ctx-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const off = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
+  assert.ok(!off.includes('baton:release') && !off.includes('CHANGELOG'));
+  const on = buildContext({ root, found: true, config: deepMerge(DEFAULT_CONFIG, { release: { enabled: true } }) }, { pluginRoot: '/p', cwd: root });
+  assert.ok(on.includes(RELEASE_LINE));
+});
+
+test('releaseFindings: reports each mismatch between the release config and the repo', () => {
+  const on = (publish = []) => deepMerge(DEFAULT_CONFIG, { release: { enabled: true, publish } });
+  const goodTags = JSON.stringify({ 'include-component-in-tag': false, 'include-v-in-tag': true, packages: { '.': {} } });
+  const workflow = (...jobs) => `jobs:\n  release-please:\n    runs-on: ubuntu-latest\n${jobs.map((j) => `  ${j}:\n    needs: release-please\n`).join('')}`;
+  const complete = {
+    'release-please-config.json': goodTags,
+    '.release-please-manifest.json': '{ ".": "0.1.0" }',
+    '.github/workflows/release.yml': workflow(),
+  };
+  const messages = (config, files) => releaseFindings({ config, files }).map((f) => {
+    assert.equal(f.kind, 'release');
+    return f.message;
+  });
+
+  assert.deepEqual(messages(DEFAULT_CONFIG, {}), []);
+  assert.deepEqual(messages(on(), complete), []);
+
+  const [missing] = messages(on(), { 'release-please-config.json': goodTags });
+  assert.match(missing, /release\.enabled is true.*\.release-please-manifest\.json, \.github\/workflows\/release\.yml/);
+  const [leftover] = messages(DEFAULT_CONFIG, { '.github/workflows/release.yml': workflow() });
+  assert.match(leftover, /release\.enabled is false.*\.github\/workflows\/release\.yml/);
+
+  for (const tags of [{ 'include-v-in-tag': true }, { 'include-component-in-tag': false, 'include-v-in-tag': false }, { 'include-component-in-tag': false, 'include-v-in-tag': true, packages: { '.': { 'include-component-in-tag': true } } }]) {
+    const found = messages(on(), { ...complete, 'release-please-config.json': JSON.stringify(tags) });
+    assert.equal(found.length, 1, JSON.stringify(tags));
+    assert.match(found[0], /include-component-in-tag: false.*include-v-in-tag: true/);
+  }
+  assert.match(messages(on(), { ...complete, 'release-please-config.json': '{ nope' })[0], /not valid JSON/);
+
+  const npmJobs = { ...complete, '.github/workflows/release.yml': workflow('publish-npm') };
+  assert.match(messages(on(['npm']), npmJobs).join('\n'), /npm.*no root package\.json/);
+  assert.match(messages(on(['npm']), { ...npmJobs, 'package.json': '{ "private": true }' }).join('\n'), /npm.*private/);
+  assert.match(messages(on(['npm']), { ...npmJobs, 'package.json': '{ "private": "true" }' }).join('\n'), /npm.*private/, 'npm refuses any truthy private');
+  assert.deepEqual(messages(on(['npm']), { ...npmJobs, 'package.json': '{ "name": "x" }' }), []);
+
+  const crateJobs = { ...complete, '.github/workflows/release.yml': workflow('publish-crates') };
+  assert.match(messages(on(['crates']), crateJobs).join('\n'), /crates.*no root Cargo\.toml/);
+  assert.match(messages(on(['crates']), { ...crateJobs, 'Cargo.toml': '[package]\nname = "x"\npublish = false\n' }).join('\n'), /crates.*publish = false/);
+  assert.deepEqual(messages(on(['crates']), { ...crateJobs, 'Cargo.toml': '[package]\nname = "x"\n' }), []);
+
+  const noJob = messages(on(['npm', 'crates']), { ...npmJobs, 'package.json': '{}', 'Cargo.toml': '[package]\n' });
+  assert.deepEqual(noJob, ["release.publish has 'crates' but .github/workflows/release.yml has no publish-crates job."]);
+});
+
+test('baton init writes the release switch, off', async (t) => {
+  const { spawnSync } = await import('node:child_process');
+  const { readFileSync, rmSync } = await import('node:fs');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const root = mkdtempSync(join(tmpdir(), 'baton-init-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  const res = spawnSync(process.execPath, [cli, 'init'], { cwd: root, encoding: 'utf8' });
+  assert.equal(res.status, 0, res.stderr);
+  assert.deepEqual(JSON.parse(readFileSync(join(root, '.baton/config.json'), 'utf8')).release, { enabled: false, publish: [] });
+});
+
+test('baton done refuses CHANGELOG.md edits by the base branch release switch, offline', async (t) => {
+  const { spawnSync } = await import('node:child_process');
+  const { rmSync } = await import('node:fs');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const refusal = 'CHANGELOG.md is generated at release. Revert it; the PR title is the changelog entry.';
+  // No remote is configured, so nothing can reach the network: a run past the guard fails at push.
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', GH_TOKEN: '' };
+  const sh = (root, ...args) => {
+    const res = spawnSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: root, env, encoding: 'utf8' });
+    assert.equal(res.status, 0, res.stderr);
+  };
+  const config = (enabled) => JSON.stringify({ release: { enabled }, workflow: { requireReview: false } });
+  // baseEnabled: true/false writes a base config with that switch; null commits no base config.
+  const repo = (baseEnabled) => {
+    const root = mkdtempSync(join(tmpdir(), 'baton-done-'));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    sh(root, 'init', '-q', '-b', 'main');
+    mkdirSync(join(root, '.baton'));
+    if (baseEnabled !== null) writeFileSync(join(root, '.baton/config.json'), config(baseEnabled));
+    writeFileSync(join(root, 'CHANGELOG.md'), '# Changelog\n');
+    sh(root, 'add', '-A');
+    sh(root, 'commit', '-qm', 'init');
+    sh(root, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    sh(root, 'checkout', '-qb', `${DEFAULT_CONFIG.git.branchPrefix}/1-x`);
+    return root;
+  };
+  const done = (root, ...args) => spawnSync(process.execPath, [cli, 'done', ...args], { cwd: root, env, encoding: 'utf8' });
+
+  const edited = repo(true);
+  writeFileSync(join(edited, 'CHANGELOG.md'), '# Changelog\n\n## Unreleased\n- x\n');
+  sh(edited, 'commit', '-qam', 'edit');
+  for (const flags of [['--draft'], ['--skip-review', 'r']]) {
+    const res = done(edited, ...flags);
+    assert.notEqual(res.status, 0);
+    assert.ok(res.stderr.includes(refusal), res.stderr);
+  }
+
+  const renamed = repo(true);
+  sh(renamed, 'mv', 'CHANGELOG.md', 'HISTORY.md');
+  sh(renamed, 'commit', '-qm', 'rename');
+  assert.ok(done(renamed, '--draft').stderr.includes(refusal), 'a rename away from CHANGELOG.md is still an edit');
+
+  const turningOn = repo(false);
+  writeFileSync(join(turningOn, '.baton/config.json'), config(true));
+  writeFileSync(join(turningOn, 'CHANGELOG.md'), '');
+  sh(turningOn, 'commit', '-qam', 'enable releases');
+  const allowed = done(turningOn, '--draft');
+  assert.notEqual(allowed.status, 0, 'fails later, at push: there is no remote');
+  assert.ok(!allowed.stderr.includes(refusal), allowed.stderr);
+  assert.match(allowed.stderr, /push/);
+
+  const noBaseConfig = repo(null);
+  writeFileSync(join(noBaseConfig, '.baton/config.json'), config(true));
+  writeFileSync(join(noBaseConfig, 'CHANGELOG.md'), '');
+  sh(noBaseConfig, 'add', '-A');
+  sh(noBaseConfig, 'commit', '-qm', 'adopt baton with releases');
+  const adopted = done(noBaseConfig, '--draft');
+  assert.ok(!adopted.stderr.includes(refusal), adopted.stderr);
+  assert.match(adopted.stderr, /push/);
+});
+
+test('baton doctor reports missing release files, offline', async (t) => {
+  const { spawnSync } = await import('node:child_process');
+  const { rmSync } = await import('node:fs');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const root = mkdtempSync(join(tmpdir(), 'baton-doctor-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  mkdirSync(join(root, '.baton'));
+  writeFileSync(join(root, '.baton/config.json'), JSON.stringify({ git: { mergeStrategy: 'squash' }, release: { enabled: true, publish: [] } }));
+  const res = spawnSync(process.execPath, [cli, 'doctor', '--json'], { cwd: root, encoding: 'utf8' });
+  assert.equal(res.status, 1, res.stderr);
+  const release = JSON.parse(res.stdout).filter((f) => f.kind === 'release');
+  assert.equal(release.length, 1);
+  for (const file of ['release-please-config.json', '.release-please-manifest.json', '.github/workflows/release.yml']) assert.ok(release[0].message.includes(file), file);
 });

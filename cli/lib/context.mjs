@@ -39,6 +39,9 @@ export function buildContext({ root, found, config }, { pluginRoot, cwd = proces
   lines.push(`Phases: ${config.workflow.phases.join(' -> ')}${gates.length ? ` (gates: ${gates.join(', ')})` : ''}`);
   const custom = Object.entries(config.workflow.custom ?? {}).filter(([p]) => config.workflow.phases.includes(p));
   for (const [phase, file] of custom) lines.push(`- Custom phase '${phase}': follow ${join(root, file)}`);
+  if (config.release.enabled) {
+    lines.push('Releases: on demand with baton:release. Never edit CHANGELOG.md or version files in a task PR; the PR title is the changelog entry.');
+  }
 
   if (config.stacks.length) {
     lines.push('', 'Enabled stack guides. Read the relevant ones before writing or reviewing code in that stack:');
