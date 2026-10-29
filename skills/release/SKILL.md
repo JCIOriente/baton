@@ -67,12 +67,19 @@ Only when the user asks for a specific version, add a `Release-As: x.y.z` footer
 in the block, or in the body of a normal task PR (it becomes the squash commit body). Never push
 to the base branch.
 
-Show the new body and wait for the user's go-ahead. Then:
+Show the new body and wait for the user's go-ahead. Then edit the body, note the time, and
+dispatch:
 
 ```bash
 gh pr edit <source-pr> --body-file <file>
 gh workflow run release.yml
-gh run list --workflow release.yml --event workflow_dispatch -L 1
+gh run list --workflow release.yml --event workflow_dispatch -L 1 --json databaseId,createdAt
+```
+
+`gh workflow run` returns before the run is listed, so the first listing can show the previous
+run. List again until a run created after the dispatch appears, then:
+
+```bash
 gh run watch <run-id> --exit-status
 gh pr diff <pr>
 ```
@@ -93,10 +100,11 @@ If the merge is rejected or the head changed, show the PR again and ask again.
 
 ## 5. Confirm the release
 
-The release run starts after the merge. Find the run for the merge commit and wait for it:
+The release run starts after the merge and may not be listed yet. List runs for the merge
+commit until one appears, and don't judge the release until it exists and has finished:
 
 ```bash
-gh run list --workflow release.yml --commit <merge-sha>
+gh run list --workflow release.yml --commit <merge-sha> --json databaseId,createdAt
 gh run watch <run-id> --exit-status
 gh run view <run-id>
 gh release view v<version>
