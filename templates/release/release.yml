@@ -124,16 +124,23 @@ jobs:
         env:
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
+          # The artifact comes from a job that ran dependency code, so treat its contents as
+          # untrusted: check the file name and package name before using either.
           set -- "$RUNNER_TEMP"/pack/*.tgz
           [ "$#" -eq 1 ] || { echo "::error::expected one tarball, found $#"; exit 1; }
+          case "${1##*/}" in
+            *[!A-Za-z0-9@._~-]*|.*|-*) echo "::error::unexpected tarball file name"; exit 1 ;;
+          esac
           pkg=$(tar -xOf "$1" package/package.json)
-          actual=$(node -p "JSON.parse(process.argv[1]).version" "$pkg")
+          name=$(node -p "String(JSON.parse(process.argv[1]).name)" "$pkg")
+          name_pattern='^(@[a-z0-9~-][a-z0-9._~-]*/)?[a-z0-9~-][a-z0-9._~-]*$'
+          [[ "$name" =~ $name_pattern ]] || { echo "::error::tarball has an invalid package name"; exit 1; }
+          actual=$(node -p "String(JSON.parse(process.argv[1]).version)" "$pkg")
           if [ "$actual" != "$VERSION" ]; then
             echo "::error::tarball version $actual differs from release version $VERSION"
             exit 1
           fi
-          echo "file=$1" >> "$GITHUB_OUTPUT"
-          echo "name=$(node -p "JSON.parse(process.argv[1]).name" "$pkg")" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
       # Asked here, right before publishing, so re-running only this job after a hand publish or an
       # accepted-but-timed-out publish skips instead of failing.
       - name: Skip a version npm already has
@@ -161,7 +168,9 @@ jobs:
           fi
       # No token: npm exchanges the job's OIDC identity and adds provenance for a public repo.
       - if: steps.registry.outputs.published != 'true'
-        run: npm publish "${{ steps.tarball.outputs.file }}" --ignore-scripts
+        run: |
+          set -- "$RUNNER_TEMP"/pack/*.tgz
+          npm publish "$1" --ignore-scripts
 
   # baton:init: keep verify-crates and publish-crates only when release.publish has "crates".
   verify-crates:
