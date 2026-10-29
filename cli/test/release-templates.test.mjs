@@ -195,23 +195,46 @@ test('npm_builds_without_credentials_and_uploads_the_tarball', () => {
 
 // No expression is spliced into a shell script: values reach it through env, so a crafted
 // artifact filename or package name can't run commands where the registry login is available.
+// The text of every `run:` script in a job: from the `run:` key to the next line indented at or
+// below it.
+const runScripts = (j) => {
+  const lines = j.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^( *)(?:- )?run:(.*)$/);
+    if (!m) continue;
+    const indent = lines[i].match(/^ */)[0].length + (lines[i].includes('- run:') ? 2 : 0);
+    const body = [m[2]];
+    for (let k = i + 1; k < lines.length && (lines[k].trim() === '' || lines[k].match(/^ */)[0].length > indent); k++) body.push(lines[k]);
+    out.push(body.join('\n'));
+  }
+  return out;
+};
+
 test('no_expression_in_any_run_script', () => {
+  const scripts = [];
   for (const name of [...BUILD_JOBS, ...PUBLISH_JOBS]) {
-    for (const step of stepsOf(job(name))) {
-      const run = step.match(/^(?: {8})?run: ([\s\S]*?)(?=\n {8}[\w-]+:|$)/m);
-      if (run) assert.doesNotMatch(run[1], /\$\{\{/, `${name} has no \${{ }} inside a run script`);
+    for (const script of runScripts(job(name))) {
+      scripts.push(script);
+      assert.doesNotMatch(script, /\$\{\{/, `${name} has no \${{ }} inside a run script`);
     }
   }
+  // Self-check: the capture reaches the end of multi-line scripts, not just their first line.
+  assert.ok(scripts.some((x) => x.includes('tar -xOf') && x.includes('GITHUB_OUTPUT')), 'the tarball script is captured whole');
+  assert.ok(scripts.some((x) => x.includes('cargo metadata') && x.includes('GITHUB_OUTPUT')), 'the crates version script is captured whole');
 });
 
 test('publish_npm_validates_the_tarball_name_and_package_name', () => {
   const j = job('publish-npm');
   assert.match(j, /\^\(@\[a-z0-9~-\]\[a-z0-9\._~-\]\*\/\)\?\[a-z0-9~-\]\[a-z0-9\._~-\]\*\$/, 'package name is checked against the npm name pattern');
-  assert.match(j, /::error::[^\n]*package name/, 'a bad package name fails');
   assert.match(j, /::error::[^\n]*tarball file name/, 'a bad tarball file name fails');
   assert.match(j, /case "\$\{1##\*\/\}" in\n\s+\*\[!A-Za-z0-9@\._~-\]\*\|\.\*\|-\*\) echo "::error::unexpected tarball file name"; exit 1 ;;/, 'only a plain file name is accepted');
-  const check = j.indexOf('package name');
-  assert.ok(check > 0 && check < j.indexOf('>> "$GITHUB_OUTPUT"'), 'names are validated before anything is written to GITHUB_OUTPUT');
+  const lines = j.split('\n').map((l) => l.trim());
+  const check = lines.indexOf('[[ "$name" =~ $name_pattern ]] || { echo "::error::tarball has an invalid package name"; exit 1; }');
+  const exported = lines.indexOf('echo "name=$name" >> "$GITHUB_OUTPUT"');
+  assert.ok(check >= 0, 'a bad package name fails the job');
+  assert.ok(exported > check, 'the package name is validated before it is written to GITHUB_OUTPUT');
+  assert.equal(lines.filter((l) => l.includes('>> "$GITHUB_OUTPUT"') && l.includes('name=')).length, 1, 'name is exported once');
   assert.doesNotMatch(j, /steps\.tarball\.outputs\.file/, 'the file name is never passed on as an output');
   assert.match(j, /^ {10}npm publish "\$1" --ignore-scripts$/m, 'publishes the re-globbed, validated tarball');
 });
