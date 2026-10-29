@@ -63,7 +63,7 @@ Can start immediately in parallel: T1, T2, T3, T4
 
 ## Tasks
 
-### T1: the `release` config and the CHANGELOG guard
+### T1: the `release` config and the CHANGELOG guard (#20)
 - Priority: 1
 - Depends on: none
 - Owns: `cli/lib/config.mjs`, `cli/lib/context.mjs`, `cli/baton.mjs` (only `done()`, `init()`
@@ -104,7 +104,7 @@ Can start immediately in parallel: T1, T2, T3, T4
   invalid means off), and calls the
   guard before validation. Don't edit `CHANGELOG.md`.
 
-### T2: release templates and the `baton:init` release step
+### T2: release templates and the `baton:init` release step (#21)
 - Priority: 1
 - Depends on: none
 - Owns: `templates/release/**`, `skills/init/SKILL.md`, `cli/test/release-templates.test.mjs` (new),
@@ -152,7 +152,7 @@ Can start immediately in parallel: T1, T2, T3, T4
   and `0.1.0` section. Add the pinned actions to `provenance.json` so the weekly drift check flags
   new versions. Don't edit `CHANGELOG.md`.
 
-### T3: the `baton:release` skill
+### T3: the `baton:release` skill (#22)
 - Priority: 1
 - Depends on: none
 - Owns: `skills/release/SKILL.md` (new), `skills/workflow/SKILL.md`, `tests/skills/release.md`
@@ -185,7 +185,7 @@ Can start immediately in parallel: T1, T2, T3, T4
 - Notes: follow `.claude/skills/writing-skills/SKILL.md`. Use the workflow and job names from
   the Contract. Don't edit `CHANGELOG.md`.
 
-### T4: PR-title rules in integrate and the docs
+### T4: PR-title rules in integrate and the docs (#23)
 - Priority: 2
 - Depends on: none
 - Owns: `skills/integrate/SKILL.md`, `CONTRIBUTING.md`, `README.md`
@@ -208,7 +208,7 @@ Can start immediately in parallel: T1, T2, T3, T4
   section.
 - Notes: keep each addition to a sentence or two. Don't edit `CHANGELOG.md`.
 
-### T5: baton enables releases for itself
+### T5: baton enables releases for itself (#24)
 - Priority: 2
 - Depends on: T1, T2
 - Owns: `.baton/config.json`, `release-please-config.json` (new),
@@ -238,7 +238,7 @@ Can start immediately in parallel: T1, T2, T3, T4
   Cutting 0.2.0 is a separate `baton:release` run when the maintainer asks for it; it must
   produce the tag and Release `v0.2.0`.
 
-### T6: publishing to npm and crates.io from the tag
+### T6: publishing to npm and crates.io from the tag (#25)
 - Priority: 2
 - Depends on: T2
 - Owns: `templates/release/release.yml` (the publish jobs only), `skills/init/SKILL.md` (the

@@ -376,4 +376,4 @@ in the workflow changes.
 None.
 
 ## Implementation status
-- [ ] Plan: [docs/plans/2026-10-28-release-phase.md](../plans/2026-10-28-release-phase.md) (T1-T6)
+- [ ] Plan: [docs/plans/2026-10-28-release-phase.md](../plans/2026-10-28-release-phase.md) (T1-T6: #20-#25)
