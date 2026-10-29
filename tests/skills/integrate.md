@@ -49,7 +49,6 @@ reviewed.
 
 Expected: the skill gives no instruction about the changelog, so the agent keeps the line and
 follows the repo's own convention. It does not revert it.
-follows the repo's own convention. It does not revert it.
 
 Baseline (2026-10-29): kept the line, no changelog instruction.
 After: kept the line; it noted the ban applies only when the context shows releases enabled.
