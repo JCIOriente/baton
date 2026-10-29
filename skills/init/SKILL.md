@@ -138,13 +138,18 @@ disable-model-invocation: true
       `crates` for a root `Cargo.toml` without `publish = false`. If the user asks for a target
       that isn't offered, say why. **Default none.** Set `release.publish` to the answer
       (`[]`, `["npm"]`, `["crates"]` or both). In `.github/workflows/release.yml`, keep only
-      the jobs marked for the chosen targets (`publish-npm`, `publish-crates`) and delete the
-      other job and every `baton:init` comment. Then tell the user, per target:
+      the jobs marked for the chosen targets (`publish-npm`, `publish-crates`). Delete each
+      other job with its `# baton:init: keep ...` marker line, and delete the marker lines of
+      the kept jobs. Keep the file header ("Written by baton:init"). Keep the "Publish jobs"
+      comment when a job stays, drop it when none does. Then tell the user, per target:
       - On the registry, add a trusted publisher: this repo, workflow `release.yml`,
         environment `release`. No registry token is stored.
-      - A package not yet on the registry needs its current version published once by hand
-        from its tag first; the registry only accepts a trusted publisher for a package that
-        exists. Only that first version is published by hand.
+      - A package not yet on the registry: the first release still happens, and its publish
+        job fails because no trusted publisher exists yet. The registry only accepts one for a
+        package that exists, so the maintainer runs `git checkout v<version>` for that release,
+        publishes that version by hand, then adds the trusted publisher. CI publishes every
+        later version; a re-run skips a version already on the registry. Agents never tag or
+        publish.
       - After the first CI publish, revoke any old registry tokens.
       - Add `npm publish --dry-run` / `cargo publish --dry-run` to the repo's CI script, so a
         package that can't publish fails before the release.
