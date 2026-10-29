@@ -173,8 +173,8 @@ Can start immediately in parallel: T1, T2, T3, T4
     bump the version).
   - [ ] The skill says it is not `baton release <n>`, which gives a task back, and never runs
     that command.
-  - [ ] The workflow skill lists `baton:release` as on demand, outside the per-task phases, only
-    in repos with releases enabled, and says "cut a release" routes to it.
+  - [ ] The workflow skill lists `baton:release` as on demand, outside the per-task phases, and
+    routes "cut a release" to it in every repo; the skill stops at step 0 when releases are off.
   - [ ] `tests/skills/release.md` has red/green scenarios run with fresh subagents: a release
     PR with a badly worded entry (propose an override instead of editing `CHANGELOG.md`; don't
     merge unprompted), a repo with releases disabled (don't set up release-please), and a publish
