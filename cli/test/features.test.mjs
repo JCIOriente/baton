@@ -247,6 +247,11 @@ test('baton done refuses CHANGELOG.md edits by the base branch release switch, o
     assert.ok(res.stderr.includes(refusal), res.stderr);
   }
 
+  const renamed = repo(true);
+  sh(renamed, 'mv', 'CHANGELOG.md', 'HISTORY.md');
+  sh(renamed, 'commit', '-qm', 'rename');
+  assert.ok(done(renamed, '--draft').stderr.includes(refusal), 'a rename away from CHANGELOG.md is still an edit');
+
   const turningOn = repo(false);
   writeFileSync(join(turningOn, '.baton/config.json'), config(true));
   writeFileSync(join(turningOn, 'CHANGELOG.md'), '');

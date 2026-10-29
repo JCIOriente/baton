@@ -322,7 +322,8 @@ function reviewers(argv) {
 function branchDiff(config) {
   const { remote, baseBranch } = config.git;
   for (const base of [`${remote}/${baseBranch}`, baseBranch]) {
-    const names = git(['diff', '--name-only', `${base}...HEAD`], { allowFail: true });
+    // --no-renames lists both sides of a rename, so moving CHANGELOG.md away still counts as touching it.
+    const names = git(['diff', '--name-only', '--no-renames', `${base}...HEAD`], { allowFail: true });
     if (names.code !== 0) continue;
     const text = git(['diff', '--unified=0', `${base}...HEAD`], { allowFail: true });
     return { base, files: names.stdout ? names.stdout.split('\n') : [], text: text.code === 0 ? text.stdout : '' };
