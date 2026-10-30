@@ -398,4 +398,6 @@ in the workflow changes.
 None.
 
 ## Implementation status
-- [ ] Plan: [docs/plans/2026-10-28-release-phase.md](../plans/2026-10-28-release-phase.md) (T1-T6: #20-#25)
+- [x] Plan: [docs/plans/2026-10-28-release-phase.md](../plans/2026-10-28-release-phase.md) (T1-T6: #20-#25)
+- [x] T1-T4, T6 merged: #29, #31, #30, #28, #33
+- [ ] T5 (#24, PR #32): waiting for the overrides on #2, #3 and #18 and the `release` environment with `RELEASE_PLEASE_TOKEN`
