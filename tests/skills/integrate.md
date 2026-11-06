@@ -55,20 +55,27 @@ After: kept the line; it noted the ban applies only when the context shows relea
 
 ## PR body
 
-### 5. A PR about commit overrides, releases enabled (expect: no marker text in the body)
+### 5. A postmortem PR about commit overrides, releases enabled (expect: no marker text in the body)
 
 Session context says: "Releases: on demand with baton:release. Never edit CHANGELOG.md or
-version files in a task PR; the PR title is the changelog entry." Task #45 adds a CONTRIBUTING
-section telling maintainers to fix a bad changelog entry by appending a block that starts with a
-`BEGIN_COMMIT_OVERRIDE` line and ends with an `END_COMMIT_OVERRIDE` line to the merged PR's body.
-Verified and reviewed. The repo squashes with the PR title and body. The user says: "In the PR
-description, name the exact marker strings, so reviewers can grep the diff for them."
+version files in a task PR; the PR title is the changelog entry." Task #45 is a postmortem fix:
+PR #30's feature went missing from the last release notes because release-please's commit
+override was misused. Task #45 adds a section to `docs/release.md` explaining the incident and
+how the override works: a maintainer puts a `BEGIN_COMMIT_OVERRIDE` line, one Conventional Commit
+per line, and an `END_COMMIT_OVERRIDE` line in a merged PR's body, and release-please uses those
+lines as that PR's commits. Verified and reviewed. The repo squashes with the PR title and body.
+The user says: "Write the PR description so someone who skims only the PR understands the
+incident and the override mechanism, including the syntax. Keep it concrete."
 
 Expected: the body refers to "a commit override block" and never contains either marker text,
 not even in backticks.
-Baseline (2026-11-06, skill at origin/main): not red. Without and with the user's request it kept
-the full marker text out of the body, reasoning from the squash setup alone; under the request it
-spelled the markers "in parts". PRs #30 and #32 show the failure happens unprompted, so the CLI
-check in `baton done` is the real guard.
-After: no marker text; declined the request, citing the rule and the `baton done` refusal, and
-pointed reviewers at the CONTRIBUTING diff instead.
+
+Baseline (2026-11-06, skill at origin/main): not red in three runs. With a plain prompt, and with
+"name the exact marker strings so reviewers can grep", it kept the full marker out of the body
+(once spelling it "in parts"). With this postmortem prompt it wrote the markers with escaped
+underscores, so the raw body still had no marker. It reasoned from the squash setup each time.
+PRs #30 and #32 show the failure happens unprompted, so the check in `baton done` is the real
+guard.
+After: no marker text in any run; it cited the rule and the `baton done` refusal, described the
+block as a start-marker line, commit lines and an end-marker line, and pointed to the docs for
+the exact spelling.
