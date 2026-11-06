@@ -15,16 +15,17 @@ Package, manifest, reason; for a category, ask which. Manager: nearest lockfile 
 manifest. `package-lock.json` npm, `pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry with
 `.yarnrc.yml` or `packageManager: "yarn@2+"`, else classic), `Cargo.lock` cargo. Stop on
 `bun.lock`/`bun.lockb`, two lockfiles in one directory, none, or cargo `registry =`/source
-replacement. `<dir>`: the lockfile's directory.
+replacement. `<dir>`: the lockfile's directory. Save `S=$(mktemp -d); cp <manifest> <lockfile>
+"$S"/`.
 
 ## 2. Look up
 
 JS: `npm view <pkg> dist-tags` (`latest`, not pre-release), then `npm view <pkg>@<v>
-deprecated` and `npm view <pkg>@<v> peerDependencies`, one field per call. Berry, registry
+deprecated`, then `peerDependencies`, one field per call. Berry, registry
 only in `.yarnrc.yml`: `yarn npm info <pkg> --fields dist-tags,deprecated,peerDependencies
 --json`. cargo: `cargo info <crate>`; yanked: the `<v>` line of `curl -fsS
 https://index.crates.io/<prefix>/<crate>`, all lowercase, prefix `1`, `2`, `3/<first char>` by
-length, else `se/rd` (serde); not the crates.io API. Non-zero exit, timeout or no `<v>` line:
+length, else `se/rd/serde`; not the crates.io API. Non-zero exit, timeout or no `<v>` line:
 vet fails; empty with exit 0: unset.
 
 ## 3. Peer compatibility (JS)
@@ -41,16 +42,13 @@ Copy in uncommitted manifests, lockfile, manager config. **In `$V/<dir>`, not `$
 baseline audit, `<add> && <audit>`, `rm -rf "$V"`. Member: npm `-w <member>`,
 pnpm `--filter ./<member>`, `yarn workspace <name> add`, cargo `-p <crate>`.
 
-| Manager | Add | Audit; block on exit ≠ 0, an error or no report |
+| Manager | Add | Audit; block on exit ≠ 0, error or no report |
 |---|---|---|
 | npm | `npm install <pkg>@<v> --package-lock-only --ignore-scripts` | `npm audit --audit-level=high` |
 | pnpm | `pnpm add <pkg>@<v> --lockfile-only --ignore-scripts` | `pnpm audit --audit-level=high` |
 | yarn berry | `yarn add <pkg>@<v> --mode=update-lockfile` | `yarn npm audit --all --recursive --severity high` |
-| yarn classic | `yarn add <pkg>@<v> --ignore-scripts` | `yarn audit`; **block when `exit & 24` ≠ 0**, any `--level` |
+| yarn classic | `yarn add <pkg>@<v> --ignore-scripts` | `yarn audit`; **block unless output shows `N vulnerabilities found` (exit 1 is also an error), then `exit & 24` ≠ 0**, any `--level` |
 | cargo | `cargo add <crate>@<v>` | `cargo deny check advisories` with `deny.toml`, else `cargo audit` |
-
-Install scripts: npm `hasInstallScript`, cargo `custom-build` (`cargo metadata
---format-version 1 --locked`), pnpm, yarn "not checked".
 
 ## 5. Decide
 
@@ -67,10 +65,11 @@ and yarn classic: none.
 
 ## 6. Apply
 
-First `S=$(mktemp -d); cp <manifest> <lockfile> "$S"/`. After a pass, in `<dir>`: the normal
-add (replacing: remove the old), then the audit (or `baton verify` if it runs one); on a
-failed add or an advisory the copy didn't show, restore both from `$S` (not HEAD), report.
-Blocked: `cmp` with `$S` passes.
+After a pass, in `<dir>`: **if the copy showed new install scripts (npm `hasInstallScript`,
+cargo `custom-build` in `cargo metadata --format-version 1 --locked`) or can't (pnpm, yarn), list
+them and wait for an OK before the normal add**. Then add (replacing: remove the old), audit (or `baton
+verify` if it runs one); on a failed add or an advisory the copy didn't show, restore both
+from `$S` (not HEAD). Blocked: `cmp` with `$S` passes.
 
 ## 7. Report
 
