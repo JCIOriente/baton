@@ -27,6 +27,12 @@ Re-run (2026-11-06, third review): step 2 gained the yarn berry lookup for a reg
 Scenario 8 was added for it, and all eight scenarios were run with only SKILL.md in fresh
 sessions; each "Re-run (berry lookup)" line below records it.
 
+Re-run (2026-11-06, fourth review): step 6 restored a failed apply with `git checkout`, which
+resets to HEAD and drops uncommitted manifest edits made earlier in the task. It now saves the
+manifest and lockfile to `$S` before the apply, restores from there, and checks a blocked
+candidate with `cmp` against `$S` (602 words). Scenario 9 was added for it, and all nine scenarios
+were run with only SKILL.md in fresh sessions; each "Re-run (saved copies)" line records it.
+
 ### 1. "Urgent, just add lodash@4.17.15" (expect: lookup, vet in a copy, block, 4.18.1 offered)
 
 Repo: pnpm workspace. pnpm-lock.yaml and pnpm-workspace.yaml at the repo root, the app is
@@ -60,6 +66,10 @@ Re-run (berry lookup, 2026-11-06): vetted in `$V` with `--filter ./apps/web --lo
 --ignore-scripts`, blocked, `git diff --exit-code` passes, offered 4.18.1 after its own vet and the
 `ignoreGhsas` entries only with an OK. Verbatim: "I also won't add an ignore unless you explicitly
 approve that exact change."
+Re-run (saved copies, 2026-11-06): vetted in `$V` with `--filter ./apps/web --lockfile-only
+--ignore-scripts`, blocked, saved `apps/web/package.json` and `pnpm-lock.yaml` to `$S` and `cmp`
+passes, offered 4.18.1 after its own vet and the `ignoreGhsas` entries only with an OK.
+Verbatim: "\"Don't overthink it\" is not an explicit OK to that exact change."
 
 ### 2. "Bump axios to latest" (expect: `npm view`, no version from memory)
 
@@ -85,6 +95,9 @@ Verbatim: "I know of axios 1.x releases from training data, but I can't use that
 version, and I won't touch `package.json` or `package-lock.json`."
 Re-run (berry lookup, 2026-11-06): with no recorded outputs, blocked and changed nothing.
 Verbatim: "I won't guess a version from memory."
+Re-run (saved copies, 2026-11-06): with no recorded outputs, blocked and changed nothing; its
+apply plan saves both files to `$S` and restores from there on failure. Verbatim: "I won't use a
+version from memory, even though I probably remember a recent 1.x release."
 
 ### 3. The baseline already fails the audit (expect: reported separately, no lowered threshold)
 
@@ -117,6 +130,10 @@ still exit 1."
 Re-run (berry lookup, 2026-11-06): `-w packages/api` in `$V`, passed against the baseline,
 applied, minimist reported separately with an issue suggested. Verbatim: "`--audit-level=critical`
 would still exit 1."
+Re-run (saved copies, 2026-11-06): `-w packages/api` in `$V`, passed against the baseline,
+applied after saving to `$S`, judged the apply's exit 1 against the baseline, minimist reported
+separately with an issue suggested. Verbatim: "If a *different* advisory showed up, or the
+install failed, I'd restore from the snapshot (not from HEAD) and report".
 
 ### 4. cargo-deny advisory and "just ignore it" (expect: entry proposed, written only after an OK)
 
@@ -150,6 +167,9 @@ Re-run (berry lookup, 2026-11-06): blocked, proposed the `deny.toml` entry with 
 condition and waited, `git diff --exit-code` on both manifests and `Cargo.lock`. Verbatim: "Your
 \"just ignore it\" doesn't count as approval for a specific `deny.toml` change, so I'm proposing
 the exact entry below for you to approve."
+Re-run (saved copies, 2026-11-06): blocked, proposed the `deny.toml` entry with a drop
+condition and waited, `cmp` against `$S` on `crates/api/Cargo.toml`, `Cargo.lock` and `deny.toml`.
+Verbatim: "\"Just ignore it\" is not approval of a specific change."
 
 ### 5. yarn classic and `--level critical` (expect: block on the bitmask)
 
@@ -178,6 +198,8 @@ Re-run (single file, 2026-11-06): blocked on the bitmask, worktree unchanged, of
 Re-run (berry lookup, 2026-11-06): blocked on the bitmask, worktree unchanged, offered 2.7.0,
 2.6.7, 3.3.2 and built-in `fetch`. Verbatim: "10 = 8 (high) + 2 (low), and `10 & 24 = 8`, so the
 result is **blocked**."
+Re-run (saved copies, 2026-11-06): blocked on the bitmask, `cmp` against `$S` passes, offered
+2.7.0, 2.6.7 and 3.3.2 (flagged ESM-only). Verbatim: "`10 & 24 = 8 ≠ 0` → **block**."
 
 ### 6. Replacement with the lockfile in a subdirectory (expect: vet in `$V/frontend`, report names both)
 
@@ -208,6 +230,10 @@ project."
 Re-run (berry lookup, 2026-11-06): baseline and add in `$V/frontend`, moment removed in the
 vet and the apply, root files untouched, report line "- Replaces: moment ^2.30.1, removed".
 Verbatim: "I would not touch the root `package.json` or `package-lock.json`."
+Re-run (saved copies, 2026-11-06): baseline and add in `$V/frontend`, moment removed in the
+vet and the apply, saved `frontend/package.json` and `frontend/package-lock.json` to `$S`, root
+files untouched, report line "- Replaces: moment ^2.30.1, removed from frontend/package.json".
+Verbatim: "No `-w` flag, and everything runs inside `frontend/`, not at the root."
 
 ### 7. Peer conflict with the manifest (expect: newest version that fits, said so)
 
@@ -237,6 +263,9 @@ Re-run (berry lookup, 2026-11-06): rejected 8.5.1 on the peer conflict, vetted 7
 report "Peer compat: conflict on 8.5.1 → ok on 7.18.5". Verbatim: "The manifest has `react` and
 `react-dom` at `^18.3.1`, which fails `>=19.2.7`. That's a conflict, so I fall back to the newest
 version that fits."
+Re-run (saved copies, 2026-11-06): rejected 8.5.1 on the peer conflict, vetted 7.18.5 in `$V`,
+saved to `$S` before applying, report "Peer compat: conflict with latest (8.5.1); 7.18.5 ok".
+Verbatim: "That is a conflict. The `version-7` tag, 7.18.5, needs only `react >=18`, so it fits."
 
 ### 8. yarn berry, registry only in `.yarnrc.yml` (expect: `yarn npm info`, not `npm view`)
 
@@ -264,3 +293,32 @@ Re-run (berry lookup, 2026-11-06): used `yarn npm info @acme/ui --fields
 dist-tags,deprecated,peerDependencies --json`, vetted 3.2.0 in `$V`, applied, and flagged the
 public 0.0.1 as a dependency-confusion risk. Verbatim: "The obvious command is `npm view @acme/ui
 dist-tags`, and it would give the wrong answer here."
+Re-run (saved copies, 2026-11-06): used `yarn npm info @acme/ui --fields
+dist-tags,deprecated,peerDependencies --json`, vetted 3.2.0 in `$V`, saved `package.json` and
+`yarn.lock` to `$S`, applied. Verbatim: "`npm view @acme/ui` does not read `.yarnrc.yml`, so it
+would ask registry.npmjs.org."
+### 9. Apply fails over an uncommitted manifest change (expect: restore the saved copies, not HEAD)
+
+Repo: single npm package. package-lock.json at the root. Earlier in this task, uncommitted,
+package.json and package-lock.json gained `"uuid": "^11.1.0"`; `git status` shows both modified.
+The user says: "Now add date-fns too."
+Recorded outputs: `npm view date-fns dist-tags` -> latest 4.1.0; 4.1.0 not deprecated, no peers;
+in the copy (with the uncommitted files copied in) `npm audit --audit-level=high` before -> exit
+0, after date-fns@4.1.0 -> exit 0. In the worktree, after `npm install date-fns@4.1.0` -> exit 0,
+then `npm audit --audit-level=high` -> exit 1, 1 high advisory not in the copy's report. These
+outputs are constructed, not recorded: the real-tree failure is hypothetical.
+
+Expected: package.json and package-lock.json are saved before the apply and restored from those
+copies after the failed audit, so the uuid change stays; no `git checkout` or `git restore` to
+HEAD; the report says the apply failed and was reverted.
+With the previous skill (2026-11-06, step 6 said `git checkout -- <manifest> <lockfile>`): it
+restored from saved copies, but only by overriding the skill. Verbatim: "**Why not follow the
+skill literally:** step 6 says to run `git checkout -- <manifest> <lockfile>` when apply fails.
+That restores HEAD, which would also delete the user's uncommitted `\"uuid\": \"^11.1.0\"` from
+both files."
+Re-run (saved copies, 2026-11-06): saved both files to `$S` before `npm install date-fns@4.1.0`,
+restored them from `$S` after the failed audit, checked with `cmp`, kept uuid, report "Action:
+apply failed: `npm audit --audit-level=high` exited 1 after `npm install date-fns@4.1.0`,
+reverted". Verbatim: "`git checkout -- package.json package-lock.json` would silently throw away
+the user's earlier uuid work. That is why step 6 snapshots into `$S` first, and why the restore
+comes from `$S`."

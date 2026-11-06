@@ -67,9 +67,9 @@ and yarn classic: none.
 
 ## 6. Apply
 
-After a pass, in `<dir>`: the normal add (replacing: remove the old one), then the
-audit or `baton verify`; on failure, `git checkout -- <manifest> <lockfile>` and report.
-Blocked: `git diff --exit-code -- <manifest> <lockfile>` passes.
+First `S=$(mktemp -d); cp <manifest> <lockfile> "$S"/`. After a pass, in `<dir>`: the normal
+add (replacing: remove the old one), then the audit or `baton verify`; on failure, restore both
+from `$S` (not HEAD) and report. Blocked: `cmp` with `$S` passes.
 
 ## 7. Report
 
