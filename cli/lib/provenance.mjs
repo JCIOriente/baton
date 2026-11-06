@@ -108,7 +108,10 @@ export function factsVsInstalled(prov, installed) {
   return findings;
 }
 
-async function latestVersion(pkg) {
+const ghRunner = (args) => run('gh', args, { allowFail: true, timeout: 30_000 });
+
+/** Latest released version of `registry:name`. `gh` is injectable so tests never hit the network. */
+export async function latestVersion(pkg, { gh = ghRunner } = {}) {
   const [registry, name] = [pkg.slice(0, pkg.indexOf(':')), pkg.slice(pkg.indexOf(':') + 1)];
   const signal = AbortSignal.timeout(10_000);
   if (registry === 'npm') {
@@ -121,27 +124,39 @@ async function latestVersion(pkg) {
     if (!res.ok) throw new Error(`crates.io ${res.status}`);
     return (await res.json()).crate.max_stable_version;
   }
+  if (registry === 'github') {
+    if (!/^[\w.-]+\/[\w.-]+$/.test(name)) throw new Error(`bad github repo '${name}'`);
+    const res = gh(['api', `repos/${name}/releases/latest`, '--jq', '.tag_name']);
+    if (res.code !== 0) throw new Error(`gh api ${name} failed: ${(res.stderr || '').trim() || `exit ${res.code}`}`);
+    const version = (res.stdout || '').trim().replace(/^v/, '');
+    if (!version || version === 'null') throw new Error(`${name} latest release has no tag_name`);
+    return version;
+  }
   throw new Error(`unsupported registry '${registry}'`);
 }
 
 /** Maintainer check (network): upstream changes to adapted files, and new releases outside asserted ranges. */
-export async function upstreamFindings(prov) {
+export async function upstreamFindings(prov, { gh = ghRunner } = {}) {
   const findings = [];
   for (const src of prov.sources) {
-    const res = run('gh', ['api', `repos/${src.repo}/compare/${src.baseline.sha}...HEAD`, '--jq', '{ahead: .ahead_by, head: .commits[-1].sha, files: [.files[] | {filename, status, additions, deletions}]}'], { allowFail: true });
-    if (res.code !== 0) {
-      findings.push({ kind: 'error', source: src.id, message: res.stderr || 'compare failed' });
-      continue;
+    try {
+      const res = gh(['api', `repos/${src.repo}/compare/${src.baseline.sha}...HEAD`, '--jq', '{ahead: .ahead_by, head: .commits[-1].sha, files: [.files[] | {filename, status, additions, deletions}]}']);
+      if (res.code !== 0) {
+        findings.push({ kind: 'error', source: src.id, message: res.stderr || 'compare failed' });
+        continue;
+      }
+      const cmp = JSON.parse(res.stdout);
+      const changed = (cmp.files ?? []).flatMap((f) =>
+        src.files.filter((t) => f.filename === t.upstream || f.filename.startsWith(t.upstream)).map((t) => ({ ...f, local: t.local })),
+      );
+      if (changed.length) findings.push({ kind: 'upstream', source: src.id, repo: src.repo, ahead: cmp.ahead, head: cmp.head, changed, truncated: (cmp.files ?? []).length >= 300 });
+    } catch (err) {
+      findings.push({ kind: 'error', source: src.id, message: err.message });
     }
-    const cmp = JSON.parse(res.stdout);
-    const changed = (cmp.files ?? []).flatMap((f) =>
-      src.files.filter((t) => f.filename === t.upstream || f.filename.startsWith(t.upstream)).map((t) => ({ ...f, local: t.local })),
-    );
-    if (changed.length) findings.push({ kind: 'upstream', source: src.id, repo: src.repo, ahead: cmp.ahead, head: cmp.head, changed, truncated: (cmp.files ?? []).length >= 300 });
   }
   for (const fact of prov.facts) {
     try {
-      const latest = await latestVersion(fact.pkg);
+      const latest = await latestVersion(fact.pkg, { gh });
       if (!satisfies(latest, fact.requires)) findings.push({ kind: 'release', fact: fact.id, pkg: fact.pkg, latest, requires: fact.requires, file: fact.file });
     } catch (err) {
       findings.push({ kind: 'error', fact: fact.id, message: err.message });

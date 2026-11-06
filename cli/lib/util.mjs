@@ -9,9 +9,10 @@ export class BatonError extends Error {
 }
 
 /** Run a command synchronously. Throws BatonError on non-zero exit unless `allowFail`. */
-export function run(cmd, args, { cwd, input, allowFail = false, inherit = false } = {}) {
+export function run(cmd, args, { cwd, input, allowFail = false, inherit = false, timeout } = {}) {
   const res = spawnSync(cmd, args, {
     cwd,
+    timeout,
     input,
     encoding: 'utf8',
     stdio: inherit ? 'inherit' : ['pipe', 'pipe', 'pipe'],
@@ -21,6 +22,7 @@ export function run(cmd, args, { cwd, input, allowFail = false, inherit = false 
     if (res.error.code === 'ENOENT') {
       throw new BatonError(`'${cmd}' not found on PATH`, { hint: `Install ${cmd} and retry.` });
     }
+    if (res.error.code === 'ETIMEDOUT') throw new BatonError(`${cmd} timed out after ${timeout}ms`);
     throw res.error;
   }
   const out = { code: res.status, stdout: (res.stdout ?? '').trim(), stderr: (res.stderr ?? '').trim() };
