@@ -307,4 +307,6 @@ the plan says which.
 
 ## Implementation status
 Updated by the PRs that implement this spec.
-- [ ] Plan: `docs/plans/2026-11-06-worktree-only.md`
+- [x] Plan: [docs/plans/2026-11-06-worktree-only.md](../plans/2026-11-06-worktree-only.md) (T1-T4: #50-#53)
+- [x] T1-T3 merged: #55, #57, #59
+- [x] T4 merged: skills, README and CONTRIBUTING (#53). Implementation complete

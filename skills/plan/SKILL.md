@@ -39,11 +39,14 @@ spec and the stack guides, and nothing else.
    If a change can break a module that depends on it, add that module's checks to the task's
    acceptance criteria, or to `validate` if it applies to every change.
 7. Write the plan from `${CLAUDE_PLUGIN_ROOT}/templates/plan.md` to
-   `<docs.plans>/YYYY-MM-DD-<topic>.md`. Link the spec.
+   `<docs.plans>/YYYY-MM-DD-<topic>.md`. Link the spec. **Write it in a worktree:** the spec's
+   while its branch is unmerged, otherwise a new one from `baton worktree add <topic>-plan`. Never
+   in the main checkout; uncommitted files already there are left alone and reported.
 8. **Self-review:** check that every spec requirement maps to at least one task and that no
    task lacks an acceptance criterion. Check for file-ownership overlaps between parallel
    tasks and for dependency cycles.
-9. Commit, ask the user to approve, then hand off to `baton:backlog`.
+9. Commit in that worktree and ask the user to approve. Then push and open the PR with
+   `gh pr create` (or update the spec's open PR), and hand off to `baton:backlog`.
 
 ## Task block format
 
