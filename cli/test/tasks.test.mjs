@@ -189,7 +189,11 @@ test('overrideFindings_rejects_marker_in_prose', () => {
 test('overrideFindings_rejects_unterminated_block', () => {
   assert.deepEqual(overrideFindings(`${BEGIN}\nfeat: x\n`), [`the commit override block has no ${END} line, so release-please would read the rest of the body as commits.`]);
   assert.deepEqual(overrideFindings(`feat: x\n${END}`), [`a ${END} line has no block to close.`]);
-  assert.deepEqual(overrideFindings(`${BEGIN}\nfeat: x\n${END}\n${BEGIN}\nfix: y\n${END}`), ['a second commit override block is ignored by release-please: put every entry in the first block.']);
+  assert.deepEqual(overrideFindings(`${BEGIN}\nfeat: x\n${END}\n${END}`), [`a ${END} line has no block to close.`], 'a stray END after the block');
+  assert.deepEqual(overrideFindings(`${BEGIN}\nfeat: x\n${END}\n${BEGIN}\nfix: y\n${END}`), [
+    'a second commit override block is ignored by release-please: put every entry in the first block.',
+    `a ${END} line has no block to close.`,
+  ]);
 });
 
 test('overrideFindings_rejects_non_conventional_line', () => {

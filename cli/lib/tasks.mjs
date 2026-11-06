@@ -136,7 +136,7 @@ export function overrideFindings(body = '') {
       else findings.push(`the commit override block opens again before its ${OVERRIDE_END} line.`);
     } else if (line === OVERRIDE_END) {
       if (state === 'inside') state = 'after';
-      else if (state === 'before') findings.push(`a ${OVERRIDE_END} line has no block to close.`);
+      else findings.push(`a ${OVERRIDE_END} line has no block to close.`);
     } else if (line.includes(OVERRIDE_BEGIN) || line.includes(OVERRIDE_END)) {
       findings.push(`the commit override marker appears in a line of text instead of on its own line: "${line}"`);
     } else if (state === 'inside' && line && !CONVENTIONAL_HEADER.test(line) && !OVERRIDE_FOOTER.test(line)) {
