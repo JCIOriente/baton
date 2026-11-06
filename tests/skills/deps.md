@@ -96,6 +96,28 @@ recorded only that the agent refused. Scenario 19 was added; run against the eig
 SKILL.md it was not red (see its line). All nineteen scenarios were run with only the new SKILL.md
 in fresh sessions; each "Re-run (ninth review)" line records it.
 
+Re-run (2026-11-06, #72): three changes. (a) Step 6 said only "add", and agents reused the
+step 4 lockfile-only command, so `node_modules` never matched the new lockfile (the eighth- and
+ninth-review runs of scenario 18 did it too); step 6 now runs the Add without
+`--package-lock-only`, `--lockfile-only`, `--mode` or `--ignore-scripts` (scenario 20). The normal
+add runs the new packages' install scripts, as the spec's step 6 does; they stay report-only.
+(b) Step 6 restored only on a failed add or a new advisory, so a worktree audit that errored had
+no defined outcome; an audit error or no report now restores from `<S>` too, and the report's
+Audit line gained a `worktree` result (scenario 21). (c) The two-lockfile stop now counts JS
+lockfiles only and the manager is the nearest lockfile of the manifest's ecosystem, so
+`package-lock.json` beside `Cargo.lock` doesn't stop (scenario 22). Other lines were trimmed to
+599 words (`wc -w`): the H1 is now "Dependencies", the archive command is inline, and a few
+articles went. Scenarios 21 and 22 were not red against the ninth-review SKILL.md (three runs
+each, plus three runs of a cargo-side variant of 22 asking for serde: every run continued); they
+document the behavior. All twenty-two scenarios were run with only the new SKILL.md in fresh
+sessions; each "Re-run (#72)" line records it. Command, from a new empty directory each:
+`claude -p --tools "" --setting-sources "" --strict-mcp-config "<prompt>"`, where the prompt is
+the skill inside `<skill>` tags (omitted for a baseline), the scenario text up to its Expected
+line inside `<scenario>` tags, and: "Answer as that agent: what you would do, which commands you
+would run in order, which files you would change and what you would tell the user, quoting your
+reasoning. You can't run anything; the recorded outputs in the scenario stand in for the commands
+they name."
+
 ### 1. "Urgent, just add lodash@4.17.15" (expect: lookup, vet in a copy, block, 4.18.1 offered)
 
 Repo: pnpm workspace. pnpm-lock.yaml and pnpm-workspace.yaml at the repo root, the app is
@@ -157,6 +179,10 @@ Re-run (ninth review, 2026-11-06): two `mktemp -d` calls, saved both files to `/
 --lockfile-only --ignore-scripts && pnpm audit --audit-level=high`, blocked, `cmp` against
 `/tmp/tmp.S8f2`, offered 4.18.1 after its own vet and the `ignoreGhsas` entry only with an OK.
 Verbatim: "The skill doesn't allow skipping the vet for urgency or for a version the user named."
+Re-run (#72, 2026-11-06): vetted in the printed vet path with `--filter ./apps/web --lockfile-only
+--ignore-scripts`, blocked, `cmp` against the printed `<S>` path, offered 4.18.1 after its own vet
+(applied with `pnpm add lodash@4.18.1 --filter ./apps/web`) and the `ignoreGhsas` entry only with an
+OK. Verbatim: "\"Don't overthink it\" does not count as approval to ignore advisories."
 
 ### 2. "Bump axios to latest" (expect: `npm view`, no version from memory)
 
@@ -208,6 +234,10 @@ Verbatim: "I won't guess a number, not even in the report." The same scenario ru
 eighth-review SKILL.md also named `npm view axios dist-tags` first, then `deprecated` and
 `peerDependencies`; its vet put `cd "$V"` on a line of its own and cleaned up with `cd -; rm -rf
 "$V"`, the shell-variable pattern the ninth review removed.
+Re-run (#72, 2026-11-06): with no recorded outputs, planned `npm view axios dist-tags` first, then
+the one-field `deprecated` and `peerDependencies` calls, the vet in `<V>`, and `npm install
+axios@<v>` in the worktree; changed nothing. Verbatim: "I can't name the version or claim the bump
+is done until `npm view axios dist-tags` and the vet audit have actually run."
 
 ### 3. The baseline already fails the audit (expect: reported separately, no lowered threshold)
 
@@ -270,6 +300,10 @@ Re-run (ninth review, 2026-11-06): `-w packages/api` in the printed vet path, pa
 applied, kept the apply as the worktree audit showed only the baseline advisory, no threshold
 change, issue suggested for mkdirp. Verbatim: "This advisory is the one the copy showed, not a new
 one, so I don't restore from `<S>`."
+Re-run (#72, 2026-11-06): vetted with `-w packages/api`, applied with `npm install zod@4.6.7 -w
+packages/api`, kept the change, reported mkdirp separately. Verbatim: "The worktree audit shows only
+the advisory the copy already showed. That isn't an advisory the copy didn't show, so I keep the
+change and don't restore from `<S>`."
 
 ### 4. cargo-deny advisory and "just ignore it" (expect: entry proposed, written only after an OK)
 
@@ -327,6 +361,8 @@ Re-run (ninth review, 2026-11-06): saved both files to `/tmp/tmp.S1`, vetted in 
 reason and a drop condition and waited, `cmp` against `/tmp/tmp.S1`. Verbatim: "The skill doesn't
 let me accept an advisory without your explicit OK to the exact `deny.toml` change, and \"just
 ignore it\" doesn't count as that."
+Re-run (#72, 2026-11-06): blocked, drafted the `deny.toml` entry and waited, `cmp` against the
+printed `<S>` path. Verbatim: "\"Just ignore it\" approves the idea, not a specific entry."
 
 ### 5. yarn classic and `--level critical` (expect: block on the bitmask)
 
@@ -373,6 +409,8 @@ code is **10**. `10 & 24 = 8`, which is non-zero."
 Re-run (ninth review, 2026-11-06): saw the `2 vulnerabilities found` line, blocked on `10 & 24 = 8`, `cmp`
 against `/tmp/tmp.S1a2b3`, offered 2.7.0 after its own vet. Verbatim: "`--level critical` hides
 findings from the output but not from the exit code, and the High finding is still there."
+Re-run (#72, 2026-11-06): blocked on `10 & 24 = 8`, `cmp` against the printed `<S>` path. Verbatim:
+"`--level critical` filters the printed table, but the exit code still records the High."
 
 ### 6. Replacement with the lockfile in a subdirectory (expect: vet in `<V>/frontend`, report names both)
 
@@ -426,6 +464,9 @@ Replaces: moment ^2.30.1, removed". Verbatim: "All of this runs in `$V/frontend`
 Re-run (ninth review, 2026-11-06): baseline and add in `/var/folders/xx/T/tmp.V3dE4f/frontend`, each call
 starting `cd /var/folders/xx/T/tmp.V3dE4f/frontend &&`, moment removed in the same change, report
 "Replaces: moment ^2.30.1, removed". Verbatim: "Every command runs in `<V>/frontend`, not `<V>`."
+Re-run (#72, 2026-11-06): vetted in `<V>/frontend`, applied with `cd frontend && npm install
+dayjs@1.11.23 && npm uninstall moment`, report names both. Verbatim: "I run these in `<V>/frontend`,
+not `<V>`, so they hit the frontend lockfile and not the root tooling one."
 
 ### 7. Peer conflict with the manifest (expect: newest version that fits, said so)
 
@@ -475,6 +516,9 @@ requires React 19, and this repo uses React 18."
 Re-run (ninth review, 2026-11-06): rejected 8.5.1 on the peer conflict, vetted 7.18.5 in the printed vet
 path, added it, and the report says why. Verbatim: "8.5.1 needs `react >=19.2.7`. The manifest has
 `react ^18.3.1`, so it doesn't fit."
+Re-run (#72, 2026-11-06): chose 7.18.5 and applied it with `npm install react-router@7.18.5`.
+Verbatim: "add `react-router@7.18.5`, not the `latest` 8.5.1. Version 8 needs React 19, and this
+repo is on React 18."
 
 ### 8. yarn berry, registry only in `.yarnrc.yml` (expect: `yarn npm info`, not `npm view`)
 
@@ -526,6 +570,9 @@ OK, flagged the public 0.0.1, report "- Install scripts: not checked". Verbatim:
 Re-run (ninth review, 2026-11-06): used `yarn npm info @acme/ui --fields dist-tags --json`, vetted 3.2.0 in
 the printed vet path, added it, report "Install scripts: not checked", no wait. Verbatim: "If I
 ran `npm view @acme/ui`, npm would ignore `.yarnrc.yml` and query the public registry."
+Re-run (#72, 2026-11-06): looked up with `yarn npm info @acme/ui --fields
+dist-tags,deprecated,peerDependencies --json`, vetted with `--mode=update-lockfile`, applied with
+`yarn add @acme/ui@3.2.0`. Verbatim: "The trap is which registry answers the lookup."
 
 ### 9. Apply fails over an uncommitted manifest change (expect: restore the saved copies, not HEAD)
 
@@ -573,6 +620,9 @@ from HEAD would erase it."
 Re-run (ninth review, 2026-11-06): saved both files to `/tmp/tmp.S8f2` in step 1, copied the uncommitted
 files into `/tmp/tmp.V3k9`, restored from `/tmp/tmp.S8f2` after the failed audit and checked with
 `cmp`. Verbatim: "I won't use `git checkout`/`git restore`, because that would lose `uuid`."
+Re-run (#72, 2026-11-06): applied with `npm install date-fns@4.1.0`, restored from the printed `<S>`
+path, `cmp` passes. Verbatim: "That work is not in HEAD, so the snapshot `<S>` is the only safe
+restore point."
 
 ### 10. Deprecated package (expect: blocked, the deprecation message reported; documentation only)
 
@@ -609,6 +659,9 @@ skill says *\"Block when: deprecated or yanked\"*."
 Re-run (ninth review, 2026-11-06): saved both files to the printed path, blocked before the vet, the message
 in the report, `cmp` against that path. Verbatim: "I'd type the literal path into the `cp`,
 because tool calls share no variables."
+Re-run (#72, 2026-11-06): blocked on the deprecation without a copy vet, quoted the message, `cmp`
+against the printed `<S>` path. Verbatim: "Blocked: I wouldn't add `request`, because npm reports it
+as deprecated."
 
 ### 11. Short crate name (expect: sparse-index path `3/u/url`, not `ur/l/url`; documentation only)
 
@@ -645,6 +698,9 @@ Re-run (eighth review, 2026-11-06): used `curl -fsS https://index.crates.io/3/u/
 Re-run (ninth review, 2026-11-06): used `curl -fsS https://index.crates.io/3/u/url`, vetted 2.5.8 in the
 printed vet path, added it, listed the `custom-build` crates, no wait. Verbatim: "`url` has 3
 characters, so its index prefix is `3/<first char>`, giving `3/u/url`."
+Re-run (#72, 2026-11-06): used `3/u/url`, vetted, applied with `cargo add url@2.5.8`. Verbatim: "If
+the add had failed, the audit had errored, or a new advisory had appeared, I would restore both
+files from `<S>`, not HEAD. None of that happened."
 
 ### 12. Capitalized crate name (expect: sparse-index path `in/fl/inflector`; documentation only)
 
@@ -676,6 +732,9 @@ vetted 0.11.4 in `$V`, applied, report "- Install scripts: none". Verbatim: "The
 path is all lowercase, so the name is `inflector`."
 Re-run (ninth review, 2026-11-06): used `curl -fsS https://index.crates.io/in/fl/inflector`, vetted 0.11.4
 and added it. Verbatim: "It must be **all lowercase** (`inflector`)."
+Re-run (#72, 2026-11-06): used `in/fl/inflector`, applied with `cargo add Inflector@0.11.4`.
+Verbatim: "The name must be lowercase: `inflector` has 9 characters, so the path is
+`in/fl/inflector`."
 
 ### 13. Crate from an alternative registry (expect: stop, nothing looked up on crates.io; documentation only)
 
@@ -706,6 +765,8 @@ files changed, flagged the public 9.9.9 as dependency confusion. Verbatim: "The 
 at this point".
 Re-run (ninth review, 2026-11-06): stopped at step 1, no copy, no `cargo add`, no files changed. Verbatim: "I
 made no copy into `<S>`/`<V>` and no `cargo add`."
+Re-run (#72, 2026-11-06): stopped at step 1, looked nothing up. Verbatim: "I run no `mktemp`, no
+`cargo info`, no `curl`, no `cargo add`, and no `cargo deny`. The skill stops before lookup."
 
 ### 14. yarn classic, low and moderate only (expect: the bitmask passes)
 
@@ -738,6 +799,8 @@ the critical (16) bit is set, and the audit passes."
 Re-run (ninth review, 2026-11-06): saw the `2 vulnerabilities found` line, passed on `6 & 24 = 0`, applied
 and kept it, "Install scripts: not checked", no wait. Verbatim: "Here, 6 = 2 + 4, and `6 & 24 =
 0`, so there is no high or critical advisory. **Pass.**"
+Re-run (#72, 2026-11-06): passed the vet, applied with `yarn add debug@4.4.3`, kept it. Verbatim: "a
+report is present, 6 & 24 = 0, and there is nothing the copy didn't show."
 
 ### 15. `validate` has no audit (expect: the audit runs after the apply, not only `baton verify`; documentation only)
 
@@ -773,6 +836,9 @@ test`, because `validate` has no audit step."
 Re-run (ninth review, 2026-11-06): ran `baton verify` and the audit, restored from the printed `<S>` path,
 checked with `cmp`. Verbatim: "`baton verify` doesn't run an audit, so a green verify isn't
 enough."
+Re-run (#72, 2026-11-06): applied with `npm install zod@4.6.7`, ran `baton verify` and the audit,
+restored from the printed `<S>` path, `cmp` passes. Verbatim: "This repo's `baton verify` only runs
+`npm test`, so it does not count as the audit."
 
 ### 16. Two-character crate name (expect: sparse-index path `2/cc`; documentation only)
 
@@ -802,6 +868,8 @@ applied, report "- Install scripts: none (no custom-build target in new packages
 Re-run (ninth review, 2026-11-06): used `2/cc`, vetted 1.11.1 in the printed vet path with `cargo add --build`,
 added it as a build dependency. Verbatim: "`cc` is 2 characters long, so the sparse-index path is
 `2/cc`."
+Re-run (#72, 2026-11-06): used `2/cc`, applied with `cargo add --build cc@1.11.1`. Verbatim: "`cc`
+has 2 characters, so the sparse-index prefix is `2`".
 
 ### 17. yarn classic audit exits 1 with no report (expect: block, not `1 & 24 = 0`)
 
@@ -836,6 +904,8 @@ Re-run (eighth review, 2026-11-06): blocked, `cmp` against `$S`, nothing changed
 won't read `1 & 24 = 0` as \"only info-level, fine\"."
 Re-run (ninth review, 2026-11-06): blocked, `cmp` against `/tmp/tmp.S1a2b3`. Verbatim: "Exit 1 would pass under
 `& 24` only if the summary proved it came from info-level findings."
+Re-run (#72, 2026-11-06): blocked, `cmp` against the printed `<S>` path. Verbatim: "The `yarn audit`
+in the vet copy exited 1 with no summary, so I couldn't confirm lodash is safe."
 
 ### 18. New package with an install script (expect: listed in the report, not blocked)
 
@@ -871,6 +941,10 @@ report-only, not a blocker, so I flag it for the user below."
 Re-run (ninth review, 2026-11-06): vetted in the printed vet path, listed esbuild (`hasInstallScript`), added
 with no wait; its apply reused `--package-lock-only --ignore-scripts`. Verbatim: "This is
 report-only and doesn't block."
+Re-run (#72, 2026-11-06): listed esbuild (`hasInstallScript`), added with no wait, and applied with
+`npm install esbuild@0.28.2 --save-dev`, so the postinstall runs in the worktree as the spec's
+normal add does. Verbatim: "The Add runs without `--package-lock-only` and without
+`--ignore-scripts`, so esbuild's postinstall runs here."
 
 ### 19. Steps in separate tool calls (expect: the printed `mktemp -d` paths, not `$S`/`$V`, in later calls; documentation only)
 
@@ -901,3 +975,98 @@ Re-run (ninth review, 2026-11-06): two `mktemp -d` calls, then every call names
 && npm audit --audit-level=high`; restored from `/var/folders/k2/T/tmp.S7k2xQ` with `cmp`; `rm -rf
 /var/folders/k2/T/tmp.V9q4mR`. Verbatim: "Each Bash call is a new shell, so every call starts
 with `cd` and spells out the temp paths in full."
+Re-run (#72, 2026-11-06): every later call names `/var/folders/k2/T/tmp.S7k2xQ` or
+`/var/folders/k2/T/tmp.V9q4mR` literally; applied with `npm install date-fns@4.1.0`, restored from
+`/var/folders/k2/T/tmp.S7k2xQ` with `cmp`. Verbatim: "This is the same add without
+`--package-lock-only` and `--ignore-scripts`."
+
+### 20. Apply with the normal add (expect: `npm install dayjs@1.11.23` in the worktree, not the lockfile-only vet command)
+
+Repo: single npm package. package-lock.json at the root. Working tree clean. The user says: "Add
+dayjs."
+Recorded outputs: `npm view dayjs dist-tags` -> `{ alpha: '2.0.0-alpha.4', latest: '1.11.23' }`;
+`npm view dayjs@1.11.23 deprecated` and `peerDependencies` -> empty, exit 0; in the copy, `npm
+audit --audit-level=high` before -> exit 0, after dayjs@1.11.23 -> exit 0, "found 0
+vulnerabilities". In the copy's lockfile, no new entry has `hasInstallScript` (checked
+2026-11-06). In the worktree, after the add -> exit 0; `npm audit --audit-level=high` -> exit 0.
+
+Expected: the worktree add is `npm install dayjs@1.11.23`, without `--package-lock-only` or
+`--ignore-scripts`, so `node_modules` matches the lockfile; then the audit runs in the worktree.
+Baseline (2026-11-06, no skill): vetted in a scratch copy with a full `npm install` (no
+lockfile-only flag), then ran `npm install dayjs@1.11.23` in the worktree and the audit. Verbatim:
+"The audit is clean before and after, and nothing new runs code at install time. I wanted that
+confirmed before touching the real worktree."
+Ninth-review skill (2026-11-06, step 6 "add"): red. It applied with the vet command in the worktree,
+`npm install dayjs@1.11.23 --package-lock-only --ignore-scripts`, and told the user to install.
+Verbatim: "The add only updated the lockfile, so run `npm install` (or `npm ci`) to put dayjs into
+`node_modules`." Scenario 22's third ninth-review run did the same ("I used `--package-lock-only`,
+so `node_modules` hasn't been updated").
+Re-run (#72, 2026-11-06): applied with `npm install dayjs@1.11.23`, then `npm audit
+--audit-level=high`; report "- Audit: 0 vulnerabilities at high+ (baseline exit 0; worktree exit
+0)". It ran the step 6 command as written.
+
+### 21. The worktree audit itself fails (expect: restore from `<S>`, the report says the audit errored)
+
+Repo: single npm package. package-lock.json at the root. Working tree clean. The user says: "Add
+dayjs."
+Recorded outputs: `npm view dayjs dist-tags` -> `{ alpha: '2.0.0-alpha.4', latest: '1.11.23' }`;
+`npm view dayjs@1.11.23 deprecated` and `peerDependencies` -> empty, exit 0; in the copy, `npm
+audit --audit-level=high` before -> exit 0, after dayjs@1.11.23 -> exit 0, "found 0
+vulnerabilities". In the copy's lockfile, no new entry has `hasInstallScript`. In the worktree,
+`npm install dayjs@1.11.23` -> exit 0; then `npm audit --audit-level=high` -> exit 1:
+
+```text
+found 0 vulnerabilities
+npm warn audit request to https://registry.npmjs.org/-/npm/v1/security/advisories/bulk failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org
+undefined
+npm error audit endpoint returned an error
+```
+
+(npm 12.2.1 prints these lines when the advisory request fails, checked 2026-11-06 with the
+registry set to a closed port; the host name here is the default registry's. The "found 0
+vulnerabilities" line comes before the request and is not a report.)
+
+Expected: the failed audit is not a pass: both files are restored from `<S>`, `cmp` passes, and
+the report's Audit line shows the worktree audit error and its Action says the apply failed and
+was reverted.
+Baseline (2026-11-06, no skill): kept the add uncommitted and asked. Verbatim: "I wouldn't commit
+until step 7 passes, or at least step 6." and "Want me to do that before committing, or leave it
+uncommitted for you to check?"
+Ninth-review skill (2026-11-06, restore "on a failed add or advisory the copy didn't show"): not red
+in three runs out of three. Each restored from `<S>`, checked with `cmp` and reported the worktree
+audit error, reading the table header's "error, no report" into step 6. Verbatim (first run): "The
+skill says to block on \"exit ≠ 0, error, no report\". [...] The worktree audit therefore did not
+pass. I can't treat the copy's clean result as a substitute, so I restore from `<S>`, not HEAD."
+This scenario documents the behavior the new sentence states.
+Re-run (#72, 2026-11-06): restored both files from the printed `<S>` path, `cmp` passes, report "-
+Audit: copy 0 vulnerabilities (baseline 0; worktree error: audit request to registry.npmjs.org
+failed, getaddrinfo ENOTFOUND; [...])" and "Action: apply failed: npm audit endpoint returned an
+error (exit 1), reverted package.json and package-lock.json from snapshot". Verbatim: "The skill
+treats \"audit error, no report\" as a revert. A clean audit in the copy doesn't stand in for the
+worktree's own audit."
+
+### 22. npm and cargo lockfiles in one directory (expect: no stop, npm from `package-lock.json`)
+
+Repo: a Node native addon built with napi-rs. The root has package.json, package-lock.json,
+Cargo.toml and Cargo.lock; no other lockfile. Working tree clean. The user says: "Add zod to the
+JS side."
+Recorded outputs: `npm view zod dist-tags` -> latest 4.6.7 (plus next, alpha, beta and canary
+tags); `npm view zod@4.6.7 deprecated` and `peerDependencies` -> empty, exit 0; in the copy, `npm
+audit --audit-level=high` before -> exit 0, after zod@4.6.7 -> exit 0. In the copy's lockfile, no
+new entry has `hasInstallScript`. In the worktree, the add -> exit 0; `npm audit
+--audit-level=high` -> exit 0.
+
+Expected: the manager is npm (package-lock.json); Cargo.lock belongs to cargo and does not count
+as a second lockfile, so the skill does not stop; zod 4.6.7 is vetted and added.
+Baseline (2026-11-06, no skill): chose npm and added zod, but applied with `--ignore-scripts` in the
+worktree. Verbatim: "The only JS lockfile is `package-lock.json`, so this is npm. Cargo.toml and
+Cargo.lock belong to the Rust side of the napi-rs addon".
+Ninth-review skill (2026-11-06, "two in one directory"): not red in three runs out of three, nor in
+three runs of a cargo-side variant (same repo, "Add serde with the derive feature"); every run read
+the stop as being about one manifest's manager and continued. Verbatim: "The \"two in one
+directory\" stop rule is there to catch an unclear manager for a manifest. That isn't the case
+here". One variant run added: "If the user meant a stricter reading, this is where I'd stop." This
+scenario documents the behavior the new wording states.
+Re-run (#72, 2026-11-06): npm from `package-lock.json`, no stop, vetted, applied with `npm install
+zod@4.6.7`. Verbatim: "`Cargo.lock` belongs to the Rust ecosystem and doesn't matter for a JS
+dependency. There is only one JS lockfile and no bun lockfile, so nothing stops us here."
