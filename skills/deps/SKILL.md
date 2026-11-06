@@ -24,10 +24,11 @@ else classic), `Cargo.lock` cargo (`cargo locate-project --workspace`). Stop and
   call (with several, npm prints a bare value when one is set). Berry with a registry only in
   `.yarnrc.yml`: `yarn npm info <pkg> --fields dist-tags,deprecated,peerDependencies --json`.
 - cargo: `cargo info <crate>` (in a project already using it, the `latest` in parentheses).
-  Yanked: `curl -s https://index.crates.io/<prefix>/<crate>`, a JSON line per version. Never
-  the crates.io web API.
+  Yanked: `curl -fsS https://index.crates.io/<prefix>/<crate>`, a JSON line per version;
+  `<prefix>` from the lowercased name: `1`, `2`, `3/<c1>`, else `<c1c2>/<c3c4>` (`se/rd/serde`).
+  No line whose `vers` is `<v>`: the lookup failed. Never the crates.io web API.
 
-Registry error or offline: the vet fails, no fallback to memory.
+Registry error or offline, here or in an audit: the vet fails, no fallback to memory.
 
 ## 3. Peer compatibility (JS)
 
@@ -35,8 +36,10 @@ On a conflict, take the newest version that fits and say so.
 
 ## 4. Vet in a throwaway copy
 
+From the repo root (from a subdirectory, `git archive` copies only that subdirectory):
+
 ```bash
-V=$(mktemp -d); git archive HEAD | tar -x -C "$V"
+cd "$(git rev-parse --show-toplevel)"; V=$(mktemp -d); git archive HEAD | tar -x -C "$V"
 ```
 
 Copy in uncommitted manifests, lockfile and manager config. In `$V`: baseline audit,
@@ -48,8 +51,12 @@ Copy in uncommitted manifests, lockfile and manager config. In `$V`: baseline au
 | npm | `npm install <pkg>@<v> --package-lock-only --ignore-scripts --no-audit --no-fund` | `npm audit --audit-level=high`, exit ≠ 0 |
 | pnpm | `pnpm add <pkg>@<v> --lockfile-only --ignore-scripts` | `pnpm audit --audit-level=high`, exit ≠ 0 |
 | yarn berry | `yarn add <pkg>@<v> --mode=update-lockfile` | `yarn npm audit --all --recursive --severity high`, exit ≠ 0 |
-| yarn classic | `yarn add <pkg>@<v> --ignore-scripts` | `yarn audit`, `exit & 24` ≠ 0 (a bitmask `--level` doesn't change) |
+| yarn classic | `yarn add <pkg>@<v> --ignore-scripts` | `yarn audit`, `exit & 24` ≠ 0 (a bitmask `--level` doesn't change); counts only with its `N vulnerabilities found` summary, as exit 1 is also a request error |
 | cargo | `cargo add <crate>@<v>` | `cargo deny check advisories` with `deny.toml`, else `cargo audit`; exit ≠ 0 |
+
+An audit counts only when its output lists the advisories or a summary. An `error` line, an
+endpoint error or no report, in the baseline or after the add, fails the vet with that error
+on the Audit line, never compared with the other run.
 
 Install scripts in new packages: npm `hasInstallScript` in `package-lock.json`; cargo a
 `custom-build` target in `cargo metadata --format-version 1 --locked`; pnpm, yarn "not checked".
@@ -71,7 +78,8 @@ numeric `ID` from `--json`, not the GHSA. npm and classic: none.
 ## 6. Apply
 
 After a pass only: the manager's normal add in the worktree, then the project's audit or
-`baton verify`; on a new advisory, revert. Blocked: manifest and lockfile stay byte-identical
+`baton verify`; on a new advisory, or if the add or verify fails, revert
+(`git checkout -- <manifest> <lockfile>`) and report it. Blocked: manifest and lockfile stay byte-identical
 (`git diff --exit-code -- <manifest> <lockfile>`). Replacing: remove the old package too.
 
 ## 7. Report
@@ -83,5 +91,5 @@ After a pass only: the manager's normal add in the worktree, then the project's 
 - Deprecated: <yes/no>   Yanked: <yes/no/n/a>   Peer compat: <ok/conflict>
 - Audit: <result> (baseline <result>)
 - Install scripts in new packages: <list/none/not checked>
-Action: <added to/upgraded in/blocked, nothing changed>
+Action: <added to/upgraded in/blocked, nothing changed/apply failed: <error>, reverted>
 ```
