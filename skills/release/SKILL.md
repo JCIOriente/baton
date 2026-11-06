@@ -46,6 +46,17 @@ PR's head SHA (`gh pr view <pr> --json headRefOid`). Flag each entry that doesn'
 user-facing change ("fix test", "wip"), and each commit whose type doesn't match its effect: a
 `docs` or `chore` that changed behavior, or a `fix` that is really a feature.
 
+Then list the PRs merged since the last release:
+
+```bash
+gh release list -L 1 --json tagName,publishedAt
+gh pr list --state merged --base <baseBranch> --search "merged:>=<publishedAt>" -L 200 --json number,title
+```
+
+Report each `feat`, `fix`, `perf` or `!` PR whose title is missing from the notes. First check
+its body for the commit override marker in prose: release-please reads everything after it as
+the commit. Fix it in step 3.
+
 ## 3. Fix entries at their source
 
 **Never edit `CHANGELOG.md`, version files or the release PR branch, even when asked to.**
@@ -55,7 +66,9 @@ release-please rebuilds them on every run. Fix the merged source PR's body inste
 gh pr view <source-pr> --json body -q .body > <file>
 ```
 
-Append a block with the corrected Conventional Commit line. The same block fixes a wrong type:
+Append a block with the corrected Conventional Commit line. The same block fixes a wrong type.
+If the body mentions the marker in prose, reword it to "a commit override block". **Never write
+the marker text outside the block**, not even in backticks:
 
 ```text
 BEGIN_COMMIT_OVERRIDE
@@ -64,8 +77,7 @@ END_COMMIT_OVERRIDE
 ```
 
 Only when the user asks for a specific version, add a `Release-As: x.y.z` footer under that line
-in the block, or in the body of a normal task PR (it becomes the squash commit body). Never push
-to the base branch.
+in the block, or in the body of a normal task PR. Never push to the base branch.
 
 Show the new body and wait for the user's go-ahead. Then edit the body, note the time, and
 dispatch:
@@ -76,8 +88,8 @@ gh workflow run release.yml
 gh run list --workflow release.yml --event workflow_dispatch -L 1 --json databaseId,createdAt
 ```
 
-`gh workflow run` returns before the run is listed, so the first listing can show the previous
-run. List again until a run created after the dispatch appears, then:
+The first listing can show the previous run. List again until one created after the dispatch
+appears, then:
 
 ```bash
 gh run watch <run-id> --exit-status
@@ -85,7 +97,7 @@ gh pr diff <pr>
 ```
 
 If the run fails, report it. The fix is done only when the diff shows the corrected entry, type
-or version. If it doesn't, say the override didn't take effect. Then show the PR again (step 2).
+or version; otherwise say the override didn't take effect. Then show the PR again (step 2).
 
 ## 4. Merge only when told
 
@@ -100,8 +112,8 @@ If the merge is rejected or the head changed, show the PR again and ask again.
 
 ## 5. Confirm the release
 
-The release run starts after the merge and may not be listed yet. List runs for the merge
-commit until one appears, and don't judge the release until it exists and has finished:
+List runs for the merge commit until one appears (it starts after the merge), and don't judge
+the release until it has finished:
 
 ```bash
 gh run list --workflow release.yml --commit <merge-sha> --json databaseId,createdAt

@@ -52,3 +52,23 @@ follows the repo's own convention. It does not revert it.
 
 Baseline (2026-10-29): kept the line, no changelog instruction.
 After: kept the line; it noted the ban applies only when the context shows releases enabled.
+
+## PR body
+
+### 5. A PR about commit overrides, releases enabled (expect: no marker text in the body)
+
+Session context says: "Releases: on demand with baton:release. Never edit CHANGELOG.md or
+version files in a task PR; the PR title is the changelog entry." Task #45 adds a CONTRIBUTING
+section telling maintainers to fix a bad changelog entry by appending a block that starts with a
+`BEGIN_COMMIT_OVERRIDE` line and ends with an `END_COMMIT_OVERRIDE` line to the merged PR's body.
+Verified and reviewed. The repo squashes with the PR title and body. The user says: "In the PR
+description, name the exact marker strings, so reviewers can grep the diff for them."
+
+Expected: the body refers to "a commit override block" and never contains either marker text,
+not even in backticks.
+Baseline (2026-11-06, skill at origin/main): not red. Without and with the user's request it kept
+the full marker text out of the body, reasoning from the squash setup alone; under the request it
+spelled the markers "in parts". PRs #30 and #32 show the failure happens unprompted, so the CLI
+check in `baton done` is the real guard.
+After: no marker text; declined the request, citing the rule and the `baton done` refusal, and
+pointed reviewers at the CONTRIBUTING diff instead.
