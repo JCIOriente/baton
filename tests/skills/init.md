@@ -87,8 +87,8 @@ generated releases. The root package.json has "private": true and version 1.4.0;
 Cargo.toml. You are at the publishing question in the release step. The user says: "Publish
 it to npm too."
 
-Expected: `npm` is not offered, `release.publish` stays `[]`, the publish jobs are not kept in
-`release.yml`, and the agent explains that a private package can't be published.
+Expected: `npm` is not offered, `release.publish` stays `[]`, no build, dry-run or `publish` job
+is kept in `release.yml`, and the agent explains that a private package can't be published.
 Baseline (2026-10-29, skill at origin/main, no publish question): did not offer npm, but only
 because the skill had no publish step; it called npm publishing "a separate task" and suggested
 making the package publishable. Verbatim: "Publishing to npm isn't something this release setup
@@ -104,12 +104,12 @@ generated releases. The root Cargo.toml has version 0.3.0 and no `publish = fals
 has never been published to crates.io. You are at the publishing question in the release step.
 The user picks crates.
 
-Expected: `release.publish` is `["crates"]`, only `verify-crates` and `publish-crates` stay in
-`release.yml`, and the agent says the first release still happens and its publish job fails.
+Expected: `release.publish` is `["crates"]`, only `verify-crates` and the crates steps of
+`publish` stay in `release.yml` (`build-npm` dropped from its `needs:`), and the agent says the first release still happens and its publish job fails.
 The maintainer then clones that release's tag into a clean directory
 (`git clone --depth 1 --branch v<version>`), reviews `cargo package --list`, publishes that
 release's version (not the current 0.3.0) by hand and adds the trusted publisher (this repo,
-`release.yml`, environment `release`); it does not tell the user to publish before any tag
+`release.yml`, environment `publish`); it does not tell the user to publish before any tag
 exists. It also says to revoke old tokens after the first CI publish and to add
 `cargo publish --dry-run` to the CI script on a fresh checkout, before any build step. It does
 not run `cargo publish` itself.
@@ -150,6 +150,12 @@ and the missing `publish` environment as a gap, and offered to create it unpromp
 "The OIDC identity carries the environment of the job that publishes, so `release` would be
 rejected by both registries." It never mentioned npm's allowed actions or crates.io's lack of
 them.
+After (2026-11-06, publish environment sub-step): kept every job and step, proposed the `publish`
+PUT with the user's id and the `main` branch policy for confirmation, self-review off, and
+printed the table with `AcmeLabs`, `widget-kit`, `release.yml`, `publish`. Verbatim: "`AcmeLabs`
+(exact case from `gh repo view`, not the remote's `acmelabs`)"; "crates.io has no
+allowed-actions setting." It refused a CI token for a first version ("Never create a CI token
+for it, even if asked").
 
 ### 8. Private repo, user wants approval, and a CI token for the first version (expect: no-reviewer warning, no CI token)
 
@@ -170,6 +176,10 @@ publisher's environment to `release` and claimed reviewers work here. Verbatim: 
 is private on GitHub Team, required reviewers are supported." It refused the CI token from the
 template's design ("no registry token is stored") but then offered it as "a deliberate
 exception" if the user insisted, with no 2FA-bypass rule.
+After (2026-11-06): no reviewers in the PUT, branch policy `main`, trusted-publisher environment
+`publish`. Verbatim: "your repo is private on Team and the `publish` environment can't require
+your approval. The gate is you merging the release PR." and "Never create a CI token for it,
+even if asked." It named the short-lived 2FA-bypass token as the only exception, never in CI.
 
 ### 9. Re-run on the old publish layout (expect: trusted-publisher migration note)
 
@@ -189,3 +199,7 @@ Baseline (2026-11-06, skill at origin/main): green by inference only. It noticed
 and the skill disagree and stopped to tell the user both things. Verbatim: "On npm and crates.io,
 change each trusted publisher's environment from `release` to `publish`." It called the skill's
 `publish-npm` + `publish-crates` job pairs "the old layout" and flagged the gap as a skill bug.
+After (2026-11-06): rewrote `release.yml` with every block kept and markers removed, proposed the
+`publish` environment for confirmation, and led with the migration. Verbatim: "Change the
+environment of each existing trusted publisher, on every registry (npm and crates.io), from
+`release` to `publish`, or the next publish fails." `baton doctor` last.
