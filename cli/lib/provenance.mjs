@@ -108,7 +108,7 @@ export function factsVsInstalled(prov, installed) {
   return findings;
 }
 
-const ghRunner = (args) => run('gh', args, { allowFail: true });
+const ghRunner = (args) => run('gh', args, { allowFail: true, timeout: 30_000 });
 
 /** Latest released version of `registry:name`. `gh` is injectable so tests never hit the network. */
 export async function latestVersion(pkg, { gh = ghRunner } = {}) {
@@ -126,16 +126,10 @@ export async function latestVersion(pkg, { gh = ghRunner } = {}) {
   }
   if (registry === 'github') {
     if (!/^[\w.-]+\/[\w.-]+$/.test(name)) throw new Error(`bad github repo '${name}'`);
-    const res = gh(['api', `repos/${name}/releases/latest`]);
+    const res = gh(['api', `repos/${name}/releases/latest`, '--jq', '.tag_name']);
     if (res.code !== 0) throw new Error(`gh api ${name} failed: ${(res.stderr || '').trim() || `exit ${res.code}`}`);
-    let tag;
-    try {
-      tag = JSON.parse(res.stdout).tag_name;
-    } catch {
-      throw new Error(`gh api ${name} returned invalid JSON`);
-    }
-    const version = typeof tag === 'string' ? tag.trim().replace(/^v/, '') : '';
-    if (!version) throw new Error(`${name} latest release has no tag_name`);
+    const version = (res.stdout || '').trim().replace(/^v/, '');
+    if (!version || version === 'null') throw new Error(`${name} latest release has no tag_name`);
     return version;
   }
   throw new Error(`unsupported registry '${registry}'`);
