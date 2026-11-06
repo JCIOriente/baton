@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-06-dependency-vetting.md](../specs/2026-11-06-dependency-vetting.md)
 - Date: 2026-11-06
-- Status: draft
+- Status: approved
 
 ## Overview
 Three tasks, cut by file ownership. T1 and T2 can run in parallel. T3 adds the pointers that
