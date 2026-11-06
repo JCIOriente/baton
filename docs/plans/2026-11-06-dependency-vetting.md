@@ -49,7 +49,7 @@ Can start immediately in parallel: T1, T2
 
 ## Tasks
 
-### T1: the `baton:deps` skill, scenarios and trigger evals  (#issue once created)
+### T1: the `baton:deps` skill, scenarios and trigger evals  (#47)
 - Priority: 1
 - Depends on: none
 - Owns: `skills/deps/SKILL.md` (new), `tests/skills/deps.md` (new), `evals/deps-add/**` (new),
@@ -99,7 +99,7 @@ Can start immediately in parallel: T1, T2
   otherwise note it in the PR. Never send personal data (an email in a `User-Agent`) to a
   registry. Don't edit `CHANGELOG.md`.
 
-### T2: repo-level rules in the stack guides and the reviewer pointer  (#issue once created)
+### T2: repo-level rules in the stack guides and the reviewer pointer  (#48)
 - Priority: 2
 - Depends on: none
 - Owns: `stacks/common.md` (§ Dependencies), `stacks/rust.md` (§ Dependencies),
@@ -131,7 +131,7 @@ Can start immediately in parallel: T1, T2
   statement depends on a manager version, add a `facts` entry in a follow-up rather than
   touching `provenance.json` here (T1 owns it). Don't edit `CHANGELOG.md`.
 
-### T3: context line and skill pointers  (#issue once created)
+### T3: context line and skill pointers  (#49)
 - Priority: 1
 - Depends on: T1
 - Owns: `cli/test/features.test.mjs` (the context test only)
