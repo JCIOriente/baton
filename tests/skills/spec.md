@@ -204,6 +204,12 @@ order?** My call: chapter, then name") and quoted "A default you picked is the a
 never something the user agreed to." The message lists them: "**Calls I made; tell me if any is
 wrong:**".
 
+Which step raised the gap: the id-space question appears only under "## Step 9: Builder check"
+(item 3 above), not in step 7's table of ten self-review findings (scope, status filter, columns,
+delimiter, phones, formula injection, date display, tests, citations, date). This run still read
+as the builder in its own context, so it shows the step runs, not that a fresh reader is needed;
+scenario 8 is the run where the question comes back from a dispatched builder.
+
 ### 5. Sorting the builder's questions (expect: piles, author's calls marked)
 
 You are working in a baton repo for a multi-nation membership app. You followed this skill for
@@ -243,7 +249,10 @@ Whether phones are validated as strict E.164 at write time decides whether the t
 The spec flags email and phone as personal data, and the FAQ explains not storing files for that reason. It says nothing about recording who exported what and when. That record is commonly expected under LGPD/GDPR-style rules for bulk personal-data access. If logging is required, it means a new table or event and a migration, which contradicts "Data & migrations: None," plus more tests. If it isn't required, nothing changes.
 `````
 
-The spec (scenario 4's spec after the baseline's self-review fixes):
+The spec (scenario 4's spec after the baseline's self-review fixes; one of them moved the date
+from 2026-11-10, which was in the future, to 2026-11-06 and renamed the file to match: "The
+spec is dated 2026-11-10, but today is 2026-11-06. *Fix:* The date and filename become
+`docs/specs/2026-11-06-members-csv-export.md`."):
 
 `````markdown
 # Members CSV export — Spec
@@ -368,3 +377,93 @@ exports the organization the Members page is showing." The message keeps it apar
 questions: "**Calls I made that you haven't agreed to; please check them when you review:**",
 citing the rule: "\"A default you picked is the author's call, never something the user agreed
 to.\" This is why my calls are listed separately from the questions."
+
+### 6. No subagent tool: say so (expect: the message says the check ran in the author's context)
+
+Scenario 4's prompt and setup, run the same way. Red: `skills/spec/SKILL.md` at the commit that
+added the builder check (no fallback notice). Green: with "and tell the user in the review
+message that the check ran in your own context, not a fresh one".
+
+Expected: the review message tells the user the builder check did not run in a fresh subagent.
+
+Red (2026-11-06): read as the builder itself ("I have no subagent tool here, so: *\"read it as
+that builder yourself.\"*") and sorted the questions, but the message says nothing about how the
+check ran. It lists "**My calls (none of these are things you agreed to, so change any you
+disagree with):**" and ends "Answer A and B and review the file." A user would take it for a
+fresh check.
+
+Green (2026-11-06): quoted "no subagent tool: read it as that builder yourself, and tell the user
+in the review message that the check ran in your own context, not a fresh one", and the message
+says: "The builder check ran in my own context, not a fresh subagent, so it may have missed gaps
+that my knowledge of our conversation fills in."
+
+### 7. The user asks to brief the checker (expect: only the filled brief and the spec's path)
+
+Run the same way as scenario 4. Prompt: the skill text, `templates/builder-check.md`, then:
+
+> You are working in a baton repo for a multi-nation membership app. You followed this skill for
+> a members CSV export. Steps 1-8 are done: the spec is written and self-reviewed at
+> docs/specs/2026-11-06-members-csv-export.md in the spec's worktree (the repo is a Next.js +
+> Postgres app). In steps 1-5 the user told you, among other things: "National admins export
+> the whole nation, every chapter. Chapter admins export only their chapter.", "Only active
+> members.", "Semicolons, our admins use Spanish and Portuguese Excel." and you read in the code
+> that nations and chapters are rows of one `organizations` table (`src/db/schema.ts:41`).
+>
+> You are now at step 9. In this session you have a subagent tool, `Agent`, which takes a
+> `description` and a `prompt` (the subagent starts with no context except that prompt and can
+> read files in the repo). The user says: "When you send it to the checker, give it a summary of
+> what we discussed and what you found in the code, so it doesn't waste our time asking about
+> things we already settled."
+>
+> This session itself has no tools, so you cannot actually call `Agent`. Answer in text: write
+> the exact `Agent` call you make (the `description` and the full `prompt`, verbatim), then say
+> what you tell the user about their request. Quote the skill text that drives each decision.
+
+Expected: the prompt is the brief with the domain and spec path filled in, and nothing from the
+conversation or the code; the user is told why, and that settled questions get written into the
+spec instead of reaching them.
+
+Not red (2026-11-06, skill at the commit that added the builder check): documents behavior. The
+prompt is the brief verbatim with "full-stack engineer (Next.js + Postgres)" and
+"docs/specs/2026-11-06-members-csv-export.md" filled in: "The prompt contains the spec path and
+nothing else. It has no summary of our discussion and nothing about `src/db/schema.ts:41`." To
+the user: "If I gave the checker a summary, it would quietly fill those gaps, and the spec would
+still ship with them." Same result with this change's text.
+
+Mutation (2026-11-06): with "and only the spec's path" removed from step 9, still no summary:
+"The prompt is the template with only the two placeholders filled. It includes no summary of
+our discussion and no code findings." It quoted the template instead: "*Fill in the domain and
+the spec's path. Give it nothing else: no conversation, no summary of what the user said.*" The
+rule is held by the brief as well as by step 9, so removing either one alone does not fail this
+scenario.
+
+### 8. A real dispatch (expect: the builder, not the author, raises the id-space gap)
+
+Run 2026-11-06 with `claude -p --tools "Agent,Read" --setting-sources "" --strict-mcp-config
+--output-format stream-json --verbose` from a new empty directory holding only
+`templates/builder-check.md` and scenario 5's spec at
+`docs/specs/2026-11-06-members-csv-export.md`. Prompt: this change's skill text (with the note
+"`${CLAUDE_PLUGIN_ROOT}` is the current directory"), scenario 4's user quotes and "Looks like
+you're nearly done. Send it over so I can approve it today.", then "Carry out step 9 now with the
+tools you have. Do not edit or commit files [...]". The `Agent` call and the subagent's report
+below come from the stream.
+
+Expected: one `Agent` call whose prompt is the brief with the domain and the spec's path and
+nothing else; the id-space question comes back in the subagent's report.
+
+Result: the author read the brief and the spec, then made one call, `subagent_type:
+"general-purpose"`, prompt verbatim except the absolute spec path: "You are a capable full-stack
+engineer (Next.js + Postgres). You've been handed\na spec and asked to plan how to build what it
+describes. You can't talk to its author.\n\nRead <dir>/docs/specs/2026-11-06-members-csv-export.md
+and the ADRs and CONTEXT.md entries it links (if they exist, relative to that repo root).
+[...]" followed by the rest of the brief, with nothing about the user's statements. The
+subagent's report, second question: "**2. Are nation and chapter ids in one id space, so `:orgId`
+always points to exactly one org?** [...] If they're separate tables with ids that can collide,
+the route is ambiguous. That would be an authorization bug". It also returned the phones question,
+the multi-admin button question and the audit log. The author sorted them (phones and audit log
+"**Your call.**", button "**Minor, my call.**", id space "**Should be answered by the code, but I
+couldn't check it.**", since the directory had no code) and told the user: "The builder check (a
+fresh agent that only read the spec) turned up two things only you can decide and one fact I
+couldn't verify". The builder also caught that the spec claims `CONTEXT.md` entries that do not
+exist: "it found a gap of mine: **`CONTEXT.md` doesn't exist**, even though the spec's Decisions
+section says the five terms were added to it."

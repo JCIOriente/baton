@@ -55,7 +55,8 @@ lines. It still gets written and approved.
      Use those terms consistently in the spec, the code and the issues.
 9. **Builder check, then commit.** Your context fills gaps a builder can't see: dispatch a
    fresh subagent with `${CLAUDE_PLUGIN_ROOT}/templates/builder-check.md` and only the spec's
-   path (no subagent tool: read it as that builder yourself). Sort its questions: answered by
+   path (no subagent tool: read it as that builder yourself, and tell the user in the review
+   message that the check ran in your own context, not a fresh one). Sort its questions: answered by
    the conversation or code (write the answer in), minor (decide it, mark it as the author's
    call), or the user's call (it changes what gets built: ask them all in one message).
    **A default you picked is the author's call, never something the user agreed to.**
