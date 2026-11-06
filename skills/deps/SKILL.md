@@ -11,7 +11,7 @@ worktree before it passed the vet**, however urgent or user-named.
 
 ## 1. Identify
 
-Package, manifest, reason; for a category, ask which. Manager: nearest lockfile above the
+Package, manifest, reason; category only: ask which. Manager: nearest lockfile above the
 manifest. `package-lock.json` npm, `pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry with
 `.yarnrc.yml` or `packageManager: "yarn@2+"`, else classic), `Cargo.lock` cargo. Stop on
 `bun.lock`/`bun.lockb`, two lockfiles in one directory, none, or cargo `registry =`/source
@@ -28,11 +28,11 @@ https://index.crates.io/<prefix>/<crate>`, all lowercase, prefix `1`, `2`, `3/<f
 length, else `se/rd/serde`; not the crates.io API. Non-zero exit, timeout or no `<v>` line:
 vet fails; empty with exit 0: unset.
 
-## 3. Peer compatibility (JS)
+## 3. Peers (JS)
 
-Peers conflict with the manifest: take the newest fitting version, say so.
+Conflicts with the manifest: newest fitting version, say so.
 
-## 4. Vet in a throwaway copy
+## 4. Vet in a copy
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"; V=$(mktemp -d); git archive HEAD | tar -x -C "$V"
@@ -42,13 +42,16 @@ Copy in uncommitted manifests, lockfile, manager config. **In `$V/<dir>`, not `$
 baseline audit, `<add> && <audit>`, `rm -rf "$V"`. Member: npm `-w <member>`,
 pnpm `--filter ./<member>`, `yarn workspace <name> add`, cargo `-p <crate>`.
 
-| Manager | Add | Audit; block on exit ≠ 0, error or no report |
+| Manager | Add | Audit; block on exit ≠ 0, error, no report |
 |---|---|---|
 | npm | `npm install <pkg>@<v> --package-lock-only --ignore-scripts` | `npm audit --audit-level=high` |
 | pnpm | `pnpm add <pkg>@<v> --lockfile-only --ignore-scripts` | `pnpm audit --audit-level=high` |
 | yarn berry | `yarn add <pkg>@<v> --mode=update-lockfile` | `yarn npm audit --all --recursive --severity high` |
 | yarn classic | `yarn add <pkg>@<v> --ignore-scripts` | `yarn audit`; **block unless output shows `N vulnerabilities found` (exit 1 is also an error), then `exit & 24` ≠ 0**, any `--level` |
 | cargo | `cargo add <crate>@<v>` | `cargo deny check advisories` with `deny.toml`, else `cargo audit` |
+
+Install scripts (report only): npm `hasInstallScript`, cargo `custom-build` (`cargo
+metadata --format-version 1 --locked`); pnpm, yarn: "not checked".
 
 ## 5. Decide
 
@@ -65,21 +68,19 @@ and yarn classic: none.
 
 ## 6. Apply
 
-After a pass, in `<dir>`: **if the copy showed new install scripts (npm `hasInstallScript`,
-cargo `custom-build` in `cargo metadata --format-version 1 --locked`) or can't (pnpm, yarn), list
-them and wait for an OK before the normal add**. Then add (replacing: remove the old), audit (or `baton
-verify` if it runs one); on a failed add or an advisory the copy didn't show, restore both
-from `$S` (not HEAD). Blocked: `cmp` with `$S` passes.
+After a pass, in `<dir>`: add (replacing: remove the old), audit (or `baton verify` if it
+runs one); on a failed add or an advisory the copy didn't show, restore both from `$S` (not HEAD).
+Blocked: `cmp` with `$S` passes.
 
 ## 7. Report
 
 ```text
 ## baton:deps: <package>
-- Manager: <manager> (<lockfile path>)
-- Version chosen: <v>, <why, major bump?>, checked <date>
-- Replaces: <old package, removed/n/a>
-- Deprecated: <no/yes: message>   Yanked: <yes/no/n/a>   Peer compat: <ok/conflict>
+- Manager: <manager> (<lockfile>)
+- Version: <v>, <why, major bump?>, checked <date>
+- Replaces: <old, removed/n/a>
+- Deprecated: <no/yes: message>   Yanked: <yes/no/n/a>   Peers: <ok/conflict>
 - Audit: <result> (baseline <result>)
-- Install scripts, new packages: <list/none/not checked>
+- Install scripts: <new packages/none/not checked>
 Action: <added to/upgraded in/blocked, nothing changed/apply failed: <error>, reverted>
 ```
