@@ -4,6 +4,7 @@
 - Date: 2026-10-28
 - Owner: Arnold Gandarillas
 - Related: [ADR-0001](../adr/0001-generated-changelog.md), #8, #16, #18
+- Amended by: [release hardening](2026-11-06-release-hardening.md) (publish environment, publish order, dry run)
 
 ## TL;DR
 - Releases are an opt-in feature: `release.enabled` in `.baton/config.json`, off by default.
