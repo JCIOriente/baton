@@ -174,6 +174,7 @@ test('overrideFindings_accepts_well_formed_block', () => {
   const body = ['Closes #1', '', 'Two changes in one PR.', '', BEGIN, 'feat(cli): add x', '', 'fix!: drop y', 'BREAKING CHANGE: y is gone', 'Release-As: 1.0.0', 'docs: note z', END, '', 'Validated: make ci'].join('\n');
   assert.deepEqual(overrideFindings(body), []);
   assert.deepEqual(overrideFindings(`  ${BEGIN}  \nperf(a-b): faster\n${END}`), [], 'surrounding spaces on the marker lines are fine');
+  assert.deepEqual(overrideFindings(`Closes #1\r\n\r\n${BEGIN}\r\nfeat: x\r\nRelease-As: 1.2.3\r\n${END}\r\n`), [], 'CRLF line endings');
 });
 
 test('overrideFindings_rejects_marker_in_prose', () => {
@@ -203,6 +204,10 @@ test('overrideFindings_rejects_non_conventional_line', () => {
     'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "Feat x"',
     'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "Release-As: next"',
   ]);
+  assert.deepEqual(overrideFindings(`${BEGIN}\n    feat: x\nnote: y\n${END}`), [
+    'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "    feat: x"',
+    'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "note: y"',
+  ], 'an indented line and an unknown type');
 });
 
 test('baton done refuses a PR body that misuses the commit override marker when releases are enabled, offline', async (t) => {
@@ -248,6 +253,12 @@ test('baton done refuses a PR body that misuses the commit override marker when 
   const wellFormed = done(enabled, '--draft', '--body-file', bodyFile(enabled, `${BEGIN}\nfeat: x\n${END}\n`));
   assert.ok(!wellFormed.stderr.includes(refusal), wellFormed.stderr);
   assert.match(wellFormed.stderr, /push/);
+
+  // The base branch decides: turning releases off in the task branch doesn't skip the check.
+  const turningOff = repo(true);
+  writeFileSync(join(turningOff, '.baton/config.json'), JSON.stringify({ release: { enabled: false }, workflow: { requireReview: true } }));
+  sh(turningOff, 'commit', '-qam', 'disable releases');
+  assert.ok(done(turningOff, '--draft', '--body-file', bodyFile(turningOff, `Explains the ${BEGIN} rule.\n`)).stderr.includes(refusal));
 
   const disabled = repo(false);
   const allowed = done(disabled, '--draft', '--body-file', bodyFile(disabled, `Explains the ${BEGIN} rule.\n`));

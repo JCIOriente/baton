@@ -115,7 +115,7 @@ export function changelogGuard({ files, releaseEnabled }) {
 
 const OVERRIDE_BEGIN = 'BEGIN_COMMIT_OVERRIDE';
 const OVERRIDE_END = 'END_COMMIT_OVERRIDE';
-const CONVENTIONAL_HEADER = /^[a-z]+(\([^()]+\))?!?: \S/;
+const CONVENTIONAL_HEADER = /^(feat|fix|perf|revert|docs|chore|refactor|test|build|ci|style)(\([^()]+\))?!?: \S/;
 const OVERRIDE_FOOTER = /^(Release-As: \d+\.\d+\.\d+$|BREAKING CHANGE: \S)/;
 
 /**
@@ -139,8 +139,12 @@ export function overrideFindings(body = '') {
       else findings.push(`a ${OVERRIDE_END} line has no block to close.`);
     } else if (line.includes(OVERRIDE_BEGIN) || line.includes(OVERRIDE_END)) {
       findings.push(`the commit override marker appears in a line of text instead of on its own line: "${line}"`);
-    } else if (state === 'inside' && line && !CONVENTIONAL_HEADER.test(line) && !OVERRIDE_FOOTER.test(line)) {
-      findings.push(`not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "${line}"`);
+    } else if (state === 'inside' && line) {
+      // Untrimmed at the start: release-please doesn't parse an indented line as a header.
+      const entry = raw.trimEnd();
+      if (!CONVENTIONAL_HEADER.test(entry) && !OVERRIDE_FOOTER.test(entry)) {
+        findings.push(`not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "${entry}"`);
+      }
     }
   }
   if (state === 'inside') findings.push(`the commit override block has no ${OVERRIDE_END} line, so release-please would read the rest of the body as commits.`);

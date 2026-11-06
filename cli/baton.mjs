@@ -500,6 +500,8 @@ function done(argv) {
     releaseEnabled = releaseEnabledIn(baseConfig);
     const guard = changelogGuard({ files: diff.files, releaseEnabled });
     if (!guard.ok) throw new BatonError(guard.reason);
+  } else {
+    process.stderr.write('warning: the base branch could not be resolved, so the CHANGELOG and commit override checks were skipped.\n');
   }
 
   // Review gate: a draft PR may precede review; a ready PR needs a review of exactly this commit,
