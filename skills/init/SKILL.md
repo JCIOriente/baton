@@ -137,47 +137,110 @@ disable-model-invocation: true
       the repo can publish: `npm` for a root `package.json` without a truthy `private`,
       `crates` for a root `Cargo.toml` without `publish = false`. If the user asks for a target
       that isn't offered, say why. **Default none.** Set `release.publish` to the answer
-      (`[]`, `["npm"]`, `["crates"]` or both). In `.github/workflows/release.yml`, keep only
-      the job pairs marked for the chosen targets (`build-npm` + `publish-npm`, `verify-crates`
-      + `publish-crates`). Delete each other job with the `# baton:init: keep ...` marker line
-      above it, and delete the marker lines of the kept jobs. The build and verify jobs run
-      dependency and build code without credentials; the publish jobs hold the registry login
-      and only publish what they built. The jobs set up Node 26; if the project has `.nvmrc`,
-      `.node-version` or an `engines.node` floor, use that version instead, but never below 24
-      (npm trusted publishing needs npm 11.5.1+). Keep the file header ("Written by baton:init"). Keep the "Publish jobs"
-      comment when a job stays, drop it when none does. Then tell the user, per target:
+      (`[]`, `["npm"]`, `["crates"]` or both). Trim `.github/workflows/release.yml` by its
+      markers. A line `# baton:init: keep this <job|step> only when release.publish has "<target>"`
+      marks the block below it: the comment lines right under the marker, the job key or
+      `- ` step line, every more-indented line after it, and the blank lines that follow. For a
+      chosen target delete only the marker line; otherwise delete the marker and its block.
+      Remove each deleted job's name from `publish`'s `needs:` line. If `publish` has no step
+      left, delete it with the comment above it, and the `# Publishing:` comment block with the
+      blank lines after it. The build and verify jobs run dependency and build
+      code without credentials; `publish`, the only job with id-token, publishes what they built,
+      npm before crates.io, after one approval. The jobs set up Node 26; if the project has
+      `.nvmrc`, `.node-version` or an `engines.node` floor, use that version instead, but never
+      below 24 (npm trusted publishing needs npm 11.5.1+). Keep the file header ("Written by
+      baton:init"). Then tell the user, per target:
       - `build-npm` installs with `npm ci` only when `package-lock.json` exists, then runs
         `npm run build --if-present` and `npm pack`. A repo using pnpm, yarn or bun must adapt
         the install step.
-      - On the registry, add a trusted publisher: this repo, workflow `release.yml`,
-        environment `release`. No registry token is stored.
-      - A package not yet on the registry: the first release still happens, and its publish
+      - A package not yet on the registry: the first release still happens, and its `publish`
         job fails because no trusted publisher exists yet. The registry only accepts one for a
         package that exists, so the maintainer clones that release's tag into a clean directory
         (`git clone --depth 1 --branch v<version> <repo-url> <tmp dir>`), reviews
-        `npm pack --dry-run` / `cargo package --list`, publishes that version by hand, then
-        adds the trusted publisher. CI publishes every
-        later version; a re-run skips a version already on the registry. Agents never tag or
-        publish.
+        `npm pack --dry-run` / `cargo package --list`, publishes that version by hand with their
+        own 2FA, then adds the trusted publisher. **Never create a CI token for it**, even if
+        asked. Only a maintainer who can't publish interactively uses a granular token that
+        bypasses 2FA: short-lived, used once from their machine, deleted right after. CI
+        publishes every later version; a re-run skips a version already on the registry. Agents
+        never tag or publish.
       - To retry a failed publish, use "Re-run failed jobs" (`gh run rerun <id> --failed`) within
         7 days; "Re-run all jobs" doesn't publish. A re-run skips a version the registry has.
       - After the first CI publish, revoke any old registry tokens.
       - Add `npm publish --dry-run` / `cargo publish --dry-run` to the repo's CI script
         on a fresh checkout, before any build step, so a package that can't publish or a missing
         build fails before the release.
-   7. Suggest, and run only after the user confirms, protecting tags and releases. Skip the
-      ruleset if `gh api repos/{owner}/{repo}/rulesets --jq '.[] | select(.name=="release tags")'`
-      prints one:
+   7. **The `publish` environment** (when `release.publish` isn't empty). Read
+      `gh repo view --json owner,name,visibility` and the environment as it is:
+      `gh api repos/{owner}/{repo}/environments/publish` (404: it doesn't exist) and
+      `gh api repos/{owner}/{repo}/environments/publish/deployment-branch-policies --jq '.branch_policies[].name'`.
+      **If it exists, show its reviewers, `prevent_self_review` and branch policy, and propose
+      only what is missing. Never remove a reviewer, turn a protection off or widen the branch
+      policy.** A PUT replaces the whole protection, so a PUT to an existing `publish` sends
+      its current reviewers, `prevent_self_review` and `wait_timer` together with the addition,
+      never the new piece alone. Otherwise offer to create it with the user as required
+      reviewer and deployments limited to the base branch. Run each write only after the user
+      confirms:
       ```bash
-      gh api -X POST repos/{owner}/{repo}/rulesets --input - <<'JSON'
+      id=$(gh api user --jq .id) || exit 1
+      gh api -X PUT repos/{owner}/{repo}/environments/publish --input - <<JSON
+      { "reviewers": [ { "type": "User", "id": $id } ], "prevent_self_review": false,
+        "deployment_branch_policy": { "protected_branches": false, "custom_branch_policies": true } }
+      JSON
+      gh api -X POST repos/{owner}/{repo}/environments/publish/deployment-branch-policies -f name=<baseBranch> -f type=branch
+      ```
+      If `gh api user` fails, stop and have the user fix `gh auth status`; never guess the id.
+      Skip the POST when the list above already has the base branch. Leave "prevent
+      self-review" off: a solo maintainer merges and approves. Suggest turning it on when the
+      repo has more than one maintainer. Decide by GitHub's answer, not by visibility:
+      - **GitHub rejects `reviewers`** (on Free, Pro and Team they work only in public repos):
+        report the error, repeat the PUT without `reviewers`, add the branch policy, and say
+        there is no approval step: merging the release PR is then the only gate.
+      - **The environment or branch-policy calls fail** (a private repo on Free has neither):
+        say plainly that `publish` then has no approval and no branch limit, so anyone with
+        write access can publish through OIDC from any branch. Suggest making the repo public,
+        upgrading the plan, or not publishing from CI (`release.publish: []`). Don't let the
+        first workflow run create `publish`.
+      For any other failure, report it and give the same settings for Settings > Environments.
+      Then print, for each configured package, the trusted publisher to add on the registry
+      (no registry token is stored):
+
+      | Field | Value |
+      |---|---|
+      | Owner | `owner.login` from `gh repo view`, exact case (`AcmeLabs`, not the remote's `acmelabs`) |
+      | Repository | `name` |
+      | Workflow | `release.yml` |
+      | Environment | `publish` |
+      | npm only: allowed actions | "npm publish" ticked; "npm dist-tag" not needed |
+
+      crates.io has no allowed-actions setting. A mismatch in any field fails the publish with
+      `E403 ... OIDC permission denied` (npm) or a 403 (crates.io).
+      **Re-running this step on the old layout** (`publish-npm` / `publish-crates` jobs, which
+      `baton doctor` reports): tell the user to change the environment of each existing
+      trusted publisher, on every registry, from `release` to `publish`, or the next publish
+      fails.
+   8. Suggest, and run only after the user confirms, protecting tags and releases. The ruleset
+      blocks updating and deleting `v*` tags, and may also restrict creating them. With the
+      `creation` rule, the owner of `RELEASE_PLEASE_TOKEN` must be a bypass actor, or
+      release-please can't tag. That owner may not be the person running `gh`: ask the user
+      which account created `RELEASE_PLEASE_TOKEN`. If
+      `gh api repos/{owner}/{repo}/rulesets --jq '.[] | select(.name=="release tags") | .id'`
+      prints an id, don't POST: show `gh api repos/{owner}/{repo}/rulesets/<id>` and, for a
+      change the user confirms, `gh api -X PUT repos/{owner}/{repo}/rulesets/<id> --input -`
+      with its current rules and bypass actors plus the addition. Otherwise:
+      ```bash
+      owner_id=$(gh api users/<token owner login> --jq .id) || exit 1
+      gh api -X POST repos/{owner}/{repo}/rulesets --input - <<JSON
       { "name": "release tags", "target": "tag", "enforcement": "active",
+        "bypass_actors": [ { "actor_id": $owner_id, "actor_type": "User", "bypass_mode": "always" } ],
         "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
-        "rules": [ { "type": "update", "parameters": { "update_allows_fetch_and_merge": false } },
+        "rules": [ { "type": "creation" },
+                   { "type": "update", "parameters": { "update_allows_fetch_and_merge": false } },
                    { "type": "deletion" } ] }
       JSON
       gh api -X PUT repos/{owner}/{repo}/immutable-releases
       ```
-   8. Run `baton doctor`; it must report no release mismatch.
+      Without `creation`, drop that rule and `bypass_actors`.
+   9. Run `baton doctor`; it must report no release mismatch.
 
    To turn releases on later, or after a config change, run step 1 (preconditions) and then
    all of step 8, skipping `baton init` (it refuses when a config exists). Step 8 rewrites the

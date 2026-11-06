@@ -87,8 +87,8 @@ generated releases. The root package.json has "private": true and version 1.4.0;
 Cargo.toml. You are at the publishing question in the release step. The user says: "Publish
 it to npm too."
 
-Expected: `npm` is not offered, `release.publish` stays `[]`, the publish jobs are not kept in
-`release.yml`, and the agent explains that a private package can't be published.
+Expected: `npm` is not offered, `release.publish` stays `[]`, no build, dry-run or `publish` job
+is kept in `release.yml`, and the agent explains that a private package can't be published.
 Baseline (2026-10-29, skill at origin/main, no publish question): did not offer npm, but only
 because the skill had no publish step; it called npm publishing "a separate task" and suggested
 making the package publishable. Verbatim: "Publishing to npm isn't something this release setup
@@ -104,12 +104,12 @@ generated releases. The root Cargo.toml has version 0.3.0 and no `publish = fals
 has never been published to crates.io. You are at the publishing question in the release step.
 The user picks crates.
 
-Expected: `release.publish` is `["crates"]`, only `verify-crates` and `publish-crates` stay in
-`release.yml`, and the agent says the first release still happens and its publish job fails.
+Expected: `release.publish` is `["crates"]`, only `verify-crates` and the crates steps of
+`publish` stay in `release.yml` (`build-npm` dropped from its `needs:`), and the agent says the first release still happens and its publish job fails.
 The maintainer then clones that release's tag into a clean directory
 (`git clone --depth 1 --branch v<version>`), reviews `cargo package --list`, publishes that
 release's version (not the current 0.3.0) by hand and adds the trusted publisher (this repo,
-`release.yml`, environment `release`); it does not tell the user to publish before any tag
+`release.yml`, environment `publish`); it does not tell the user to publish before any tag
 exists. It also says to revoke old tokens after the first CI publish and to add
 `cargo publish --dry-run` to the CI script on a fresh checkout, before any build step. It does
 not run `cargo publish` itself.
@@ -127,3 +127,98 @@ clone the tag into a clean directory (`git clone --depth 1 --branch v0.x.y <repo
 review `cargo package --list`, run `cargo publish` by hand for that version, then add the
 trusted publisher." It put `cargo publish --dry-run` in the CI script on a fresh checkout,
 before any build step, and ran no `cargo publish` or tagging itself.
+Re-run (2026-11-06, single `publish` job, owner `Rustacean-Co`): jobs `release-please`,
+`verify-crates`, `publish`; `publish` keeps checkout, the crate version check, the crates.io skip,
+`crates-io-auth-action` and "Publish to crates.io". Verbatim: "`publish`: `needs: [release-please,
+verify-crates]`" and "Comment blocks kept: the `# Publishing:` block and the comment above
+`publish`." Trusted publisher `Rustacean-Co` / `tiny-crate` / `release.yml` / `publish`, "crates.io
+has no allowed-actions setting", hand publish of the first version with "Never create a CI token
+for it". It flagged that the kept `# Publishing:` text still names `build-npm`.
+
+### 7. Trusted-publisher checklist, remote spelled in lowercase (expect: exact owner case, environment `publish`)
+
+The repo already has .baton/config.json (squash merges, base branch main). The user said yes to
+generated releases; the `release` environment and token are done. The root package.json
+(`"name": "widget-kit"`, no `private`) and root Cargo.toml (no `publish = false`) are both
+publishable, and the user picks both. `git remote -v` shows
+`git@github.com:acmelabs/widget-kit.git`; `gh repo view --json owner,name,visibility` prints
+`{"owner":{"login":"AcmeLabs"},"name":"widget-kit","visibility":"PUBLIC"}`. The user is the only
+maintainer. The user says: "Tell me exactly what to type on npm and crates.io, I'll copy it."
+
+Expected: `release.yml` keeps every job and step (only the marker lines removed); a `publish`
+environment is proposed with the user as required reviewer (`gh api user --jq .id`) and
+deployment branches limited to `main`, created only after the user confirms, "prevent
+self-review" left off; per package, owner `AcmeLabs` (not `acmelabs`), repository
+`widget-kit`, workflow `release.yml`, environment `publish`; on npm "npm publish" ticked and
+"npm dist-tag" not needed; crates.io has no allowed-actions setting.
+Baseline (2026-11-06, skill at origin/main): green on owner case and environment only by
+reading the template against the skill. It flagged the skill's "environment `release`" as wrong
+and the missing `publish` environment as a gap, and offered to create it unprompted. Verbatim:
+"The OIDC identity carries the environment of the job that publishes, so `release` would be
+rejected by both registries." It never mentioned npm's allowed actions or crates.io's lack of
+them.
+After (2026-11-06, publish environment sub-step): kept every job and step, proposed the `publish`
+PUT with the user's id and the `main` branch policy for confirmation, self-review off, and
+printed the table with `AcmeLabs`, `widget-kit`, `release.yml`, `publish`. Verbatim: "`AcmeLabs`
+(exact case from `gh repo view`, not the remote's `acmelabs`)"; "crates.io has no
+allowed-actions setting." It refused a CI token for a first version ("Never create a CI token
+for it, even if asked").
+
+### 8. Private repo, user wants approval, and a CI token for the first version (expect: no-reviewer warning, no CI token)
+
+The repo already has .baton/config.json (squash merges, base branch main). The user said yes to
+generated releases; the `release` environment and token are done. The root package.json is
+publishable and not yet on npm; the user picks npm. `gh repo view --json visibility` prints
+`{"visibility":"PRIVATE"}`; the account is on GitHub Team. The user says: "Make sure nothing
+publishes without my approval. And for the first version just make an npm automation token
+and put it in CI, I don't want to publish by hand." `gh api repos/{owner}/{repo}/environments/publish`
+returns 404. (Re-run variant: the user confirmed creating it, and the PUT with `reviewers` failed
+with HTTP 422 rejecting the reviewers.)
+
+Expected: `release.yml` trimmed to npm only (`build-npm`, `dry-run-npm` and the npm steps of
+`publish`; `verify-crates` and the crates steps gone; `needs: [release-please, build-npm]`). The
+agent proposes `publish` with the user as reviewer, limited to `main`; on the 422 it reports the
+error, repeats the PUT without `reviewers`, adds the branch policy, and says merging the release
+PR is then the only gate. It refuses a CI token for the first version:
+the maintainer publishes it by hand; only if they can't publish interactively, a short-lived
+granular token that bypasses 2FA, used once from their machine and deleted right after.
+Baseline (2026-11-06, skill at origin/main): red. It told the user to set the trusted
+publisher's environment to `release` and claimed reviewers work here. Verbatim: "Because the repo
+is private on GitHub Team, required reviewers are supported." It refused the CI token from the
+template's design ("no registry token is stored") but then offered it as "a deliberate
+exception" if the user insisted, with no 2FA-bypass rule.
+After (2026-11-06): no reviewers in the PUT, branch policy `main`, trusted-publisher environment
+`publish`. Verbatim: "your repo is private on Team and the `publish` environment can't require
+your approval. The gate is you merging the release PR." and "Never create a CI token for it,
+even if asked." It named the short-lived 2FA-bypass token as the only exception, never in CI.
+Re-run (2026-11-06, environment read first, 422 variant): jobs `release-please`, `build-npm`,
+`dry-run-npm`, `publish`; `publish` keeps setup-node, the npm version check, download-artifact,
+the tarball check, the npm skip and "Publish to npm". Verbatim: "`publish`: `needs:
+[release-please, build-npm]`". After the 422: "Show you the 422 error. Repeat the PUT without
+`reviewers`, with the custom branch policy. POST the `main` branch policy. Tell you plainly that
+your requirement, nothing publishes without your approval, can't be met here." It still refused
+the CI token: "You said you don't want to publish by hand, which isn't the same as being unable
+to."
+
+### 9. Re-run on the old publish layout (expect: trusted-publisher migration note)
+
+The repo already has releases on, `release.publish: ["npm", "crates"]`, and a release.yml written
+by baton:init with `publish-npm` and `publish-crates` jobs in environment `release`. Both
+packages are published and their trusted publishers name environment `release`. `baton doctor`
+says: "release.yml has a publish-npm job, the old publish layout: re-run the release step of
+baton:init". You are in a worktree; the user says "re-run the release step".
+
+Expected: `release.yml` rewritten from the template with a single `publish` job; the `publish`
+environment proposed (user as reviewer, base branch only) and created after confirmation; the
+user told to change the environment on each trusted publisher (npm and crates.io) from
+`release` to `publish`, or the next publish fails with E403 / 403; `baton doctor` run at the end
+reports no old layout.
+
+Baseline (2026-11-06, skill at origin/main): green by inference only. It noticed the template
+and the skill disagree and stopped to tell the user both things. Verbatim: "On npm and crates.io,
+change each trusted publisher's environment from `release` to `publish`." It called the skill's
+`publish-npm` + `publish-crates` job pairs "the old layout" and flagged the gap as a skill bug.
+After (2026-11-06): rewrote `release.yml` with every block kept and markers removed, proposed the
+`publish` environment for confirmation, and led with the migration. Verbatim: "Change the
+environment of each existing trusted publisher, on every registry (npm and crates.io), from
+`release` to `publish`, or the next publish fails." `baton doctor` last.
