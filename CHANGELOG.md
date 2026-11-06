@@ -3,6 +3,15 @@
 Generated from PR titles at release by release-please. Versions follow
 [semver](https://semver.org); before 1.0, minor versions may change behavior.
 
+## [0.3.0](https://github.com/JCIOriente/baton/compare/v0.2.0...v0.3.0) (2026-11-06)
+
+
+### Features
+
+* **release:** baton done refuses PR bodies that misuse the commit override marker ([#43](https://github.com/JCIOriente/baton/issues/43)) ([00daded](https://github.com/JCIOriente/baton/commit/00daded9f9550de666347ce34fed2ccc07ce2efd))
+* **release:** run workflows on ubuntu-26.04 and Node 26 ([#40](https://github.com/JCIOriente/baton/issues/40)) ([de68abe](https://github.com/JCIOriente/baton/commit/de68abe59bab53270bd983ab31604d448bd761c3))
+* **release:** update a release PR that is behind the base branch before merging ([#44](https://github.com/JCIOriente/baton/issues/44)) ([fdc78eb](https://github.com/JCIOriente/baton/commit/fdc78eb16028c2369f37aaf04f9b0950c0410c9e))
+
 ## [0.2.0](https://github.com/JCIOriente/baton/compare/v0.1.0...v0.2.0) (2026-11-06)
 
 
