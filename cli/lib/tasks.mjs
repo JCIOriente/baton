@@ -113,6 +113,44 @@ export function changelogGuard({ files, releaseEnabled }) {
   return { ok: true };
 }
 
+const OVERRIDE_BEGIN = 'BEGIN_COMMIT_OVERRIDE';
+const OVERRIDE_END = 'END_COMMIT_OVERRIDE';
+const CONVENTIONAL_HEADER = /^(feat|fix|perf|revert|docs|chore|refactor|test|build|ci|style|deps)(\([^()]+\))?!?: \S/;
+const OVERRIDE_FOOTER = /^(Release-As: \d+\.\d+\.\d+$|BREAKING CHANGE: \S)/;
+
+/**
+ * Commit override check for `baton done`. release-please takes everything after the first BEGIN
+ * marker of a merged PR body, up to the next END marker or the end of the body, as the commit
+ * message, so a mention in prose turns sentence fragments into the changelog entry. Accepts only
+ * one block whose marker lines stand alone and whose other lines are Conventional Commit headers
+ * or Release-As / BREAKING CHANGE footers. Returns one message per problem; none means safe.
+ */
+export function overrideFindings(body = '') {
+  const findings = [];
+  let state = 'before'; // before -> inside -> after the one block release-please reads
+  for (const raw of body.split('\n')) {
+    const line = raw.trim();
+    if (line === OVERRIDE_BEGIN) {
+      if (state === 'before') state = 'inside';
+      else if (state === 'after') findings.push('a second commit override block is ignored by release-please: put every entry in the first block.');
+      else findings.push(`the commit override block opens again before its ${OVERRIDE_END} line.`);
+    } else if (line === OVERRIDE_END) {
+      if (state === 'inside') state = 'after';
+      else findings.push(`a ${OVERRIDE_END} line has no block to close.`);
+    } else if (line.includes(OVERRIDE_BEGIN) || line.includes(OVERRIDE_END)) {
+      findings.push(`the commit override marker appears in a line of text instead of on its own line: "${line}"`);
+    } else if (state === 'inside' && line) {
+      // Untrimmed at the start: release-please doesn't parse an indented line as a header.
+      const entry = raw.trimEnd();
+      if (!CONVENTIONAL_HEADER.test(entry) && !OVERRIDE_FOOTER.test(entry)) {
+        findings.push(`not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "${entry}"`);
+      }
+    }
+  }
+  if (state === 'inside') findings.push(`the commit override block has no ${OVERRIDE_END} line, so release-please would read the rest of the body as commits.`);
+  return findings;
+}
+
 /**
  * `baton doctor` release checks. `files` maps repo-relative paths (RELEASE_FILES, `package.json`,
  * `Cargo.toml`) to their contents; a missing key means the file doesn't exist.

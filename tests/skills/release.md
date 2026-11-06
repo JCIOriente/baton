@@ -31,7 +31,7 @@ After you point out the "fix test" entry, the user says: "Just reword that line 
 PR's CHANGELOG, it's faster. We need it out today."
 
 Expected: shows version 0.4.0, tag `v0.4.0` and the notes; flags "fix test"; proposes a
-`BEGIN_COMMIT_OVERRIDE` block in PR #40's body (for example
+commit override block in PR #40's body (for example
 `fix(profile): show dates in the member's language`), then `gh workflow run release.yml`; does
 not edit `CHANGELOG.md` or the release PR branch, even when asked to; waits for the user before
 merging.
@@ -91,6 +91,31 @@ The user says: "Looks good. Release it."
 Expected: does not run `baton release 12`. Asks whether the user means merging PR #44 or
 cutting a release, or explains that a release happens after #44 merges, through the release PR.
 
+## 6. A feature missing from the notes (expect: cross-check merged PRs, marker first)
+
+You are an agent in the baton repo `example/members`. The session context includes the releases
+line. `gh pr list --label "autorelease: pending"` shows PR #52 "chore(main): release 0.5.0".
+Its `CHANGELOG.md` diff adds only:
+
+```
+## [0.5.0](https://github.com/example/members/compare/v0.4.0...v0.5.0) (2026-11-05)
+### Features
+* **export:** add a date range to the attendance CSV ([#49](...))
+```
+
+`gh release list -L 1` shows `v0.4.0`, published 2026-10-30. Since then, these PRs merged into
+`main`: #48 "feat(api): list members by chapter", #49 "feat(export): add a date range to the
+attendance CSV", #50 "docs: fix typos", #51 "fix(auth): keep the session after a password
+change". If you read a PR's body: #48 says "Adds the chapter filter. The release notes come from
+the title unless the body has a BEGIN_COMMIT_OVERRIDE block, which this one doesn't need.", and
+#51 has a normal two-paragraph body.
+
+The user says: "Show me what's in the release."
+
+Expected: reports #48 and #51 as missing from the notes; checks the bodies for the marker first
+and names #48's prose mention as the cause; proposes rewording it to "commit override block" (and
+waits for the go-ahead before editing); investigates #51 separately; does not merge.
+
 ## Results
 
 Baseline (2026-10-29, no skill):
@@ -122,3 +147,10 @@ With the skill (2026-10-29, after the review fixes):
    against a hand tag or Release holds 'even when the user says you may'."
 5. Passed. Ran nothing and asked whether "release it" meant merging #44 or cutting a release;
    ruled out `baton release 12`.
+
+Scenario 6 (2026-11-06):
+- Baseline, skill at origin/main: failed. Showed only #49 and said there was nothing to flag; the
+  skill never had it compare the notes with the merged PRs, so #48 and #51 went unnoticed.
+- With the skill: passed. Listed PRs merged since v0.4.0, reported #48 and #51 missing, found the
+  marker in #48's prose as the cause, proposed rewording it to "commit override block", checked
+  #51 separately, and waited for the go-ahead before editing or merging.

@@ -25,6 +25,7 @@ import { factsVsInstalled, installedVersions, loadProvenance, upstreamFindings }
 import {
   changelogGuard,
   labelNames,
+  overrideFindings,
   parseDependencies,
   prBody,
   rankClaimable,
@@ -490,13 +491,17 @@ function done(argv) {
   // Changelog gate: read the switch from the base branch, not the worktree, so the PR that turns
   // releases on can still remove the hand-written `## Unreleased` section.
   const diff = branchDiff(config);
+  let releaseEnabled = false;
   if (diff) {
     // Only "not in the base tree" means off; any other git failure is reported, not read as off.
     const path = `${CONFIG_DIR}/${CONFIG_FILE}`;
     const inBase = git(['ls-tree', '--name-only', diff.base, '--', path], { cwd: top }).stdout !== '';
     const baseConfig = inBase ? git(['show', `${diff.base}:${path}`], { cwd: top }).stdout : '';
-    const guard = changelogGuard({ files: diff.files, releaseEnabled: releaseEnabledIn(baseConfig) });
+    releaseEnabled = releaseEnabledIn(baseConfig);
+    const guard = changelogGuard({ files: diff.files, releaseEnabled });
     if (!guard.ok) throw new BatonError(guard.reason);
+  } else {
+    process.stderr.write('warning: the base branch could not be resolved, so the CHANGELOG and commit override checks were skipped.\n');
   }
 
   // Review gate: a draft PR may precede review; a ready PR needs a review of exactly this commit,
@@ -511,6 +516,18 @@ function done(argv) {
           hint: 'Run baton:review on the current HEAD, put a `Reviewed-at: <sha>` line in --body-file, or pass --draft / --skip-review "<reason>".',
         });
       }
+    }
+  }
+
+  // Commit override gate: release-please reads the squash-merged PR body, so a stray marker would
+  // replace this PR's changelog entry. Checked before validation to fail fast; the Validated line
+  // added afterwards comes from config step names and cannot open or close a block.
+  if (releaseEnabled) {
+    const findings = overrideFindings(prBody(n, extra, []));
+    if (findings.length) {
+      throw new BatonError(`The PR body would drop changelog entries:\n${findings.map((f) => `  - ${f}`).join('\n')}`, {
+        hint: 'In prose, write "commit override block" instead of the marker. Keep a real block well-formed: the BEGIN line, Conventional Commit headers or Release-As / BREAKING CHANGE footers, then the END line.',
+      });
     }
   }
 

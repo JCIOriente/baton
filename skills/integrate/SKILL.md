@@ -53,7 +53,10 @@ PR body as the squash message.
 
 When the session context shows releases enabled, the PR title is the changelog entry, so write
 it for users. Then a task PR never edits `CHANGELOG.md` or version files, publishes a package or
-creates a tag.
+creates a tag. **Never write the marker text of a commit override block in prose**, not even in
+backticks or quotes: release-please reads everything after it as this PR's commit and drops the
+real entry. Call it "a commit override block". `baton done` refuses such a body; it accepts a
+well-formed block.
 
 `baton done` refuses to open a PR if validation fails. Never get around it by pushing and
 opening the PR by hand.
