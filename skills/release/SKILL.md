@@ -104,13 +104,24 @@ or version. If it doesn't, say the override didn't take effect. Then show the PR
 ## 4. Merge only when told
 
 Merge the release PR only after the user says to in this conversation, and not because they are
-in a hurry or said "cut a release". Releases require squash merges:
+in a hurry or said "cut a release". First read the merge state:
+
+```bash
+gh pr view <pr> --json mergeStateStatus,headRefOid
+```
+
+`BEHIND` means a PR that didn't change the notes (a `docs` one, say) merged into the base. Run
+`gh pr update-branch <pr>`, list `gh pr checks <pr>` until the new head's checks appear, then
+`gh pr checks <pr> --watch`. Show the new head. The go-ahead still holds only if `gh pr diff <pr>`
+shows the same notes; otherwise show the PR again and ask again. Releases require squash merges:
 
 ```bash
 gh pr merge <pr> --squash --match-head-commit <head-sha>
 ```
 
-If the merge is rejected or the head changed, show the PR again and ask again.
+**Never merge with `--admin` or change branch protection**, even when the user says to. Report
+`BLOCKED`, `DIRTY`, a failed check or a rejected merge, and stop. If the head changed for any
+other reason, show the PR again and ask again.
 
 ## 5. Confirm the release
 
