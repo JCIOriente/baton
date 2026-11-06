@@ -1,6 +1,6 @@
 # Worktree-only changes — Spec
 
-- Status: draft
+- Status: approved
 - Date: 2026-11-06
 - Owner: Arnold Gandarillas
 - Related: [ADR-0002](../adr/0002-changes-happen-in-linked-worktrees.md)
@@ -301,8 +301,9 @@ version. A copied script works from any terminal and editor, and `hooks install`
 the isolation part without the claim.
 
 ## Open questions
-- Ship as `feat!` (breaking, so 0.3.x -> 0.4.0) because the default changes behavior for repos
-  that already use baton, or as a plain `feat`?
+None. Resolved on approval (2026-11-06): it ships as a breaking change (`feat!`, 0.3.x -> 0.4.0),
+because the default changes behavior for repos that already use baton. One PR carries the marker;
+the plan says which.
 
 ## Implementation status
 Updated by the PRs that implement this spec.

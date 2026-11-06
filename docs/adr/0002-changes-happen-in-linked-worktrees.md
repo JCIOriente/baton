@@ -1,6 +1,6 @@
 # ADR-0002: Every change happens in a linked worktree
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-11-06
 - Deciders: Arnold Gandarillas
 - Related: [worktree-only spec](../specs/2026-11-06-worktree-only.md)
