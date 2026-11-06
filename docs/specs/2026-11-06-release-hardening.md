@@ -1,6 +1,6 @@
 # Release hardening — Spec
 
-- Status: draft
+- Status: approved
 - Date: 2026-11-06
 - Owner: Arnold Gandarillas
 - Related: amends [release phase](2026-10-28-release-phase.md) (publish jobs, init setup,
@@ -185,8 +185,8 @@ release step of baton:init".
 - **No publish targets** (`publish: []`, like baton itself): no build, dry-run or publish jobs.
   A dry run then does nothing beyond skipping release-please; `baton:release` doesn't dispatch
   one.
-- **Approval never given:** the run waits until GitHub expires the deployment, and the tag and
-  Release already exist. Approving later or re-running the job publishes; nothing is re-tagged.
+- **Approval never given:** the `publish` job stays pending, and the tag and Release already
+  exist. Approving it, or re-running the job and approving, publishes; nothing is re-tagged.
 - **Approval rejected:** the `publish` job fails. To publish later, re-run it and approve.
 - **npm fails, crate not yet published:** re-run failed jobs; npm is skipped if it got through,
   then the crate publishes.
@@ -254,10 +254,12 @@ They need the maintainer's registry credentials, which agents don't hold, and th
 every user of the package. The agent gives the exact command for the maintainer to run.
 
 ## Open questions
-- How long GitHub keeps a deployment waiting for approval before failing it (believed 30 days;
-  check against the GitHub docs before writing it into the skill).
-- Whether crates.io's trusted publishing settings have an "allowed actions" equivalent to npm's.
-  Check against the crates.io docs before writing the checklist row.
+None. Resolved before approval:
+- GitHub's docs don't state when a deployment waiting for approval expires, so the skill makes no
+  claim about it: a waiting `publish` job is approved, rejected or left pending by the maintainer.
+- crates.io trusted publishers take owner, repository, workflow file and an optional environment,
+  and have no allowed-actions setting (rust-lang/rfcs 3691). The checklist's "npm allowed
+  actions" row applies to npm only.
 
 ## Implementation status
 - [ ] Plan
