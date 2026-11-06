@@ -560,6 +560,15 @@ test('each_single_target_trim_keeps_only_that_target', () => {
   assert.doesNotMatch(jobsOf(crates).publish, /npm (view|publish)|download-artifact|setup-node/);
 });
 
+test('each_single_target_trim_publishing_comment_names_only_the_kept_target', () => {
+  const publishingComment = (yml) => yml.match(/^ {2}# Publishing:.*\n(?: {2}#.*\n)*/m)?.[0] ?? '';
+  for (const [keep, other] of [['npm', /crates|cargo/i], ['crates', /npm/i]]) {
+    const comment = publishingComment(trimTo(workflow(), keep));
+    assert.ok(comment, `${keep} only: the # Publishing: comment is kept`);
+    assert.doesNotMatch(comment, other, `${keep} only: the # Publishing: comment names only ${keep}`);
+  }
+});
+
 test('each_single_target_trim_passes_actionlint', { skip: !hasActionlint && 'actionlint is not on PATH' }, () => {
   for (const target of ['npm', 'crates']) {
     const res = actionlint(trimTo(workflow(), target));
