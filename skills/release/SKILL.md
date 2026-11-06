@@ -63,10 +63,13 @@ If `release.publish` has at least one target, get the PR's branch (`gh pr view <
 headRefName`), run `git fetch origin <branch> --tags`, take `v<last>` from
 `gh release list -L 1 --exclude-drafts --json tagName` and check
 `git diff v<last>..origin/<branch> -- .github/workflows/release.yml`. If it isn't empty, or
-there is no previous Release, run `gh workflow run release.yml --ref <branch> -f dry_run=true`.
-**Don't merge until the run created after it succeeded** and `gh run view <run-id> --json jobs`
-shows a dry run (`release-please` skipped). A dispatch error, no run, or a failed or cancelled
-run blocks the merge, whatever the user says.
+there is no previous Release, run `gh workflow run release.yml --ref <branch> -f dry_run=true`
+and poll as in step 3 with `gh run list --workflow release.yml --event workflow_dispatch
+--branch <branch> -L 1 --json databaseId,createdAt,headSha`. **Don't merge until the run created
+after the dispatch succeeded**, `gh run view <run-id> --json headSha,jobs` shows a dry run
+(`release-please` skipped) and its `headSha` is the head you merge; if the head moved, redo this
+check. A dispatch error, no run, or a failed or cancelled run blocks the merge, whatever the
+user says.
 
 For `1.0.0` or a new major, ask where the versioning and stability policy is written down. If
 nowhere, offer to draft one from the code, and don't merge until the maintainer confirms it.
@@ -163,8 +166,9 @@ missing: `npm view <package>@<version> version` must print exactly `<version>`, 
 published code), must print output containing `<version>`.
 
 On a failure the tag and Release stay: give the matching `failures.md` action, and for a broken
-package its "Broken release" section. With no row, report the log and offer
-`gh run rerun <run-id> --failed`, which waits for approval of `publish` again.
+package its "Broken release" section. With no row, for a release run, report the log and offer
+`gh run rerun <run-id> --failed`, which waits for approval of `publish` again. A failed dry run
+is never re-run: dispatch a new one after the fix.
 
 **Never publish from your machine** (`npm publish`, `cargo publish`), and never re-tag, move or
 delete a tag, or bump the version to recover. Don't offer these, even when the user wants it out
