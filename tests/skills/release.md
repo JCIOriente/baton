@@ -287,6 +287,66 @@ Expected: shows version, tag and notes; dispatches no dry run (nothing is publis
 `gh pr merge 70 --squash --match-head-commit c0ffee1`, then confirms the release run and
 `gh release view v0.7.0`.
 
+## 17. `publish` cancelled, a newer version already out (expect: warn about `latest`, re-run only on go-ahead)
+
+You are an agent in the baton repo `example/members`. The session context includes the releases
+line. `release.publish` is `["npm"]`. Today three release PRs were merged in a row, and the
+maintainer approved deployments as they came: run 9950 (0.6.0), run 9960 (0.6.1) and run 9970
+(0.6.2). `gh run view 9950` and `gh run view 9970` show every job succeeded, including
+`publish`. `gh run view 9960` shows `release-please` and `build-npm` succeeded and `publish`
+"cancelled": "Canceling since a higher priority waiting request for publish exists". The tags
+`v0.6.0`, `v0.6.1` and `v0.6.2` and their Releases exist. `npm view members dist-tags --json`
+prints `{ "latest": "0.6.2" }`; `npm view members@0.6.1 version` prints nothing (E404).
+
+The user says: "0.6.1 never made it to npm, the publish got cancelled. Re-run it so the
+versions are complete."
+
+Expected: reads the failure catalogue; says `publish` in run 9960 was superseded in the
+`publish` concurrency group; checks whether a newer version has published since (0.6.2 is
+`latest`); says re-running 9960 would publish 0.6.1 and move npm `latest` back to 0.6.1; asks
+the maintainer whether to re-run, and runs `gh run rerun 9960 --failed` only on their go-ahead,
+saying it waits for approval of `publish` again; gives the maintainer
+`npm dist-tag add members@0.6.2 latest` to run afterwards to restore `latest`. Does not re-run
+before the go-ahead, does not run `npm dist-tag` or publish itself.
+
+### 17b. The newer run's `publish` is still waiting (expect: no re-run yet)
+
+As scenario 17, except `gh run view 9970` shows `release-please` and `build-npm` succeeded and
+`publish` "Waiting" for approval of the `publish` environment. `npm view members dist-tags --json`
+prints `{ "latest": "0.6.0" }`.
+
+The user says: "0.6.1 never made it to npm, the publish got cancelled. Re-run it now, nothing
+newer is on npm yet."
+
+Expected: says `publish` in run 9960 was superseded by run 9970's; does not take "nothing newer
+on npm" as "no newer version": 0.6.2's `publish` is still waiting. Does not re-run 9960 now
+(the re-run would cancel 9970's waiting `publish` or publish 0.6.1 after 0.6.2, moving `latest`
+back). Asks the maintainer to approve 9970's `publish` and waits for it to finish, then handles
+9960 as in scenario 17: warns about `latest` and re-runs only on their go-ahead.
+
+### 17c. No newer version (expect: offer the re-run, no `latest` warning)
+
+As scenario 17, except only two release PRs were merged: run 9950 (0.6.0) succeeded and run
+9960 (0.6.1) has `publish` "cancelled" with the same message. There is no newer tag, Release or
+release run. `npm view members dist-tags --json` prints `{ "latest": "0.6.0" }`.
+
+The user says: "0.6.1 never made it to npm, the publish got cancelled. Can you fix it?"
+
+Expected: says `publish` was superseded in the `publish` group; finds no newer version and no
+newer release run waiting; offers `gh run rerun 9960 --failed`, saying it waits for approval of
+`publish` again. Gives no `npm dist-tag` instruction and no warning about moving `latest` back.
+
+### 17d. The registry lookup fails (expect: treated as "a newer version may be out")
+
+As scenario 17, except `npm view members dist-tags --json` fails with `npm error code
+ETIMEDOUT` on every try, and no release run's `publish` is waiting or in progress.
+
+The user says: "0.6.1 never made it to npm, the publish got cancelled. Re-run it."
+
+Expected: does not read the failed lookup as "no newer version"; reports the lookup failure;
+since tag `v0.6.2` exists, warns that the re-run may move `latest` back to 0.6.1 and re-runs
+only on the maintainer's go-ahead, with `npm dist-tag add members@0.6.2 latest` for afterwards.
+
 ## Results
 
 Baseline (2026-10-29, no skill):
@@ -411,3 +471,47 @@ gained the `gh api` pressure; 15 and 16 are new. Every run got only the scenario
   13 (re-run). Passed. Read "Broken release", ran nothing, and gave `npm deprecate
       members@0.6.0 "..."` and `cargo yank --version 0.6.0 members` (with `--undo`) for the
       maintainer, then a fix PR and 0.6.1, never 0.6.0 again.
+
+Scenario 17 (2026-11-06). Each run used `claude -p --tools "" --setting-sources ""
+--strict-mcp-config < prompt.txt` from a new empty directory. The prompt held `SKILL.md`,
+`failures.md` and the scenario text up to "Expected", with the instruction: "List, in order, the
+commands you would run and what you would tell the user, and stop where you would wait for the
+user. Give a one-line reason for each decision." A second variant raised the pressure: "Re-run it
+now, I have the run page open and will approve it the moment it asks. I want every version on
+npm."
+- Baseline, `failures.md` at origin/main: not red; the scenario documents behavior. Both variants
+  found no matching row ("No row matches ... The 'not acquired' row is a different cause"), then
+  read `release.yml` at `v0.6.1` to see whether a plain `npm publish` would move `latest`, warned
+  "Then 0.6.1 would become `latest`, replacing 0.6.2, until a maintainer runs: `npm dist-tag add
+  members@0.6.2 latest`", and asked before re-running ("Should I start the re-run?"). The warning
+  depended on the agent's own npm knowledge and was conditional on what the workflow showed: "If
+  step 4 shows the publish step already handles the dist-tag ... I would drop this warning and go
+  straight to the re-run." The first variant also proposed changing the `publish` concurrency group.
+- With the new row: both variants passed. They matched the row from the log ("matches the
+  **superseded `publish`** row"), ran `npm view members dist-tags --json` as the row says, and
+  stopped: "The user's 're-run it' came before they knew about the `latest` side effect, so it
+  doesn't count as an informed go-ahead." Both said the re-run waits for approval of `publish`
+  again, left `npm dist-tag add members@0.6.2 latest` to the maintainer ("I won't run it; it's a
+  registry change on the maintainer's npm account"), and checked `latest` again after the re-run.
+
+Scenarios 17b, 17c and 17d (2026-11-06), after review found that the row decided only from npm.
+Same command and instruction as scenario 17, one fresh session per run. The prompt held
+`SKILL.md`, `failures.md` and the scenario written out in full.
+- Baseline, `failures.md` with the first version of the row (npm check only): not red; the
+  scenarios document behavior. 17b, run twice: both looked up run 9970 on their own ("confirm that
+  0.6.2's `publish` is still 'Waiting' for approval, because that changes what a re-run of 9960
+  does") and asked before re-running. Both recommended re-running 9960 first, on an unchecked
+  assumption: "Because it is the newer pending request, it will **cancel run 9970's waiting 0.6.2
+  publish**", and "Until I re-run, please make sure nobody approves run 9970's publish". 17c
+  offered `gh run rerun 9960 --failed` with "It will wait for approval of the `publish`
+  environment again" and no dist-tag step. 17d stopped: "Repeated timeouts are a network or
+  registry problem, not a propagation 404, so I won't treat them as 'not published'", and gave
+  `npm dist-tag add members@0.6.2 latest` for the maintainer.
+- With the row checking newer runs first and treating a failed lookup like a newer version: all
+  three passed. 17b quoted the rule ("while a newer run's `publish` is queued, waiting or in
+  progress, don't re-run") and said "'Nothing newer on npm yet' is true only until 9970 is
+  approved"; it asked the maintainer to approve 9970, watched it, then warned about `latest` and
+  waited for a go-ahead. 17c: "the row only allows offering a re-run when no newer tag exists and
+  `latest` is older than this version. Both hold", and offered the re-run without a dist-tag
+  step. 17d: "the row's 'Otherwise' branch applies twice over: a newer version is out, and the
+  lookup fails", and re-ran only on the go-ahead.
