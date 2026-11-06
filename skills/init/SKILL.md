@@ -142,7 +142,9 @@ disable-model-invocation: true
       + `publish-crates`). Delete each other job with the `# baton:init: keep ...` marker line
       above it, and delete the marker lines of the kept jobs. The build and verify jobs run
       dependency and build code without credentials; the publish jobs hold the registry login
-      and only publish what they built. Keep the file header ("Written by baton:init"). Keep the "Publish jobs"
+      and only publish what they built. The jobs set up Node 26; if the project has `.nvmrc`,
+      `.node-version` or an `engines.node` floor, use that version instead, but never below 24
+      (npm trusted publishing needs npm 11.5.1+). Keep the file header ("Written by baton:init"). Keep the "Publish jobs"
       comment when a job stays, drop it when none does. Then tell the user, per target:
       - `build-npm` installs with `npm ci` only when `package-lock.json` exists, then runs
         `npm run build --if-present` and `npm pack`. A repo using pnpm, yarn or bun must adapt

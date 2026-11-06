@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   release-please:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     # The token is an environment secret: only runs on the base branch can read it.
     environment: release

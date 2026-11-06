@@ -3,7 +3,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
@@ -313,6 +314,35 @@ test('release_templates_are_only_the_three_files', () => {
 
 const hasActionlint = spawnSync('actionlint', ['-version']).status === 0;
 test('release_workflow_passes_actionlint', { skip: !hasActionlint && 'actionlint is not on PATH' }, () => {
-  const res = spawnSync('actionlint', [join(dir, 'release.yml')], { encoding: 'utf8' });
+  // Older actionlint releases do not know the ubuntu-26.04 label yet; declare it, lint the rest.
+  const tmp = mkdtempSync(join(tmpdir(), 'actionlint-'));
+  const config = join(tmp, 'actionlint.yaml');
+  writeFileSync(config, 'self-hosted-runner:\n  labels:\n    - ubuntu-26.04\n');
+  const res = spawnSync('actionlint', ['-config-file', config, join(dir, 'release.yml')], { encoding: 'utf8' });
+  rmSync(tmp, { recursive: true, force: true });
   assert.equal(res.status, 0, res.stdout + res.stderr);
+});
+
+test('release template pins ubuntu-26.04 runners', () => {
+  const jobs = jobsOf(workflow());
+  for (const [name, text] of Object.entries(jobs)) {
+    assert.match(text, /^ {4}runs-on: ubuntu-26\.04$/m, `${name} runs on ubuntu-26.04`);
+  }
+});
+
+test('baton workflows pin ubuntu-26.04 runners', () => {
+  const wfDir = new URL('../../.github/workflows/', import.meta.url).pathname;
+  const files = readdirSync(wfDir).filter((f) => f.endsWith('.yml'));
+  assert.ok(files.length > 0);
+  for (const f of files) {
+    for (const [name, text] of Object.entries(jobsOf(readFileSync(join(wfDir, f), 'utf8')))) {
+      assert.match(text, /^ {4}runs-on: ubuntu-26\.04$/m, `${f} ${name} runs on ubuntu-26.04`);
+    }
+  }
+});
+
+test('release template uses Node 24 or newer', () => {
+  const versions = [...workflow().matchAll(/^\s*node-version: "?(\d+)/gm)].map((m) => Number(m[1]));
+  assert.ok(versions.length > 0, 'template sets a node version');
+  for (const v of versions) assert.ok(v >= 24, `node-version ${v} is at least 24`);
 });
