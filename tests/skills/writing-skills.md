@@ -108,3 +108,67 @@ the finding."
 After (one run): the exception became a conditional on a formatter config file. Verbatim: "'Hurts
 readability' can't be observed, so it can't be the exception. ... It moves the only real
 exception, a project with no formatter, to an observable condition".
+
+### 6. Missing element, with a prose fix on offer (expect: a REQUIRED slot, not the bold line)
+
+Agents fill `templates/handoff.md` (two headings: `## Done` and `## Next`) when they hand a task
+to another session. In about a third of the handoffs the next session can't find the work,
+because the note doesn't name the branch it is on. A teammate proposes adding this line to
+`skills/parallel/SKILL.md`: "**Always state the branch name in the handoff.**" Write the change.
+
+Expected: the template gains a slot for the branch (for example `Branch: <name>` marked
+REQUIRED). The bold line in the skill is not the fix, alone or next to the slot.
+Baseline (2026-11-06, three runs): not red; documents behavior. All three put a `Branch:` slot
+in the template, none marked it REQUIRED, and all three turned the teammate's line down.
+Verbatim, run 3: "A bolded 'Always' line in the skill would be a reminder in a different file
+from the one being written."
+After (three runs): the same, with the slot marked REQUIRED. Verbatim, run 3: "The baseline
+failure is an omission from something agents already produce ... The table maps that to a
+REQUIRED slot in the template, not a prose reminder in the skill or near the template."
+
+### 7. A condition stated as judgment (expect: a conditional on something observable)
+
+Running the end-to-end suite takes forty minutes. Agents should run it before claiming a task
+done only when the change is risky; for small changes the unit tests are enough. Add this to
+`skills/verify/SKILL.md`. Write the exact text.
+
+Expected: the condition is something the agent can check without judgment (for example which
+paths the diff touches, or a label on the issue). Not "if the change is risky", "for small
+changes" or "use your judgment" as the test.
+Baseline (2026-11-06, three runs): not red; documents behavior. All three replaced "risky"
+with a list of diff properties and a default for unclear cases. Verbatim, run 1: ""Only when the
+change is risky" gives an agent nothing to check. Under time pressure, every change looks small
+to the agent that wrote it, so the rule would quietly become "never run e2e.""
+After (three runs): the same kind of list, named as the table's form. Verbatim, run 3: "Under
+the table in `writing-skills`, a condition-dependent behavior gets a conditional on something
+observable. So I replaced "risky" with diff properties the agent can check."
+
+### 8. Extending a recipe that works (expect: a conditional, no nuance clause added)
+
+`skills/integrate/SKILL.md` has a PR body recipe that works: "The PR body has exactly these
+parts, in order: 1. What changed and why, in two sentences. 2. The commands you ran to test it.
+3. `Refs #<issue>`." The maintainer now wants screenshots in the PR body when they help the
+reviewer. Write the change to the recipe.
+
+Expected: the screenshot part is keyed to something observable (for example the diff touches
+files under the UI directory, or files with a given extension). Not "when relevant", "when they
+help" or "if the change is visual" added to the recipe.
+Baseline (2026-11-06, three runs): red in all three. Each made screenshots part 3 of the recipe
+but keyed it to the visible effect, which the agent has to judge, not to files in the diff;
+two of the three also put a prohibition next to it. Verbatim, run 1: "3. Screenshots, only if
+the change alters something a person sees: UI, rendered docs, or terminal output layout. ...
+Do not add a "Screenshots: none" heading."; run 3: "only if the change alters something a
+person looks at ... Do not write "N/A"."
+After (three runs): green in all three. Part 3 is keyed to the files in the diff, with no "do
+not" line. Verbatim, run 1: "3. If the diff changes files that render UI (components,
+templates, stylesheets): a before and after screenshot of each changed screen." and ""When they
+help the reviewer" is a nuance clause. ... So I turned the exception into a condition the agent
+can check in the diff: does it touch files that render UI."
+
+## Coverage
+
+Scenarios 1, 4 and 8 are red against the old text and green against the new: they cover the
+shape row, the micro-test rule, and the conditional row with the no-nuance-clause rule.
+Scenarios 2, 3, 5, 6 and 7 were not red even with added pressure (a prose fix offered in 6, a
+judgment condition in 7), so nothing here fails if the REQUIRED-slot row is removed: the
+baseline agent already reaches for a template slot.
