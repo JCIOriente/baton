@@ -48,13 +48,13 @@ test('upstreamFindings reports github releases outside the range and errors', as
 test('provenance.json tracks every action pinned in the release template', () => {
   const root = new URL('../..', import.meta.url).pathname;
   assert.deepEqual(lintProvenance(root), []);
-  const pinned = [...new Set([...(await_text(root)).matchAll(/uses:\s*([\w.-]+\/[\w.-]+)@/g)].map((m) => m[1]))];
+  const pinned = [...new Set([...(releaseYml(root)).matchAll(/uses:\s*([\w.-]+\/[\w.-]+)@/g)].map((m) => m[1]))];
   const tracked = loadProvenance(root).facts.filter((f) => f.pkg.startsWith('github:')).map((f) => f.pkg.slice(7));
   assert.deepEqual(tracked.sort(), pinned.sort());
 });
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-function await_text(root) {
+function releaseYml(root) {
   return readFileSync(join(root, 'templates/release/release.yml'), 'utf8');
 }
