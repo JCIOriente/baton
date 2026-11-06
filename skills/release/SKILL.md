@@ -58,6 +58,15 @@ entries, say it may be cut off. Report each `feat`, `fix`, `perf` or `!` PR whos
 missing from the notes. First check its body for the commit override marker in prose:
 release-please reads everything after it as the commit. Fix it in step 3.
 
+If `release.publish` is set and `git diff v<last>..origin/<base> -- .github/workflows/release.yml`
+isn't empty, dispatch a dry run with `gh workflow run release.yml -f dry_run=true`, wait for the
+run created after the dispatch (as in step 3), and report it. **A failed dry run blocks the
+merge**, whatever the user says.
+
+If the version is `1.0.0` or a new major, ask whether a versioning and stability policy is
+written down (an ADR, or a file the maintainer names). If not, offer to draft one from the code
+for the maintainer to decide on, and don't merge until they confirm it.
+
 ## 3. Fix entries at their source
 
 **Never edit `CHANGELOG.md`, version files or the release PR branch, even when asked to.**
@@ -136,13 +145,19 @@ gh run view <run-id>
 gh release view v<version>
 ```
 
-For each target in `release.publish`, the job `publish-npm` or `publish-crates` must show
-success. A `skipped` publish job counts as a failure. Then check the registry for that exact
-version: `npm view <package>@<version> version` or `cargo info <crate>@<version>`.
+If `release.publish` is set, the job `publish` must show success; `skipped` counts as a
+failure. While it waits for approval, tell the user to approve the `publish` deployment on the
+run page, and keep watching. **Never approve or bypass it yourself**, even as an admin.
 
-If a publish job failed, the tag and Release stay. Report the error and offer
-`gh run rerun <run-id> --failed`. The job skips registries that already have the version, so a
-re-run is safe. If the package itself is broken, fix it in a normal PR and release a patch.
+Then check each registry for that exact version, every 30 seconds for up to 10 minutes before
+calling it missing: `npm view <package>@<version> version` or `cargo info <crate>@<version>`.
+For npm, `npm view <package>@<version> dist.attestations --json` must be non-empty, and for a
+package with `bin`, `npm exec --yes --package=<package>@<version> -- <bin> --version` in an
+empty temp directory must print `<version>`.
+
+When a run, job or check fails, the tag and Release stay. Read
+`${CLAUDE_PLUGIN_ROOT}/skills/release/failures.md`, report the matching cause and give its
+action. A broken package follows its "Broken release" section.
 
 **Never publish from your machine** (`npm publish`, `cargo publish`), and never re-tag, move or
 delete a tag, or bump the version to recover. Don't offer these, even when the user wants it out
