@@ -50,7 +50,8 @@ controlled. For each finding, name the attacker, what they send, and what they g
 12. Crypto and auth primitives: passwords hashed with argon2/bcrypt/scrypt, constant-time
     comparison for tokens, secure randomness for tokens and IDs that must be unguessable.
 13. Dependencies: new packages or crates that are unmaintained, typo-squat-like names, known
-    advisories, or broad install scripts. Each new dependency should be justified.
+    advisories, or broad install scripts. Each new dependency should be justified. A new or
+    upgraded dependency comes with a `baton:deps` report in the PR or commit.
 
 ## Do not flag
 

@@ -87,6 +87,31 @@ unstated assumptions, overbuild, and change code they don't understand as a side
   transitive dependencies first. Prefer the standard library and what the project already uses.
 - Commit lock files. Pin toolchains. Don't upgrade unrelated dependencies in a feature change.
 - No secrets in the repo. Config comes from the environment, validated at startup.
+- **Adding, upgrading or replacing a dependency goes through `baton:deps`. Never take a version
+  from memory**, not even one the user named: it is looked up and vetted the same way.
+
+For the ecosystems the project uses (JS: npm, pnpm, yarn; Rust: cargo):
+
+- One package manager per project directory, with one committed lockfile. A second manager's
+  lockfile (a stray `package-lock.json` in a pnpm project) is removed, not ignored or left for
+  later.
+- Installs in CI and in the worktree `setup` are frozen, so they never rewrite the lockfile.
+  JS: `npm ci`, `pnpm install --frozen-lockfile`, `yarn install --immutable` (classic:
+  `--frozen-lockfile`). Rust: `cargo build --locked`, `cargo test --locked`.
+- An audit command is part of `validate`, so `baton verify` and CI run the same check.
+- An ignored advisory lives only in the ecosystem's committed ignore list (pnpm:
+  `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`, GHSA IDs, the list `pnpm audit --ignore`
+  writes; yarn berry: `npmAuditIgnoreAdvisories` in `.yarnrc.yml`; Rust: `deny.toml`, see the
+  rust guide), with a comment saying why it isn't reachable and when to drop it. Never
+  as a command-line flag (`--ignore <id>`) in CI, the Makefile or a script, where local runs and
+  CI end up reading different lists. A repo that passes such flags moves them into the list. npm
+  and yarn classic have no list: fix the advisory (upgrade, or `overrides` / `resolutions` to a
+  patched version), and never lower the audit level to get past it.
+- Tools installed in CI are pinned to a version: `cargo install --locked <tool>@<version>`.
+  JS CI tools are devDependencies, so the lockfile and the frozen install also cover their
+  transitive dependencies; `npm install -g <tool>@<version>` pins only the top-level package and
+  is the fallback for a tool that can't be a devDependency.
+- Unused dependencies are detected (JS: knip; Rust: cargo-machete) and removed.
 
 ## Tests
 
