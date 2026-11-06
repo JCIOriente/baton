@@ -88,5 +88,28 @@ Project conventions override this. For database code also read `rust-tokio-postg
 
 ## Dependencies
 
-Run `cargo deny` / `cargo audit` in CI. Keep features minimal (`default-features = false`
-when it matters). Prefer well-maintained crates. Each new dependency needs a reason.
+cargo-deny is the main gate: it checks advisories, licenses and sources from one config, with a
+reason on each ignored advisory. `cargo deny check` runs in `validate`. Prefer it over
+`cargo audit`, which reads its own `.cargo/audit.toml`: running both means two ignore lists
+that drift apart. `deny.toml` allows only the crates.io registry and an explicit license list:
+
+```toml
+[advisories]
+version = 2
+ignore = [
+  # Why it isn't reachable here. Drop when <the fix or upgrade that removes it>.
+  # { id = "RUSTSEC-YYYY-NNNN", reason = "..." },
+]
+
+[licenses]
+version = 2
+allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Unicode-3.0"]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+```
+
+Keep features minimal (`default-features = false` when it matters). Prefer well-maintained
+crates. Each new dependency needs a reason.

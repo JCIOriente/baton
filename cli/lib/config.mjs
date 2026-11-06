@@ -82,6 +82,8 @@ export const DEFAULT_CONFIG = {
   hooks: {
     // Opt-in: block the first edit of each file per session until the agent states facts about it.
     factGate: false,
+    // On: edits and commits in the main checkout are refused; all changes happen in linked worktrees.
+    worktreeOnly: true,
   },
   // Opt-in: changelog and version generated at release by release-please; see baton:release.
   release: { enabled: false, publish: [] },
@@ -146,6 +148,7 @@ export function validateConfig(config) {
   if (!['squash', 'merge', 'rebase'].includes(config.git.mergeStrategy)) {
     problems.push(`git.mergeStrategy must be squash|merge|rebase`);
   }
+  if (typeof config.hooks?.worktreeOnly !== 'boolean') problems.push('hooks.worktreeOnly must be a boolean');
   problems.push(...validateRelease(config));
   return problems;
 }

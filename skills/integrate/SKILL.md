@@ -79,8 +79,15 @@ gh pr merge <pr> --squash --delete-branch   # use git.mergeStrategy from config
 Merging with `Closes #N` closes the issue. Then clean up:
 
 ```bash
-baton worktree remove <n>     # refuses if uncommitted changes remain
+baton worktree remove <n>             # refuses if uncommitted changes remain
+git -C <main checkout> branch --show-current
+git -C <main checkout> pull --ff-only # only when the line above printed git.baseBranch
 ```
+
+The fast-forward keeps the config and docs the main checkout serves current. If the main
+checkout is on another branch, don't pull: report it, since the base branch stays behind. If the
+pull can't fast-forward (local commits, uncommitted changes), report that to the user. Never
+reset, stash, rebase or switch the main checkout: what is there may be someone else's.
 
 ## 5. Unblock, learn, report
 
@@ -88,7 +95,8 @@ baton worktree remove <n>     # refuses if uncommitted changes remain
 baton unblock     # tasks waiting on this one become ready
 ```
 
-Tick the task in the spec's "Implementation status" section (in this PR, or a small follow-up).
+Tick the task in the spec's "Implementation status" section: in this PR, or in a small follow-up
+from a worktree made with `baton worktree add <name>`, opened with `gh pr create`.
 Run `baton:retro` for the task, so that lessons from review and verification land in the repo.
 
 Report the PR URL, merge commit, closed issue, the tasks this unblocked, and any lessons proposed.

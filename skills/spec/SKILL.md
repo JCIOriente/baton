@@ -37,8 +37,9 @@ lines. It still gets written and approved.
    - tenancy and localization (whose data is visible to whom, and which locales/time zones it serves)
    - error handling and edge cases
    - testing strategy (what proves it works)
-6. **Write the spec** from `${CLAUDE_PLUGIN_ROOT}/templates/spec.md` to
-   `<docs.specs>/YYYY-MM-DD-<topic>.md`.
+6. **Write the spec in a worktree.** Run `baton worktree add <topic>` and work only inside
+   the printed path, however small the spec: the main checkout is never edited or committed in.
+   Write it from `${CLAUDE_PLUGIN_ROOT}/templates/spec.md` to `<docs.specs>/YYYY-MM-DD-<topic>.md`.
 7. **Self-review and fix inline:** look for placeholders ("TBD", "etc.", "handle errors
    appropriately"), sections that contradict each other, requirements with two readings
    (pick one and say which), and scope still too big for one plan. Check the writing too:
@@ -52,8 +53,9 @@ lines. It still gets written and approved.
    - Domain terms that needed explaining, or that have more than one meaning, go in
      `CONTEXT.md` at the repo root (template: `${CLAUDE_PLUGIN_ROOT}/templates/context.md`).
      Use those terms consistently in the spec, the code and the issues.
-9. **Commit the spec** (with any ADRs and the glossary) and ask the user to review the file.
-   Iterate until they approve.
+9. **Commit the spec** (with any ADRs and the glossary) in that worktree and ask the user to
+   review the file. Iterate there until they approve. Then push the branch and open the PR with
+   `gh pr create`.
 10. **Hand off** to `baton:plan`.
 
 ## Design principles

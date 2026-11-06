@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_CONFIG, reviewersFor } from '../lib/config.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from '../lib/detect.mjs';
-import { releaseFindings, unblockable } from '../lib/tasks.mjs';
+import { PUBLISH_TARGETS } from '../lib/config.mjs';
+import { PUBLISH_STEP_NAMES, releaseFindings, unblockable } from '../lib/tasks.mjs';
 import { deepMerge } from '../lib/util.mjs';
 import { classify, questions } from '../../hooks/fact-gate.mjs';
 
@@ -65,7 +66,8 @@ test('context: always-on rules, undetected stacks and common issues', async () =
   writeFileSync(join(root, 'docs/common-issues.md'), '# issues');
   const config = deepMerge(DEFAULT_CONFIG, { stacks: ['typescript'] });
   const text = buildContext({ root, found: true, config }, { pluginRoot: '/p', cwd: root });
-  for (const r of ALWAYS_RULES) assert.ok(text.includes(r));
+  // The first rule gives way to the worktree rule while hooks.worktreeOnly is on (the default).
+  for (const r of ALWAYS_RULES.slice(1)) assert.ok(text.includes(r));
   assert.match(text, /Detected but not enabled: react\./);
   assert.match(text, /common-issues\.md/);
   assert.match(text, /- common: \/p\/stacks\/common\.md/);
@@ -161,19 +163,157 @@ test('context: mentions releases only when release.enabled', async (t) => {
   assert.ok(on.includes(RELEASE_LINE));
 });
 
+const WORKTREE_RULE =
+  'Never edit or commit in the main checkout. Task work happens in the worktree from `baton start <n>`; anything else (specs, plans, docs, config) in one from `baton worktree add <name>`. Never use `git commit --no-verify`.';
+
+test('context_uses_worktree_rule_when_on', async (t) => {
+  const { buildContext, ALWAYS_RULES } = await import('../lib/context.mjs');
+  const { installGuard } = await import('../lib/git-guard.mjs');
+  const { rmSync, realpathSync } = await import('node:fs');
+  const { spawnSync } = await import('node:child_process');
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'baton-ctx-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  // installGuard and guardStatus run git in this process: isolate it from the user's git config.
+  const saved = Object.fromEntries(['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'CI', 'CLAUDE_CODE_REMOTE'].map((k) => [k, process.env[k]]));
+  t.after(() => {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+  Object.assign(process.env, { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' });
+  delete process.env.CI;
+  delete process.env.CLAUDE_CODE_REMOTE;
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  const rules = (text) => text.split('\n').filter((l) => l.startsWith('- '));
+
+  const on = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
+  assert.equal(rules(on)[0], `- ${WORKTREE_RULE}`);
+  assert.ok(!on.includes(ALWAYS_RULES[0]));
+  for (const r of ALWAYS_RULES.slice(1)) assert.ok(on.includes(r));
+  const missingLine = on.split('\n').filter((l) => l.includes('baton hooks install'));
+  assert.equal(missingLine.length, 1, on);
+  assert.match(missingLine[0], /git guard .*not installed/);
+  process.env.CLAUDE_CODE_REMOTE = 'true';
+  const remote = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
+  assert.ok(!remote.includes('baton hooks install'), 'a cloud session has no guard to install');
+  delete process.env.CLAUDE_CODE_REMOTE;
+
+  installGuard(root);
+  const installed = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
+  assert.ok(!installed.includes('baton hooks install'), installed);
+  assert.equal(installed, on.split('\n').filter((l) => !l.includes('baton hooks install')).join('\n'));
+
+  const offConfig = deepMerge(DEFAULT_CONFIG, { hooks: { worktreeOnly: false } });
+  rmSync(join(root, '.git/baton'), { recursive: true });
+  const off = buildContext({ root, found: true, config: offConfig }, { pluginRoot: '/p', cwd: root });
+  assert.equal(rules(off)[0], `- ${ALWAYS_RULES[0]}`);
+  assert.ok(!off.includes(WORKTREE_RULE) && !off.includes('baton hooks install'));
+  // Identical to the context before the switch existed: same lines with the old first rule.
+  assert.equal(off, installed.replace(WORKTREE_RULE, ALWAYS_RULES[0]));
+});
+
+const STEP_NAMES = { npm: 'Publish to npm', crates: 'Publish to crates.io' };
+const releaseConfig = (publish = []) => deepMerge(DEFAULT_CONFIG, { release: { enabled: true, publish } });
+const releaseMessages = (config, files) => releaseFindings({ config, files }).map((f) => {
+  assert.equal(f.kind, 'release');
+  return f.message;
+});
+// A synthetic release workflow in the new layout; `extraJobs` are raw job blocks appended after `publish`.
+const releaseWorkflow = (targets, { environment = 'publish', extraJobs = '' } = {}) => {
+  const publish = targets.length === 0 ? '' : [
+    '  publish:',
+    '    needs: [release-please, build-npm, verify-crates]',
+    ...(environment ? [`    environment: ${environment}`] : []),
+    '    runs-on: ubuntu-latest',
+    '    steps:',
+    ...targets.map((t) => `      - name: ${STEP_NAMES[t]}\n        run: echo ${t}`),
+    '',
+  ].join('\n');
+  return `jobs:\n  release-please:\n    runs-on: ubuntu-latest\n${publish}${extraJobs}`;
+};
+const releaseRepo = (workflow) => ({
+  'release-please-config.json': JSON.stringify({ 'include-component-in-tag': false, 'include-v-in-tag': true, packages: { '.': {} } }),
+  '.release-please-manifest.json': '{ ".": "0.1.0" }',
+  '.github/workflows/release.yml': workflow,
+  'package.json': '{ "name": "x" }',
+  'Cargo.toml': '[package]\nname = "x"\n',
+});
+
+test('releaseFindings_reports_old_publish_jobs', () => {
+  for (const job of ['publish-npm', 'publish-crates']) {
+    const files = releaseRepo(releaseWorkflow(['npm'], { extraJobs: `  ${job}:\n    needs: release-please\n` }));
+    const found = releaseMessages(releaseConfig(['npm']), files);
+    assert.equal(found.length, 1, job);
+    assert.match(found[0], new RegExp(`${job}.*re-run the release step of baton:init.*environment.*publish`));
+  }
+  const old = releaseRepo('jobs:\n  release-please:\n    runs-on: x\n  publish-npm:\n    needs: release-please\n');
+  assert.match(releaseMessages(releaseConfig(['npm']), old).join('\n'), /publish-npm.*re-run the release step of baton:init/);
+});
+
+test('releaseFindings_reports_publish_job_outside_publish_environment', () => {
+  for (const environment of [null, 'production']) {
+    const found = releaseMessages(releaseConfig(['npm']), releaseRepo(releaseWorkflow(['npm'], { environment })));
+    assert.equal(found.length, 1, String(environment));
+    assert.match(found[0], /publish job.*environment: publish/);
+  }
+  // An `environment: publish` in a later job doesn't count for the publish job.
+  const elsewhere = releaseWorkflow(['npm'], { environment: null, extraJobs: '  other:\n    environment: publish\n' });
+  assert.equal(releaseMessages(releaseConfig(['npm']), releaseRepo(elsewhere)).length, 1);
+});
+
+test('releaseFindings_reports_missing_target_step', () => {
+  const config = releaseConfig(['npm', 'crates']);
+  const onlyNpm = releaseMessages(config, releaseRepo(releaseWorkflow(['npm'])));
+  assert.deepEqual(onlyNpm, ["release.publish has 'crates' but the publish job in .github/workflows/release.yml has no 'Publish to crates.io' step."]);
+  const noJob = releaseMessages(releaseConfig(['npm']), releaseRepo(releaseWorkflow([])));
+  assert.deepEqual(noJob, ["release.publish has 'npm' but the publish job in .github/workflows/release.yml has no 'Publish to npm' step."]);
+  // A step in another job doesn't count.
+  const other = releaseWorkflow([], { extraJobs: '  other:\n    steps:\n      - name: Publish to npm\n' });
+  assert.equal(releaseMessages(releaseConfig(['npm']), releaseRepo(other)).length, 1);
+});
+
+test('releaseFindings_accepts_equivalent_spellings', () => {
+  const check = (workflow) => releaseMessages(releaseConfig(['npm']), releaseRepo(workflow));
+  const base = releaseWorkflow(['npm']);
+  for (const spelling of ['"publish"', "'publish'", 'publish # the release gate', '{ name: publish }', '{ name: "publish", url: x }', '{ url: x, name: publish }']) {
+    assert.deepEqual(check(base.replace('environment: publish', `environment: ${spelling}`)), [], spelling);
+  }
+  assert.deepEqual(check(base.replace('environment: publish', 'environment:\n      # gate\n      name: publish\n      url: x')), [], 'block form');
+  assert.equal(check(base.replace('environment: publish', 'environment:\n      name: production')).length, 1);
+  assert.deepEqual(check(base.replace('- name: Publish to npm', '- name: "Publish to npm"')), [], 'quoted step name');
+  assert.deepEqual(check(base.replace('- name: Publish to npm', "-   name: 'Publish to npm' # last step")), [], 'spaced dash, comment');
+  assert.deepEqual(check(base.replace('      - name: Publish to npm', "      - if: steps.registry.outputs.published != 'true'\n        name: Publish to npm")), [], 'name after another step key');
+  const nested = base.replace('    environment: publish\n', '').replace('        run: echo npm', '        with:\n          environment: publish');
+  assert.equal(check(nested).length, 1, 'environment under a step is not the job environment');
+  assert.deepEqual(check(base.replace(/\n/g, '\r\n')), [], 'CRLF');
+  assert.deepEqual(check(base.replace(/^( +)/gm, '$1$1')), [], '4-space indentation');
+  assert.deepEqual(check(`env:\n  publish: yes\n${base}`), [], 'env block before jobs');
+  assert.deepEqual(check(base.replace('    runs-on', '  # note\n    runs-on')), [], 'comment inside the job');
+  assert.deepEqual(check(base.replace('  publish:', '  publish: # last')), [], 'job header comment');
+});
+
+test('releaseFindings: every known publish target has a step name, and an unknown one does not throw', () => {
+  for (const target of PUBLISH_TARGETS) assert.ok(PUBLISH_STEP_NAMES[target], target);
+  assert.doesNotThrow(() => releaseMessages(releaseConfig(['nope']), releaseRepo(releaseWorkflow([]))));
+});
+
+test('releaseFindings_accepts_new_layout', () => {
+  assert.deepEqual(releaseMessages(releaseConfig(['npm', 'crates']), releaseRepo(releaseWorkflow(['npm', 'crates']))), []);
+  assert.deepEqual(releaseMessages(releaseConfig(['crates']), releaseRepo(releaseWorkflow(['crates']))), []);
+  assert.deepEqual(releaseMessages(releaseConfig([]), releaseRepo(releaseWorkflow([]))), []);
+});
+
 test('releaseFindings: reports each mismatch between the release config and the repo', () => {
-  const on = (publish = []) => deepMerge(DEFAULT_CONFIG, { release: { enabled: true, publish } });
+  const on = releaseConfig;
   const goodTags = JSON.stringify({ 'include-component-in-tag': false, 'include-v-in-tag': true, packages: { '.': {} } });
-  const workflow = (...jobs) => `jobs:\n  release-please:\n    runs-on: ubuntu-latest\n${jobs.map((j) => `  ${j}:\n    needs: release-please\n`).join('')}`;
+  const workflow = (...targets) => releaseWorkflow(targets);
   const complete = {
     'release-please-config.json': goodTags,
     '.release-please-manifest.json': '{ ".": "0.1.0" }',
     '.github/workflows/release.yml': workflow(),
   };
-  const messages = (config, files) => releaseFindings({ config, files }).map((f) => {
-    assert.equal(f.kind, 'release');
-    return f.message;
-  });
+  const messages = releaseMessages;
 
   assert.deepEqual(messages(DEFAULT_CONFIG, {}), []);
   assert.deepEqual(messages(on(), complete), []);
@@ -190,19 +330,17 @@ test('releaseFindings: reports each mismatch between the release config and the 
   }
   assert.match(messages(on(), { ...complete, 'release-please-config.json': '{ nope' })[0], /not valid JSON/);
 
-  const npmJobs = { ...complete, '.github/workflows/release.yml': workflow('publish-npm') };
+  const npmJobs = { ...complete, '.github/workflows/release.yml': workflow('npm') };
   assert.match(messages(on(['npm']), npmJobs).join('\n'), /npm.*no root package\.json/);
   assert.match(messages(on(['npm']), { ...npmJobs, 'package.json': '{ "private": true }' }).join('\n'), /npm.*private/);
   assert.match(messages(on(['npm']), { ...npmJobs, 'package.json': '{ "private": "true" }' }).join('\n'), /npm.*private/, 'npm refuses any truthy private');
   assert.deepEqual(messages(on(['npm']), { ...npmJobs, 'package.json': '{ "name": "x" }' }), []);
 
-  const crateJobs = { ...complete, '.github/workflows/release.yml': workflow('publish-crates') };
+  const crateJobs = { ...complete, '.github/workflows/release.yml': workflow('crates') };
   assert.match(messages(on(['crates']), crateJobs).join('\n'), /crates.*no root Cargo\.toml/);
   assert.match(messages(on(['crates']), { ...crateJobs, 'Cargo.toml': '[package]\nname = "x"\npublish = false\n' }).join('\n'), /crates.*publish = false/);
   assert.deepEqual(messages(on(['crates']), { ...crateJobs, 'Cargo.toml': '[package]\nname = "x"\n' }), []);
 
-  const noJob = messages(on(['npm', 'crates']), { ...npmJobs, 'package.json': '{}', 'Cargo.toml': '[package]\n' });
-  assert.deepEqual(noJob, ["release.publish has 'crates' but .github/workflows/release.yml has no publish-crates job."]);
 });
 
 test('baton init writes the release switch, off', async (t) => {

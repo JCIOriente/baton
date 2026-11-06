@@ -3,6 +3,11 @@
 baton is developed with its own workflow (`.baton/config.json`): issues are the backlog, work
 happens in a task worktree, and PRs go through `baton done`.
 
+Every change, docs included, happens in a linked worktree: `baton start <n>` for a task,
+`baton worktree add <name>` for a spec, plan or any other change. Never edit or commit in the main
+checkout, and never use `--no-verify`. Run `baton hooks install` once per clone so git refuses
+commits there.
+
 ## Checks
 
 `make ci` runs everything CI runs: the tests, `claude plugin validate .` and a gitleaks scan.

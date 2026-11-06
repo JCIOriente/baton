@@ -31,8 +31,12 @@ plus `status:blocked`. Priority is `priority:p0`..`p3`. Dependencies are a
    - every acceptance criterion checkable, plus the tests to write first
    - existing patterns to follow named by path
    - error cases, permissions and data changes stated, if any apply
-4. Write the issue numbers back into the plan doc next to each T-id and commit. Then report the
-   map and what can start in parallel right away (`baton next`).
+4. Write the issue numbers back into the plan doc next to each T-id and commit, in the plan's
+   worktree while its PR is open (`gh pr view <branch> --json state` says `OPEN`; a merged
+   branch can still look unmerged locally after a squash), otherwise in one from
+   `baton worktree add <name>` with a PR from `gh pr create`. Never in the main checkout, and
+   never with `--no-verify`.
+   Then report the map and what can start in parallel right away (`baton next`).
 
 ## Inspecting
 

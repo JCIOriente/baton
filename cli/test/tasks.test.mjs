@@ -117,6 +117,21 @@ test('validateConfig flags unknown stacks and bad validate entries', () => {
   assert.deepEqual(validateConfig(DEFAULT_CONFIG), []);
 });
 
+test('defaultConfig_worktreeOnly_on', (t) => {
+  assert.equal(DEFAULT_CONFIG.hooks.worktreeOnly, true);
+  const root = mkdtempSync(join(tmpdir(), 'baton-wto-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  git(['init', '-q'], { cwd: root });
+  mkdirSync(join(root, '.baton'));
+  writeFileSync(join(root, '.baton/config.json'), JSON.stringify({ hooks: { factGate: true } }));
+  assert.equal(loadConfig(root).config.hooks.worktreeOnly, true);
+});
+
+test('validateConfig_rejects_non_boolean_worktreeOnly', () => {
+  assert.deepEqual(validateConfig(deepMerge(DEFAULT_CONFIG, { hooks: { worktreeOnly: 'yes' } })), ['hooks.worktreeOnly must be a boolean']);
+  assert.deepEqual(validateConfig(deepMerge(DEFAULT_CONFIG, { hooks: { worktreeOnly: false } })), []);
+});
+
 test('validateConfig requires instructions for custom phases', () => {
   const cfg = deepMerge(DEFAULT_CONFIG, { workflow: { phases: ['spec', 'security-audit'] } });
   assert.match(validateConfig(cfg)[0], /security-audit/);

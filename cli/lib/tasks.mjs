@@ -178,13 +178,77 @@ export function releaseFindings({ config, files }) {
     const problem = cratesProblem(files['Cargo.toml']);
     if (problem) add(`release.publish has 'crates' but ${problem}.`);
   }
-  if (has(RELEASE_WORKFLOW)) {
-    for (const target of publish) {
-      const job = `publish-${target}`;
-      if (!new RegExp(`^[ \\t]+${job}:`, 'm').test(files[RELEASE_WORKFLOW])) add(`release.publish has '${target}' but ${RELEASE_WORKFLOW} has no ${job} job.`);
-    }
+  if (publish.length && has(RELEASE_WORKFLOW)) {
+    for (const message of publishLayoutProblems(files[RELEASE_WORKFLOW], publish)) add(message);
   }
   return findings;
+}
+
+export const PUBLISH_STEP_NAMES = { npm: 'Publish to npm', crates: 'Publish to crates.io' };
+
+const indentOf = (line) => line.length - line.trimStart().length;
+const isBlankOrComment = (line) => line.trim() === '' || line.trim().startsWith('#');
+const withoutComment = (line) => line.replace(/\s+#.*$/, '').trimEnd();
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// A job is a key directly under `jobs:` (at the indentation of the first key there); its block runs
+// until the next line indented that much or less. Comment and blank lines never end a block.
+// Returns the block's lines, or null when the job doesn't exist.
+function jobBlock(workflow, job) {
+  const lines = workflow.split(/\r?\n/);
+  const jobsAt = lines.findIndex((line) => withoutComment(line) === 'jobs:');
+  if (jobsAt === -1) return null;
+  const first = lines.findIndex((line, i) => i > jobsAt && !isBlankOrComment(line));
+  if (first === -1) return null;
+  const jobIndent = indentOf(lines[first]);
+  if (jobIndent === 0) return null;
+  const start = lines.findIndex((line, i) => i >= first && indentOf(line) === jobIndent && withoutComment(line).trim() === `${job}:`);
+  if (start === -1) return null;
+  const end = lines.findIndex((line, i) => i > start && !isBlankOrComment(line) && indentOf(line) <= jobIndent);
+  return lines.slice(start + 1, end === -1 ? undefined : end);
+}
+
+const unquote = (value) => value.trim().replace(/^(["'])(.*)\1$/, '$2');
+
+// Accepts `environment: publish` (optionally quoted), `environment: { name: publish }` and
+// the block form with a more-indented `name: publish` line.
+function inEnvironmentPublish(block) {
+  const keyIndent = indentOf(block.find((line) => !isBlankOrComment(line)) ?? '');
+  const at = block.findIndex((line) => indentOf(line) === keyIndent && /^\s*environment:/.test(line));
+  if (at === -1) return false;
+  const value = withoutComment(block[at]).replace(/^\s*environment:/, '').trim();
+  if (value) {
+    const inline = value.match(/^\{.*?\bname:\s*(.*?)\s*[,}]/);
+    return unquote(inline ? inline[1] : value) === 'publish';
+  }
+  const own = indentOf(block[at]);
+  for (const line of block.slice(at + 1)) {
+    if (isBlankOrComment(line)) continue;
+    if (indentOf(line) <= own) return false;
+    const name = withoutComment(line).trim().match(/^name:\s*(.*)$/);
+    if (name) return unquote(name[1]) === 'publish';
+  }
+  return false;
+}
+
+function hasStepNamed(block, stepName) {
+  const pattern = new RegExp(`^\\s*(?:-[ \\t]+)?name:[ \\t]*(["']?)${escapeRegExp(stepName)}\\1[ \\t]*(#.*)?$`);
+  return block.some((line) => pattern.test(line));
+}
+
+function publishLayoutProblems(workflow, publish) {
+  const problems = [];
+  for (const job of ['publish-npm', 'publish-crates']) {
+    if (jobBlock(workflow, job) !== null) problems.push(`${RELEASE_WORKFLOW} has a ${job} job, the old publish layout: re-run the release step of baton:init (trusted publishers must then name environment 'publish').`);
+  }
+  const block = jobBlock(workflow, 'publish');
+  if (block !== null && !inEnvironmentPublish(block)) problems.push(`the publish job in ${RELEASE_WORKFLOW} has no 'environment: publish' line: re-run the release step of baton:init.`);
+  for (const target of publish) {
+    const stepName = PUBLISH_STEP_NAMES[target];
+    // An unknown target is reported by the config check, not here.
+    if (stepName && !hasStepNamed(block ?? [], stepName)) problems.push(`release.publish has '${target}' but the publish job in ${RELEASE_WORKFLOW} has no '${stepName}' step.`);
+  }
+  return problems;
 }
 
 // Tags must be `v<version>`, never `<component>-v<version>`. A package entry overrides the top level.
