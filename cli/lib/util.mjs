@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 
 export class BatonError extends Error {
   constructor(message, { exitCode = 1, hint } = {}) {
@@ -20,6 +21,7 @@ export function run(cmd, args, { cwd, input, allowFail = false, inherit = false,
   });
   if (res.error) {
     if (res.error.code === 'ENOENT') {
+      if (cwd && !existsSync(cwd)) throw new BatonError(`Directory ${cwd} does not exist (running ${cmd})`);
       throw new BatonError(`'${cmd}' not found on PATH`, { hint: `Install ${cmd} and retry.` });
     }
     if (res.error.code === 'ETIMEDOUT') throw new BatonError(`${cmd} timed out after ${timeout}ms`);

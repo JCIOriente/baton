@@ -96,7 +96,8 @@
     "scopeToDiff": false
   },
   "hooks": {
-    "factGate": false
+    "factGate": false,
+    "worktreeOnly": true
   },
   "release": {
     "enabled": false,

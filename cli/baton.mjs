@@ -36,7 +36,7 @@ import {
   statusOf,
   unblockable,
 } from './lib/tasks.mjs';
-import { BatonError, print, runShell } from './lib/util.mjs';
+import { BatonError, deepMerge, print, runShell, slugify } from './lib/util.mjs';
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -60,7 +60,12 @@ Execution
   claim <n>                        Claim a task (race-safe)
   release <n> [--reason R]         Give a task back
   start <n> [--no-baseline]        Claim + worktree + branch, run setup, then a baseline validation
-  worktree list | remove <n> [--force] | prune
+  worktree list | prune            Local worktrees / drop stale worktree records
+  worktree add <name> [--setup] [--json]
+                                   Worktree on a new branch <name> from the base branch, for work that is
+                                   not a task (spec, plan, docs, config); --setup runs the setup steps
+  worktree remove <n|name> [--force]
+                                   Remove a task's or a named worktree; the branch is kept
   status                           Local worktrees and the tasks they belong to
 
 Integration
@@ -141,11 +146,13 @@ function currentTask(config) {
 function init(argv) {
   const { values } = opts(argv, { force: { type: 'boolean' }, labels: { type: 'boolean' } });
   const root = repoRoot();
-  const path = configPath(root);
+  // Written into the checkout this runs in, so a reconfiguration can happen in a linked worktree.
+  const top = currentTop();
+  const path = configPath(top);
   if (existsSync(path) && !values.force) {
-    throw new BatonError(`${relative(root, path)} already exists`, { hint: 'Use --force to overwrite.' });
+    throw new BatonError(`${relative(top, path)} already exists`, { hint: 'Use --force to overwrite.' });
   }
-  const detected = detectStacks(root);
+  const detected = detectStacks(top);
   const baseBranch = detectBaseBranch(root);
   const config = {
     project: root.split('/').pop(),
@@ -160,11 +167,12 @@ function init(argv) {
     docs: DEFAULT_CONFIG.docs,
     conventions: [],
   };
-  mkdirSync(join(root, CONFIG_DIR), { recursive: true });
+  mkdirSync(join(top, CONFIG_DIR), { recursive: true });
   writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
-  for (const d of [config.docs.specs, config.docs.plans]) mkdirSync(join(root, d), { recursive: true });
-  if (values.labels) getProvider(loadConfig().config, root).ensureLabels();
-  print(values.json ? config : `Wrote ${relative(root, path)}\n${JSON.stringify(config, null, 2)}`);
+  for (const d of [config.docs.specs, config.docs.plans]) mkdirSync(join(top, d), { recursive: true });
+  // The config just written, not loadConfig(): that reads the main checkout's file.
+  if (values.labels) getProvider(deepMerge(DEFAULT_CONFIG, config), root).ensureLabels();
+  print(values.json ? config : `Wrote ${relative(top, path)}\n${JSON.stringify(config, null, 2)}`);
 }
 
 function detectBaseBranch(root) {
@@ -367,7 +375,9 @@ function start(argv) {
   const { root, config } = requireConfig();
   const n = issueArg(positionals);
   const res = claimTask(getProvider(config, root), n, values.force);
-  const path = createWorktree(root, config, n, res.task.title);
+  const existing = listWorktrees(root).find((w) => issueFromBranch(config, w.branch) === n);
+  // A stale record (directory gone) keeps its branch: createWorktree prunes it and checks the branch out again.
+  const path = existing && !isStale(existing) ? existing.path : createWorktree(root, config, existing?.branch ?? branchName(config, n, res.task.title)).path;
 
   const setup = runSteps(config.setup, path, 'setup');
   if (!setup.ok) {
@@ -386,37 +396,109 @@ function start(argv) {
   print(lines.join('\n'));
 }
 
-function createWorktree(root, config, n, title) {
-  const existing = listWorktrees(root).find((w) => issueFromBranch(config, w.branch) === n);
-  if (existing) return existing.path;
-  const branch = branchName(config, n, title);
+/** A worktree record whose directory is gone (removed by hand without `git worktree prune`). */
+function isStale(w) {
+  return w.prunable || !existsSync(w.path);
+}
+
+/**
+ * Prunes the stale record `w` and returns the worktrees left. git never prunes a locked record,
+ * so one that survives (e.g. a locked worktree on an unmounted drive) is an error, not success.
+ */
+function pruneStale(root, w) {
+  git(['worktree', 'prune'], { cwd: root });
+  const worktrees = listWorktrees(root);
+  if (worktrees.some((x) => x.path === w.path)) {
+    throw new BatonError(`Worktree ${w.path} is missing on disk but its record is locked`, {
+      hint: `Remount it if it lives on a removable drive, or run \`git worktree unlock ${w.path}\` and retry.`,
+    });
+  }
+  return worktrees;
+}
+
+/**
+ * The worktree for `branch` under `worktreeBase`: an existing one is reused, an existing local
+ * branch is checked out, otherwise the branch starts from the remote base with no upstream.
+ * A stale record for the branch is pruned first, so the worktree is made again.
+ */
+function createWorktree(root, config, branch) {
+  let worktrees = listWorktrees(root);
+  let existing = worktrees.find((w) => w.branch === branch);
+  if (existing && isStale(existing)) {
+    worktrees = pruneStale(root, existing);
+    existing = worktrees.find((w) => w.branch === branch);
+  }
+  if (existing) return { path: existing.path, created: false };
   const path = join(worktreeBase(root, config), branch.replace(/\//g, '-'));
-  const { remote, baseBranch } = config.git;
-  git(['fetch', remote, baseBranch], { cwd: root, allowFail: true });
-  const remoteBase = git(['rev-parse', '--verify', '--quiet', `${remote}/${baseBranch}`], { cwd: root, allowFail: true });
-  const base = remoteBase.code === 0 ? `${remote}/${baseBranch}` : baseBranch;
+  // Checked before git runs, so a clash never leaves a new branch behind.
+  const occupant = worktrees.find((w) => w.path === path);
+  if (occupant || existsSync(path)) {
+    throw new BatonError(`${path} is already taken${occupant ? ` by the worktree on ${occupant.branch ?? '(detached HEAD)'}` : ''}`, { hint: 'Pick another name.' });
+  }
   const localBranch = git(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: root, allowFail: true });
   mkdirSync(dirname(path), { recursive: true });
-  if (localBranch.code === 0) git(['worktree', 'add', path, branch], { cwd: root });
-  else git(['worktree', 'add', '--no-track', '-b', branch, path, base], { cwd: root });
-  return path;
+  if (localBranch.code === 0) {
+    git(['worktree', 'add', path, branch], { cwd: root });
+    return { path, created: true };
+  }
+  const { remote, baseBranch } = config.git;
+  const fetched = git(['fetch', remote, baseBranch], { cwd: root, allowFail: true }).code === 0;
+  const remoteBase = git(['rev-parse', '--verify', '--quiet', `${remote}/${baseBranch}`], { cwd: root, allowFail: true });
+  const base = remoteBase.code === 0 ? `${remote}/${baseBranch}` : baseBranch;
+  if (remoteBase.code !== 0) process.stderr.write(`warning: ${remote}/${baseBranch} not found; branching from the local ${baseBranch}.\n`);
+  else if (!fetched) process.stderr.write(`warning: could not fetch ${remote}/${baseBranch}; branching from the last fetched ${base}.\n`);
+  git(['worktree', 'add', '--no-track', '-b', branch, path, base], { cwd: root });
+  return { path, created: true };
 }
 
 function worktree(argv) {
   const [sub, ...rest] = argv;
-  const { values, positionals } = opts(rest, { force: { type: 'boolean' } });
+  const { values, positionals } = opts(rest, { force: { type: 'boolean' }, setup: { type: 'boolean' } });
   const { root, config } = requireConfig();
   if (sub === 'list' || !sub) {
     const rows = listWorktrees(root).map((w) => ({ ...w, task: issueFromBranch(config, w.branch) }));
     if (values.json) return print(rows);
     return print(rows.map((w) => `${w.task ? `#${w.task}`.padEnd(7) : '-'.padEnd(7)} ${w.branch ?? '(detached)'}  ${w.path}`).join('\n'));
   }
+  if (sub === 'add') {
+    const branch = slugify(positionals[0] ?? '');
+    if (!branch) throw new BatonError('Expected a worktree name with letters or digits, e.g. `baton worktree add orgs-spec`');
+    if (branch === config.git.baseBranch) {
+      throw new BatonError(`'${branch}' is the base branch`, { hint: 'Pick another name; work on the base branch goes through a branch of its own.' });
+    }
+    // git cannot hold refs/heads/task next to refs/heads/task/12-x, so the task prefix is off limits.
+    if (`${config.git.branchPrefix}/`.startsWith(`${branch}/`)) {
+      throw new BatonError(`'${branch}' clashes with the task branch prefix '${config.git.branchPrefix}/'`, { hint: 'Pick another name.' });
+    }
+    if (listWorktrees(root).some((w) => w.branch === branch && w.path === root)) {
+      throw new BatonError(`Branch ${branch} is checked out in the main checkout`, { hint: `Switch the main checkout back to ${config.git.baseBranch}, or pick another name.` });
+    }
+    const { path, created } = createWorktree(root, config, branch);
+    if (values.setup && !runSteps(config.setup, path, 'setup').ok) {
+      throw new BatonError(`Setup failed in ${path}`, { hint: 'Fix the setup step (see output above), then rerun with --setup. The worktree is kept.' });
+    }
+    if (values.json) return print({ path, branch, created });
+    return print([`Worktree ${created ? 'ready' : 'already exists'} in ${path}`, `branch: ${branch}`, 'Next: work only inside that directory.'].join('\n'));
+  }
   if (sub === 'remove') {
-    const n = issueArg(positionals);
-    const wt = listWorktrees(root).find((w) => issueFromBranch(config, w.branch) === n);
-    if (!wt) throw new BatonError(`No worktree for #${n}`);
+    // A number is a task (`worktree remove 12`); anything else is a name from `worktree add`.
+    // Only a positive number can be a task, so a name like `0` from `worktree add` takes the name path.
+    const n = /^#?\d*[1-9]\d*$/.test(positionals[0] ?? '') ? issueArg(positionals) : null;
+    const name = n ? null : slugify(positionals[0] ?? '');
+    if (!n && !name) throw new BatonError('Expected a task number or worktree name, e.g. `baton worktree remove orgs-spec`');
+    const label = n ? `#${n}` : name;
+    const all = listWorktrees(root);
+    // An all-digit name from `worktree add` (e.g. 2027) is tried when no task matches the number.
+    const wt = n
+      ? (all.find((w) => issueFromBranch(config, w.branch) === n) ?? all.find((w) => w.branch === slugify(positionals[0])))
+      : all.find((w) => w.branch === name);
+    if (!wt) throw new BatonError(`No worktree for ${label}`);
+    if (isStale(wt)) {
+      pruneStale(root, wt);
+      return print(`Worktree ${wt.path} was already missing on disk; cleared its record (branch ${wt.branch} kept).`);
+    }
     if (!values.force && hasUncommittedChanges(wt.path)) {
-      throw new BatonError(`Worktree for #${n} has uncommitted changes`, { hint: 'Commit or discard them, or pass --force.' });
+      throw new BatonError(`Worktree for ${label} has uncommitted changes`, { hint: 'Commit or discard them, or pass --force.' });
     }
     git(['worktree', 'remove', ...(values.force ? ['--force'] : []), wt.path], { cwd: root });
     return print(`Removed worktree ${wt.path} (branch ${wt.branch} kept).`);
