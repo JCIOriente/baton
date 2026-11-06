@@ -9,6 +9,7 @@ import { parseArgs } from 'node:util';
 import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, CONFIG_FILE, reviewerFocus, reviewersFor } from './lib/config.mjs';
 import { buildContext } from './lib/context.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
+import { guardStatus, installGuard } from './lib/git-guard.mjs';
 import {
   branchName,
   currentBranch,
@@ -47,6 +48,7 @@ Setup
   labels                           Create/update status and priority labels on GitHub
   config                           Print the resolved config
   context                          Print the session context the hook injects
+  hooks install [--json]           Install the git guard that refuses commits in the main checkout
 
 Backlog
   list [--status S] [--mine]       List open tasks (S: triage|ready|in-progress|review|blocked)
@@ -88,6 +90,7 @@ const commands = {
   labels,
   config: showConfig,
   context,
+  hooks,
   list,
   next,
   show,
@@ -206,6 +209,25 @@ function context() {
     text = `<baton>\nbaton could not load this repo's config: ${err.message}\n</baton>`;
   }
   print(text);
+}
+
+function hooks(argv) {
+  const [sub, ...rest] = argv;
+  if (sub !== 'install') throw new BatonError(`Unknown hooks subcommand '${sub ?? ''}'`, { hint: 'Run `baton hooks install`.' });
+  const { values } = opts(rest);
+  const res = installGuard(repoRoot());
+  if (values.json) return print(res);
+  const lines = [`Wrote ${res.script} (the guard script, refreshed on every run).`];
+  if (res.stub) {
+    lines.push(`Wrote ${res.stub} (the pre-commit hook that runs it).`);
+    lines.push(res.changed ? 'Commits in the main checkout are now refused while hooks.worktreeOnly is on.' : 'It was already installed; behavior is unchanged.');
+    lines.push(`To remove the guard, delete ${res.script} and ${res.stub}.`);
+  } else {
+    lines.push(`Left the hooks unchanged: ${res.reason}. Add this line to that pre-commit hook or hook manager:`);
+    lines.push(res.managerLine);
+    lines.push(`To remove the guard, delete ${res.script} and that line.`);
+  }
+  print(lines.join('\n'));
 }
 
 // --- Backlog --------------------------------------------------------------
@@ -661,6 +683,19 @@ function doctor(argv) {
       if (existsSync(join(root, path))) files[path] = readFileSync(join(root, path), 'utf8');
     }
     findings.push(...releaseFindings({ config, files }));
+  }
+
+  // CI and cloud sessions are single-use clones, where the guard stands down.
+  const disposable = process.env.CI === 'true' || process.env.CLAUDE_CODE_REMOTE === 'true';
+  if (loaded.found && config.hooks.worktreeOnly && !disposable) {
+    const guard = guardStatus(root);
+    if (guard !== 'installed') findings.push({ kind: 'worktree', message: `The git guard is ${guard} (run \`baton hooks install\`)` });
+    // symbolic-ref also answers on an unborn branch, where `rev-parse HEAD` fails.
+    const head = git(['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: root, allowFail: true });
+    const branch = head.code === 0 ? head.stdout : 'a detached HEAD';
+    if (branch !== config.git.baseBranch) {
+      findings.push({ kind: 'worktree', message: `The main checkout ${root} is on ${branch}, not ${config.git.baseBranch}. Switch it back; changes happen in linked worktrees.` });
+    }
   }
 
   if (values.json) print(findings);

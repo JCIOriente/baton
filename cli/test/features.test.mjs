@@ -65,7 +65,8 @@ test('context: always-on rules, undetected stacks and common issues', async () =
   writeFileSync(join(root, 'docs/common-issues.md'), '# issues');
   const config = deepMerge(DEFAULT_CONFIG, { stacks: ['typescript'] });
   const text = buildContext({ root, found: true, config }, { pluginRoot: '/p', cwd: root });
-  for (const r of ALWAYS_RULES) assert.ok(text.includes(r));
+  // The first rule gives way to the worktree rule while hooks.worktreeOnly is on (the default).
+  for (const r of ALWAYS_RULES.slice(1)) assert.ok(text.includes(r));
   assert.match(text, /Detected but not enabled: react\./);
   assert.match(text, /common-issues\.md/);
   assert.match(text, /- common: \/p\/stacks\/common\.md/);
@@ -159,6 +160,41 @@ test('context: mentions releases only when release.enabled', async (t) => {
   assert.ok(!off.includes('baton:release') && !off.includes('CHANGELOG'));
   const on = buildContext({ root, found: true, config: deepMerge(DEFAULT_CONFIG, { release: { enabled: true } }) }, { pluginRoot: '/p', cwd: root });
   assert.ok(on.includes(RELEASE_LINE));
+});
+
+const WORKTREE_RULE =
+  'Never edit or commit in the main checkout. Task work happens in the worktree from `baton start <n>`; anything else (specs, plans, docs, config) in one from `baton worktree add <name>`. Never use `git commit --no-verify`.';
+
+test('context_uses_worktree_rule_when_on', async (t) => {
+  const { buildContext, ALWAYS_RULES } = await import('../lib/context.mjs');
+  const { installGuard } = await import('../lib/git-guard.mjs');
+  const { rmSync, realpathSync } = await import('node:fs');
+  const { spawnSync } = await import('node:child_process');
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'baton-ctx-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  spawnSync('git', ['init', '-q'], { cwd: root });
+  const rules = (text) => text.split('\n').filter((l) => l.startsWith('- '));
+
+  const on = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
+  assert.equal(rules(on)[0], `- ${WORKTREE_RULE}`);
+  assert.ok(!on.includes(ALWAYS_RULES[0]));
+  for (const r of ALWAYS_RULES.slice(1)) assert.ok(on.includes(r));
+  const missingLine = on.split('\n').filter((l) => l.includes('baton hooks install'));
+  assert.equal(missingLine.length, 1, on);
+  assert.match(missingLine[0], /git guard .*not installed/);
+
+  installGuard(root);
+  const installed = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
+  assert.ok(!installed.includes('baton hooks install'), installed);
+  assert.equal(installed, on.split('\n').filter((l) => !l.includes('baton hooks install')).join('\n'));
+
+  const offConfig = deepMerge(DEFAULT_CONFIG, { hooks: { worktreeOnly: false } });
+  rmSync(join(root, '.git/baton'), { recursive: true });
+  const off = buildContext({ root, found: true, config: offConfig }, { pluginRoot: '/p', cwd: root });
+  assert.equal(rules(off)[0], `- ${ALWAYS_RULES[0]}`);
+  assert.ok(!off.includes(WORKTREE_RULE) && !off.includes('baton hooks install'));
+  // Identical to the context before the switch existed: same lines with the old first rule.
+  assert.equal(off, installed.replace(WORKTREE_RULE, ALWAYS_RULES[0]));
 });
 
 test('releaseFindings: reports each mismatch between the release config and the repo', () => {

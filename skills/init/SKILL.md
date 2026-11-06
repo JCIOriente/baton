@@ -183,6 +183,13 @@ disable-model-invocation: true
    all of step 8, skipping `baton init` (it refuses when a config exists). Step 8 rewrites the
    three files from the templates and the current config.
 9. **Commit** `.baton/config.json` (and the docs dirs) so every contributor and session
-   shares the same workflow.
+   shares the same workflow. This adoption commit is the one commit made in the main checkout:
+   the guards allow it because `HEAD` has no config yet.
+10. **Install the git guard:** run `baton hooks install` and show the user its output. It
+    refuses later commits in the main checkout while `hooks.worktreeOnly` is on. When it prints
+    a line to add to an existing hook or hook manager, show that line and let the user add it.
+
+**Re-runs** of single steps after adoption (for example step 8 alone) happen in a worktree
+from `baton worktree add <name>`, never in the main checkout, and reach the base branch by PR.
 
 The full schema with defaults is in `${CLAUDE_PLUGIN_ROOT}/templates/config.example.json`.

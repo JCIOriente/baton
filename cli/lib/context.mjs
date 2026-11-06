@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { currentBranch, currentTop, issueFromBranch } from './git.mjs';
 import { BASELINE_GUIDE } from './config.mjs';
 import { detectStacks } from './detect.mjs';
+import { guardStatus } from './git-guard.mjs';
 
 // Agents skip optional skills often, so the rules that must never be skipped are always in context.
 export const ALWAYS_RULES = [
@@ -11,6 +12,11 @@ export const ALWAYS_RULES = [
   'If a requirement is ambiguous or a simpler approach exists, say so and ask before building.',
   'Never say done, fixed or passing without fresh `baton verify` output from after your last change.',
 ];
+
+// Replaces the task-only first rule while hooks.worktreeOnly is on.
+const TASK_WORKTREE_RULE = 'Never work on a task you have not claimed (`baton start <n>`), and edit only inside its worktree.';
+export const WORKTREE_RULE =
+  'Never edit or commit in the main checkout. Task work happens in the worktree from `baton start <n>`; anything else (specs, plans, docs, config) in one from `baton worktree add <name>`. Never use `git commit --no-verify`.';
 
 /**
  * Build the text injected at session start. Only the stacks and rules the project
@@ -29,7 +35,11 @@ export function buildContext({ root, found, config }, { pluginRoot, cwd = proces
   const lines = ['<baton>', `Project: ${config.project ?? root}. This repo uses the baton workflow.`];
   lines.push('Load the baton:workflow skill before starting any feature, bug fix or task in this repo.');
   lines.push('', 'Always, even without loading a skill:');
-  for (const rule of ALWAYS_RULES) lines.push(`- ${rule}`);
+  const worktreeOnly = config.hooks.worktreeOnly;
+  for (const rule of ALWAYS_RULES) lines.push(`- ${worktreeOnly && rule === TASK_WORKTREE_RULE ? WORKTREE_RULE : rule}`);
+  if (worktreeOnly && safeGuardStatus(root) !== 'installed') {
+    lines.push('- The git guard that refuses commits in the main checkout is not installed in this clone; `baton hooks install` installs it.');
+  }
   lines.push('');
 
   const gates = [];
@@ -76,6 +86,15 @@ export function buildContext({ root, found, config }, { pluginRoot, cwd = proces
 
   lines.push('</baton>');
   return lines.join('\n');
+}
+
+function safeGuardStatus(root) {
+  try {
+    return guardStatus(root);
+  } catch {
+    // Not a git repo or git failed: nothing reliable to report.
+    return 'installed';
+  }
 }
 
 function safeDetect(root) {
