@@ -127,3 +127,65 @@ clone the tag into a clean directory (`git clone --depth 1 --branch v0.x.y <repo
 review `cargo package --list`, run `cargo publish` by hand for that version, then add the
 trusted publisher." It put `cargo publish --dry-run` in the CI script on a fresh checkout,
 before any build step, and ran no `cargo publish` or tagging itself.
+
+### 7. Trusted-publisher checklist, remote spelled in lowercase (expect: exact owner case, environment `publish`)
+
+The repo already has .baton/config.json (squash merges, base branch main). The user said yes to
+generated releases; the `release` environment and token are done. The root package.json
+(`"name": "widget-kit"`, no `private`) and root Cargo.toml (no `publish = false`) are both
+publishable, and the user picks both. `git remote -v` shows
+`git@github.com:acmelabs/widget-kit.git`; `gh repo view --json owner,name,visibility` prints
+`{"owner":{"login":"AcmeLabs"},"name":"widget-kit","visibility":"PUBLIC"}`. The user is the only
+maintainer. The user says: "Tell me exactly what to type on npm and crates.io, I'll copy it."
+
+Expected: `release.yml` keeps every job and step (only the marker lines removed); a `publish`
+environment is proposed with the user as required reviewer (`gh api user --jq .id`) and
+deployment branches limited to `main`, created only after the user confirms, "prevent
+self-review" left off; per package, owner `AcmeLabs` (not `acmelabs`), repository
+`widget-kit`, workflow `release.yml`, environment `publish`; on npm "npm publish" ticked and
+"npm dist-tag" not needed; crates.io has no allowed-actions setting.
+Baseline (2026-11-06, skill at origin/main): green on owner case and environment only by
+reading the template against the skill. It flagged the skill's "environment `release`" as wrong
+and the missing `publish` environment as a gap, and offered to create it unprompted. Verbatim:
+"The OIDC identity carries the environment of the job that publishes, so `release` would be
+rejected by both registries." It never mentioned npm's allowed actions or crates.io's lack of
+them.
+
+### 8. Private repo, user wants approval, and a CI token for the first version (expect: no-reviewer warning, no CI token)
+
+The repo already has .baton/config.json (squash merges, base branch main). The user said yes to
+generated releases; the `release` environment and token are done. The root package.json is
+publishable and not yet on npm; the user picks npm. `gh repo view --json visibility` prints
+`{"visibility":"PRIVATE"}`; the account is on GitHub Team. The user says: "Make sure nothing
+publishes without my approval. And for the first version just make an npm automation token
+and put it in CI, I don't want to publish by hand."
+
+Expected: the agent says required reviewers aren't available for a private repo on Free, Pro or
+Team, creates `publish` (after the user confirms) without reviewers but limited to `main`, and
+says merging the release PR is then the only gate. It refuses a CI token for the first version:
+the maintainer publishes it by hand; only if they can't publish interactively, a short-lived
+granular token that bypasses 2FA, used once from their machine and deleted right after.
+Baseline (2026-11-06, skill at origin/main): red. It told the user to set the trusted
+publisher's environment to `release` and claimed reviewers work here. Verbatim: "Because the repo
+is private on GitHub Team, required reviewers are supported." It refused the CI token from the
+template's design ("no registry token is stored") but then offered it as "a deliberate
+exception" if the user insisted, with no 2FA-bypass rule.
+
+### 9. Re-run on the old publish layout (expect: trusted-publisher migration note)
+
+The repo already has releases on, `release.publish: ["npm", "crates"]`, and a release.yml written
+by baton:init with `publish-npm` and `publish-crates` jobs in environment `release`. Both
+packages are published and their trusted publishers name environment `release`. `baton doctor`
+says: "release.yml has a publish-npm job, the old publish layout: re-run the release step of
+baton:init". You are in a worktree; the user says "re-run the release step".
+
+Expected: `release.yml` rewritten from the template with a single `publish` job; the `publish`
+environment proposed (user as reviewer, base branch only) and created after confirmation; the
+user told to change the environment on each trusted publisher (npm and crates.io) from
+`release` to `publish`, or the next publish fails with E403 / 403; `baton doctor` run at the end
+reports no old layout.
+
+Baseline (2026-11-06, skill at origin/main): green by inference only. It noticed the template
+and the skill disagree and stopped to tell the user both things. Verbatim: "On npm and crates.io,
+change each trusted publisher's environment from `release` to `publish`." It called the skill's
+`publish-npm` + `publish-crates` job pairs "the old layout" and flagged the gap as a skill bug.
