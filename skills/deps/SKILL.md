@@ -9,67 +9,67 @@ argument-hint: "<package>[@version]"
 **Never write a version you didn't read from the registry in this session, or add it to the
 worktree before it passed the vet**, however urgent or user-named.
 
-Per-manager commands and lists: `${CLAUDE_PLUGIN_ROOT}/skills/deps/managers.md`; read it
-before step 2.
-
 ## 1. Identify
 
-Package, manifest, reason; for a category ("a date library"), ask which. Replacing: the new
-package is the candidate, the old one goes in step 6.
-Manager: nearest lockfile walking up from the manifest. `package-lock.json` npm,
-`pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry with `.yarnrc.yml` or `packageManager: "yarn@2+"`,
-else classic), `Cargo.lock` cargo (`cargo locate-project --workspace`). Stop and report on
-`bun.lock`/`bun.lockb` (unsupported), two lockfiles in one directory, or none. `<dir>` below is
-the lockfile's directory, relative to the repo root.
+Package, manifest, reason; for a category, ask which. Manager: nearest lockfile walking up from the manifest. `package-lock.json` npm,
+`pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry with `.yarnrc.yml` or `packageManager:
+"yarn@2+"`, else classic), `Cargo.lock` cargo. Stop and report on `bun.lock`/`bun.lockb`, two
+lockfiles in one directory, or none. `<dir>`: the lockfile's directory.
 
 ## 2. Look up
 
-Latest non-pre-release version, deprecated, `peerDependencies` (JS), yanked (cargo), with the
-commands in managers.md. Registry error or offline, here or in an audit: the vet fails, no
-fallback to memory.
+JS: `npm view <pkg> dist-tags` (`latest`, not a pre-release), then `npm view <pkg>@<v>
+deprecated` and `npm view <pkg>@<v> peerDependencies`, one field per call. cargo: `cargo info
+<crate>`; yanked: the `<v>` line of `curl -fsS
+https://index.crates.io/<prefix>/<crate>` (`se/rd/serde`; never the crates.io web API). A
+registry error or missing answer fails the vet: no memory fallback.
 
 ## 3. Peer compatibility (JS)
 
-Compare the candidate's `peerDependencies` from step 2 with the versions in the manifest. On a
-conflict, take the newest version that fits and say so.
+Compare `peerDependencies` with the manifest; on a conflict, take the newest fitting version
+and say so.
 
 ## 4. Vet in a throwaway copy
-
-From the repo root (from a subdirectory, `git archive` copies only that subdirectory):
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"; V=$(mktemp -d); git archive HEAD | tar -x -C "$V"
 ```
 
-Copy in uncommitted manifests, lockfile and manager config. **In `$V/<dir>`, not `$V`:**
-baseline audit, `<add> && <audit>` (a workspace member with its member flag), then
-`rm -rf "$V"`. List install scripts in new packages.
+Copy in uncommitted manifests, lockfile, manager config. **In `$V/<dir>`, not `$V`:**
+baseline audit, `<add> && <audit>`, `rm -rf "$V"`. Workspace member: npm `-w <member dir>`,
+pnpm `--filter ./<member dir>`, `yarn workspace <name> add`, cargo `-p <crate>`.
 
-Commands per manager: managers.md. Adds are lockfile-only without scripts (yarn classic
-installs into the copy); audits block at high (cargo: any advisory), exit ≠ 0, except **yarn
-classic: block when `exit & 24` ≠ 0**, whatever `--level` says.
+| Manager | Add | Audit, block when exit ≠ 0 |
+|---|---|---|
+| npm | `npm install <pkg>@<v> --package-lock-only --ignore-scripts` | `npm audit --audit-level=high` |
+| pnpm | `pnpm add <pkg>@<v> --lockfile-only --ignore-scripts` | `pnpm audit --audit-level=high` |
+| yarn berry | `yarn add <pkg>@<v> --mode=update-lockfile` | `yarn npm audit --all --recursive --severity high` |
+| yarn classic | `yarn add <pkg>@<v> --ignore-scripts` | `yarn audit`; **block when `exit & 24` ≠ 0**, any `--level` |
+| cargo | `cargo add <crate>@<v>` | `cargo deny check advisories` with `deny.toml`, else `cargo audit` |
 
-An audit counts only when its output lists the advisories or a summary. An `error` line, an
-endpoint error or no report, in the baseline or after the add, fails the vet with that error
-on the Audit line, never compared with the other run.
+An audit without an advisory list or summary (an error, no report) fails the vet.
+
+Install scripts: npm `hasInstallScript` in the lockfile, cargo `custom-build` targets in `cargo
+metadata --format-version 1 --locked`, pnpm, yarn "not checked".
 
 ## 5. Decide
 
-Block when: deprecated or yanked; the add failed (a failed resolve never passes); an advisory
-(JS high or critical, cargo any) not in the baseline and not accepted; a peer fit needs another
-dependency below its latest secure version. Offer another version or package. Baseline
-advisories: report separately, suggest an issue.
+Block when: deprecated or yanked; the add failed; a new advisory (JS high or critical, cargo
+any) not accepted; a peer fit needs another dependency below its latest secure version. Offer
+another version or package. Baseline advisories: report separately, suggest an issue.
 
 **Never add an accepted advisory, lower a threshold or pass `--ignore`/`--force` without the
-user's explicit OK to that exact change**, even after "just ignore it". Propose the ignore-list
-entry (managers.md) with a reason and a drop condition, then wait.
+user's explicit OK to that exact change**, even after "just ignore it". Propose the entry with
+a reason and drop condition, then wait: cargo `deny.toml` `[advisories] ignore`, else
+`.cargo/audit.toml`; pnpm `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`; yarn berry
+`npmAuditIgnoreAdvisories` in `.yarnrc.yml`, the numeric `ID` from `--json`, not the GHSA; npm
+and yarn classic: none.
 
 ## 6. Apply
 
-After a pass only, in `<dir>`: the manager's normal add (replacing: remove the old package too),
-then the project's audit or `baton verify`; on a new advisory, or if the add or verify fails,
-revert (`git checkout -- <manifest> <lockfile>`) and report it. Blocked: manifest and lockfile
-stay byte-identical (`git diff --exit-code -- <manifest> <lockfile>`).
+After a pass only, in `<dir>`: the normal add (replacing: remove the old package), then the
+audit or `baton verify`; on a failure, revert (`git checkout -- <manifest> <lockfile>`) and
+report. Blocked: `git diff --exit-code -- <manifest> <lockfile>` passes.
 
 ## 7. Report
 

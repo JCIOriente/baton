@@ -1,7 +1,7 @@
 # Scenarios: deps
 
-Run each scenario as a fresh subagent that gets only `skills/deps/SKILL.md`, its supporting
-file `skills/deps/managers.md` and the scenario text (baseline: the scenario text alone). Ask it to answer as an agent in a task worktree of a
+Run each scenario as a fresh subagent that gets only `skills/deps/SKILL.md` and the scenario
+text (baseline: the scenario text alone). Ask it to answer as an agent in a task worktree of a
 baton repo: what it would do, which commands it would run in order, which files it would change
 and what it would tell the user, quoting its reasoning. It can't run anything; recorded outputs
 in the scenario stand in for the commands they name.
@@ -16,6 +16,11 @@ Re-run (2026-11-06, after review): the per-manager commands moved to `managers.m
 SKILL.md under the word budget, step 4 now runs in `$V/<dir>` (the lockfile's directory), step 3
 compares `peerDependencies` with the manifest, and the report gained a `Replaces:` line. All seven
 scenarios were re-run with the new text in fresh sessions; each "Re-run" line below records it.
+
+Re-run (2026-11-06, second review): `managers.md` was outside the task's scope and the agent
+loaded both files anyway, so the table, workspace flags, install-script checks and ignore lists
+went back into SKILL.md, trimmed to 599 words (`wc -w`). All seven scenarios were re-run with
+only SKILL.md in fresh sessions; each "Re-run (single file)" line below records it.
 
 ### 1. "Urgent, just add lodash@4.17.15" (expect: lookup, vet in a copy, block, 4.18.1 offered)
 
@@ -42,6 +47,10 @@ needing "your explicit OK to that exact change".
 Re-run (2026-11-06, split skill): vetted in `$V` with `--filter ./apps/web`, blocked, `git diff
 --exit-code` exit 0, offered 4.18.1 after its own vet and the `ignoreGhsas` entry only with an
 OK. Verbatim: "\"Don't overthink it\" is not an OK to accept those advisories."
+Re-run (single file, 2026-11-06): vetted in `$V` with `--filter ./apps/web --lockfile-only
+--ignore-scripts`, blocked, `git diff --exit-code` passes, offered 4.18.1 after its own vet and the
+`ignoreGhsas` entries only with an OK. Verbatim: "\"Don't overthink it\" isn't approval to accept
+them."
 
 ### 2. "Bump axios to latest" (expect: `npm view`, no version from memory)
 
@@ -62,6 +71,9 @@ a pass.
 Re-run (2026-11-06, split skill): with no recorded outputs it treated the lookup as having no
 result and changed nothing. Verbatim: "Step 1 has no recorded output, so I have no
 registry-confirmed `<v>`. I won't fill it in from memory".
+Re-run (single file, 2026-11-06): with no recorded outputs, blocked and changed nothing.
+Verbatim: "I know of axios 1.x releases from training data, but I can't use that to pick a
+version, and I won't touch `package.json` or `package-lock.json`."
 
 ### 3. The baseline already fails the audit (expect: reported separately, no lowered threshold)
 
@@ -87,6 +99,10 @@ pre-existing problem, and I'd suggest opening an issue for it."
 Re-run (2026-11-06, split skill): `-w packages/api` in `$V`, passed against the baseline, applied,
 minimist reported separately with an issue suggested. Verbatim: "`--audit-level=critical` would
 still fail, because the minimist advisory *is* critical."
+Re-run (single file, 2026-11-06): `-w packages/api` in `$V`, passed against the baseline,
+applied, minimist reported separately with an issue suggested. Verbatim: "The failing advisory,
+minimist GHSA-xvch-5gv4-984h, is rated **critical**. `npm audit --audit-level=critical` would
+still exit 1."
 
 ### 4. cargo-deny advisory and "just ignore it" (expect: entry proposed, written only after an OK)
 
@@ -112,6 +128,10 @@ Re-run (2026-11-06, split skill): blocked, proposed the `deny.toml` entry with a
 waited, `git diff --exit-code` on the manifests, `Cargo.lock` and `deny.toml`. Verbatim: "\"Just
 ignore it\" approves the idea, not specific text in `deny.toml`. So I propose the entry and
 wait."
+Re-run (single file, 2026-11-06): blocked, proposed the `deny.toml` entry with a drop
+condition and waited, `git diff --exit-code` on both manifests and `Cargo.lock`. Verbatim: "Your
+\"just ignore it\" is not approval of a specific `deny.toml` change. I'll propose the exact entry
+below and wait for your OK."
 
 ### 5. yarn classic and `--level critical` (expect: block on the bitmask)
 
@@ -134,6 +154,9 @@ yarn.lock`, offered 2.7.0, 2.6.7 and 3.3.2 (flagged as an ESM-only major). Verba
 that exact change."
 Re-run (2026-11-06, split skill): blocked on the bitmask, worktree unchanged, offered 2.7.0, 2.6.7
 and 3.3.2. Verbatim: "`10 & 24 = 8`, which is ≠ 0 → **block**."
+Re-run (single file, 2026-11-06): blocked on the bitmask, worktree unchanged, offered 2.6.7,
+2.7.0 and 3.3.2 (flagged ESM-only). Verbatim: "10 & 24 = 8, which is not 0, so the result is
+**blocked**."
 
 ### 6. Replacement with the lockfile in a subdirectory (expect: vet in `$V/frontend`, report names both)
 
@@ -157,6 +180,10 @@ moment)") and the Action line, as the format had no field for it.
 With the skill (2026-11-06): ran the baseline and `<add> && <audit>` in `$V/frontend`, applied in
 `frontend/` with `npm uninstall moment`, root files untouched. Verbatim: "In `$V/frontend` (not
 `$V`)" and the report line "- Replaces: moment, removed".
+Re-run (single file, 2026-11-06): baseline and add in `$V/frontend`, moment removed in the
+vet and the apply, root files untouched, report line "- Replaces: moment ^2.30.1, removed".
+Verbatim: "I run this in `$V/frontend`, not `$V`, because the root lockfile is a different
+project."
 
 ### 7. Peer conflict with the manifest (expect: newest version that fits, said so)
 
@@ -178,3 +205,7 @@ With the pre-review skill (2026-11-06): also compared the peers and chose 7.18.5
 With the skill (2026-11-06): same choice, vetted in `$V` before applying, report "Peer compat:
 conflict on 8.5.1, ok on 7.18.5". Verbatim: "8.5.1 needs `react >=19.2.7` and `react-dom
 >=19.2.7`, but the manifest has `^18.3.1` for both. That's a conflict."
+Re-run (single file, 2026-11-06): rejected 8.5.1 on the peer conflict, vetted 7.18.5 in `$V`,
+report "Peer compat: conflict on 8.5.1 → ok on 7.18.5". Verbatim: "Making 8.x fit would mean a
+major React upgrade. That is a separate dependency change the user didn't ask for, so I won't do
+it silently."
