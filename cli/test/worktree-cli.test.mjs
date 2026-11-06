@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -26,6 +26,32 @@ function git(cwd, ...args) {
 
 function baton(cwd, ...args) {
   return spawnSync(process.execPath, [cli, ...args], { cwd, env, encoding: 'utf8' });
+}
+
+/**
+ * A fake `gh` first on PATH: it logs each call to <dir>/gh.log and answers as user `me`, who
+ * already holds the claim on any issue `issue view` asks for (titled `title`).
+ */
+function withFakeGh(dir, { title = 'Task' } = {}) {
+  const bin = join(dir, 'bin');
+  mkdirSync(bin, { recursive: true });
+  const log = join(dir, 'gh.log');
+  const issue = { number: 12, title, body: '', state: 'OPEN', assignees: [], labels: [], url: '', comments: [{ author: { login: 'me' }, body: '<!-- baton:claim user=me nonce=abc -->' }] };
+  writeFileSync(
+    join(bin, 'gh'),
+    `#!${process.execPath}
+const a = process.argv.slice(2);
+require('fs').appendFileSync(${JSON.stringify(log)}, a.join(' ') + '\\n');
+if (a[0] === 'api') console.log('me');
+else if (a[0] === 'issue' && a[1] === 'list') console.log('[]');
+else if (a[0] === 'issue' && a[1] === 'view') console.log(${JSON.stringify(JSON.stringify(issue))});
+`,
+  );
+  chmodSync(join(bin, 'gh'), 0o755);
+  return {
+    log: () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : []),
+    run: (cwd, ...args) => spawnSync(process.execPath, [cli, ...args], { cwd, env: { ...env, PATH: `${bin}:${env.PATH}` }, encoding: 'utf8' }),
+  };
 }
 
 /** A clone of a bare "origin" whose main holds `config` as .baton/config.json (none if null). */
@@ -85,14 +111,54 @@ test('worktree_add_is_idempotent', (t) => {
 
 test('worktree_add_checks_out_existing_branch', (t) => {
   const { root, base } = repo(t);
-  git(root, 'branch', 'orgs-spec');
-  git(root, 'commit', '-q', '--allow-empty', '-m', 'on main only');
+  // The existing branch carries its own commit, so a branch recreated from origin/main would differ.
+  git(root, 'checkout', '-qb', 'orgs-spec');
+  git(root, 'commit', '-q', '--allow-empty', '-m', 'wip');
+  git(root, 'checkout', '-q', 'main');
   const tip = git(root, 'rev-parse', 'orgs-spec');
+  assert.notEqual(tip, git(root, 'rev-parse', 'origin/main'));
   const res = baton(root, 'worktree', 'add', 'orgs-spec', '--json');
   assert.equal(res.status, 0, res.stderr);
   const path = join(base, 'orgs-spec');
   assert.deepEqual(JSON.parse(res.stdout), { path, branch: 'orgs-spec', created: true });
   assert.equal(git(path, 'rev-parse', 'HEAD'), tip, 'the existing branch is checked out, not recreated');
+});
+
+test('worktree_add_setup_failure_keeps_worktree', (t) => {
+  const { root, base } = repo(t, { setup: [{ name: 'boom', run: 'exit 1' }] });
+  const res = baton(root, 'worktree', 'add', 'x', '--setup');
+  assert.notEqual(res.status, 0);
+  assert.match(res.stderr, /Setup failed/);
+  assert.ok(existsSync(join(base, 'x')), 'the worktree is kept');
+});
+
+test('worktree_add_refuses_the_base_branch_and_the_main_checkout_branch', (t) => {
+  const { root, base } = repo(t);
+  const onBase = baton(root, 'worktree', 'add', 'main');
+  assert.notEqual(onBase.status, 0);
+  assert.match(onBase.stderr, /base branch/);
+  git(root, 'checkout', '-qb', 'spec-release-phase');
+  const onMain = baton(root, 'worktree', 'add', 'spec-release-phase');
+  assert.notEqual(onMain.status, 0);
+  assert.match(onMain.stderr, /main checkout/);
+  assert.ok(!existsSync(base), 'no worktree was made');
+});
+
+test('worktree_add_refuses_a_path_another_worktree_holds', (t) => {
+  const { root, base } = repo(t);
+  git(root, 'worktree', 'add', '-q', '-b', 'task/12-x', join(base, 'task-12-x'), 'main');
+  const res = baton(root, 'worktree', 'add', 'task-12-x');
+  assert.notEqual(res.status, 0);
+  assert.match(res.stderr, /task\/12-x/);
+  assert.equal(git(root, 'branch', '--list', 'task-12-x'), '', 'no branch was created');
+});
+
+test('worktree_add_warns_when_the_remote_base_is_missing', (t) => {
+  const { root, base } = repo(t, { git: { remote: 'nope' } });
+  const res = baton(root, 'worktree', 'add', 'offline');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stderr, /local main/);
+  assert.ok(existsSync(join(base, 'offline')));
 });
 
 test('worktree_add_setup_only_with_flag', (t) => {
@@ -136,6 +202,37 @@ test('worktree_remove_by_task_number_still_works', (t) => {
   const res = baton(root, 'worktree', 'remove', '12');
   assert.equal(res.status, 0, res.stderr);
   assert.ok(!existsSync(path));
+});
+
+test('worktree_remove_by_numeric_name', (t) => {
+  const { root, base } = repo(t);
+  assert.equal(baton(root, 'worktree', 'add', '2027').status, 0);
+  const res = baton(root, 'worktree', 'remove', '2027');
+  assert.equal(res.status, 0, res.stderr);
+  assert.ok(!existsSync(join(base, '2027')));
+});
+
+test('start_reuses_the_task_worktree_after_a_title_change', (t) => {
+  const { dir, root, base } = repo(t);
+  const path = join(base, 'task-12-old');
+  git(root, 'worktree', 'add', '-q', '-b', 'task/12-old', path, 'main');
+  const gh = withFakeGh(dir, { title: 'New title' });
+  const res = gh.run(root, 'start', '12', '--no-baseline', '--json');
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(JSON.parse(res.stdout).path, path);
+  assert.equal(git(root, 'branch', '--list', 'task/12-*'), '+ task/12-old', 'no new task branch');
+});
+
+test('init_labels_use_the_config_just_written', (t) => {
+  const { dir, root, base } = repo(t, { tasks: { repo: 'org/old' } });
+  const path = join(base, 'adopt');
+  git(root, 'worktree', 'add', '-q', '-b', 'adopt', path, 'main');
+  const gh = withFakeGh(dir);
+  const res = gh.run(path, 'init', '--force', '--labels');
+  assert.equal(res.status, 0, res.stderr);
+  const creates = gh.log().filter((l) => l.startsWith('label create'));
+  assert.ok(creates.length > 0, 'labels were ensured');
+  assert.ok(creates.every((l) => !l.includes('org/old')), creates.join('\n'));
 });
 
 test('init_writes_into_current_worktree', (t) => {

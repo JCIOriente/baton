@@ -36,7 +36,7 @@ import {
   statusOf,
   unblockable,
 } from './lib/tasks.mjs';
-import { BatonError, print, runShell, slugify } from './lib/util.mjs';
+import { BatonError, deepMerge, print, runShell, slugify } from './lib/util.mjs';
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -170,7 +170,8 @@ function init(argv) {
   mkdirSync(join(top, CONFIG_DIR), { recursive: true });
   writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
   for (const d of [config.docs.specs, config.docs.plans]) mkdirSync(join(top, d), { recursive: true });
-  if (values.labels) getProvider(loadConfig().config, root).ensureLabels();
+  // The config just written, not loadConfig(): that reads the main checkout's file.
+  if (values.labels) getProvider(deepMerge(DEFAULT_CONFIG, config), root).ensureLabels();
   print(values.json ? config : `Wrote ${relative(top, path)}\n${JSON.stringify(config, null, 2)}`);
 }
 
@@ -399,17 +400,28 @@ function start(argv) {
  * branch is checked out, otherwise the branch starts from the remote base with no upstream.
  */
 function createWorktree(root, config, branch) {
-  const existing = listWorktrees(root).find((w) => w.branch === branch);
+  const worktrees = listWorktrees(root);
+  const existing = worktrees.find((w) => w.branch === branch);
   if (existing) return { path: existing.path, created: false };
   const path = join(worktreeBase(root, config), branch.replace(/\//g, '-'));
-  const { remote, baseBranch } = config.git;
-  git(['fetch', remote, baseBranch], { cwd: root, allowFail: true });
-  const remoteBase = git(['rev-parse', '--verify', '--quiet', `${remote}/${baseBranch}`], { cwd: root, allowFail: true });
-  const base = remoteBase.code === 0 ? `${remote}/${baseBranch}` : baseBranch;
+  // Checked before git runs, so a clash never leaves a new branch behind.
+  const occupant = worktrees.find((w) => w.path === path);
+  if (occupant || existsSync(path)) {
+    throw new BatonError(`${path} is already taken${occupant ? ` by the worktree on ${occupant.branch ?? '(detached HEAD)'}` : ''}`, { hint: 'Pick another name.' });
+  }
   const localBranch = git(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: root, allowFail: true });
   mkdirSync(dirname(path), { recursive: true });
-  if (localBranch.code === 0) git(['worktree', 'add', path, branch], { cwd: root });
-  else git(['worktree', 'add', '--no-track', '-b', branch, path, base], { cwd: root });
+  if (localBranch.code === 0) {
+    git(['worktree', 'add', path, branch], { cwd: root });
+    return { path, created: true };
+  }
+  const { remote, baseBranch } = config.git;
+  const fetched = git(['fetch', remote, baseBranch], { cwd: root, allowFail: true }).code === 0;
+  const remoteBase = git(['rev-parse', '--verify', '--quiet', `${remote}/${baseBranch}`], { cwd: root, allowFail: true });
+  const base = remoteBase.code === 0 ? `${remote}/${baseBranch}` : baseBranch;
+  if (remoteBase.code !== 0) process.stderr.write(`warning: ${remote}/${baseBranch} not found; branching from the local ${baseBranch}.\n`);
+  else if (!fetched) process.stderr.write(`warning: could not fetch ${remote}/${baseBranch}; branching from the last fetched ${base}.\n`);
+  git(['worktree', 'add', '--no-track', '-b', branch, path, base], { cwd: root });
   return { path, created: true };
 }
 
@@ -425,6 +437,12 @@ function worktree(argv) {
   if (sub === 'add') {
     const branch = slugify(positionals[0] ?? '');
     if (!branch) throw new BatonError('Expected a worktree name with letters or digits, e.g. `baton worktree add orgs-spec`');
+    if (branch === config.git.baseBranch) {
+      throw new BatonError(`'${branch}' is the base branch`, { hint: 'Pick another name; work on the base branch goes through a branch of its own.' });
+    }
+    if (listWorktrees(root).some((w) => w.branch === branch && w.path === root)) {
+      throw new BatonError(`Branch ${branch} is checked out in the main checkout`, { hint: `Switch the main checkout back to ${config.git.baseBranch}, or pick another name.` });
+    }
     const { path, created } = createWorktree(root, config, branch);
     if (values.setup && !runSteps(config.setup, path, 'setup').ok) {
       throw new BatonError(`Setup failed in ${path}`, { hint: 'Fix the setup step (see output above), then rerun with --setup. The worktree is kept.' });
@@ -438,7 +456,11 @@ function worktree(argv) {
     const name = n ? null : slugify(positionals[0] ?? '');
     if (!n && !name) throw new BatonError('Expected a task number or worktree name, e.g. `baton worktree remove orgs-spec`');
     const label = n ? `#${n}` : name;
-    const wt = listWorktrees(root).find((w) => (n ? issueFromBranch(config, w.branch) === n : w.branch === name));
+    const all = listWorktrees(root);
+    // An all-digit name from `worktree add` (e.g. 2027) is tried when no task matches the number.
+    const wt = n
+      ? (all.find((w) => issueFromBranch(config, w.branch) === n) ?? all.find((w) => w.branch === slugify(positionals[0])))
+      : all.find((w) => w.branch === name);
     if (!wt) throw new BatonError(`No worktree for ${label}`);
     if (!values.force && hasUncommittedChanges(wt.path)) {
       throw new BatonError(`Worktree for ${label} has uncommitted changes`, { hint: 'Commit or discard them, or pass --force.' });
