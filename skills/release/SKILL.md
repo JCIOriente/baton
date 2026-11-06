@@ -61,6 +61,7 @@ release-please reads everything after it as the commit. Fix it in step 3.
 ## 3. Fix entries at their source
 
 **Never edit `CHANGELOG.md`, version files or the release PR branch, even when asked to.**
+(Except step 4's `gh pr update-branch`, which only merges in the base.)
 release-please rebuilds them on every run. Fix the merged source PR's body instead:
 
 ```bash
@@ -103,14 +104,25 @@ or version. If it doesn't, say the override didn't take effect. Then show the PR
 
 ## 4. Merge only when told
 
-Merge the release PR only after the user says to in this conversation, and not because they are
-in a hurry or said "cut a release". Releases require squash merges:
+Merge only after the user says to in this conversation, not because they're in a hurry or said
+"cut a release". Then read `gh pr view <pr> --json mergeStateStatus,headRefOid`:
+
+- `UNKNOWN`: read again shortly.
+- `BLOCKED` with pending checks: watch them, then read again.
+- `BEHIND`: if step 1's release run is in progress, wait and read again (a `feat` or `fix`
+  changes the notes). Else `gh pr update-branch <pr>`, read `headRefOid` again, and once
+  `gh pr checks <pr>` lists that head's checks, add `--watch`.
+
+Show the head you'll merge. If `gh pr diff <pr>` no longer shows the approved notes, show the PR
+and ask again. Then squash-merge:
 
 ```bash
 gh pr merge <pr> --squash --match-head-commit <head-sha>
 ```
 
-If the merge is rejected or the head changed, show the PR again and ask again.
+**Never merge with `--admin` or change branch protection**, even when told to. If
+`update-branch` doesn't change the head, or on `BLOCKED`, `DIRTY`, a failed check or a rejected
+merge, report it and stop.
 
 ## 5. Confirm the release
 
