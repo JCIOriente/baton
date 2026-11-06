@@ -14,14 +14,14 @@ worktree before it passed the vet**, however urgent or user-named.
 Package, manifest, reason; category only: ask which. Manager: nearest lockfile above the
 manifest. `package-lock.json` npm, `pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry with
 `.yarnrc.yml` or `packageManager: "yarn@2+"`, else classic), `Cargo.lock` cargo. Stop on
-`bun.lock`/`bun.lockb`, two lockfiles in one directory, none, or cargo `registry =`/source
-replacement. `<dir>`: the lockfile's directory. Save `S=$(mktemp -d); cp <manifest> <lockfile>
-"$S"/`.
+`bun.lock`/`bun.lockb`, two in one directory, none, or cargo `registry =`/source replacement.
+`<dir>`: lockfile directory. `<S>`, `<V>`: `mktemp -d` outputs, **typed literally: tool calls
+share no variables**. `cp <manifest> <lockfile> <S>`.
 
 ## 2. Look up
 
 JS: `npm view <pkg> dist-tags` (`latest`, not pre-release), then `npm view <pkg>@<v>
-deprecated`, then `peerDependencies`, one field per call. Berry, registry
+deprecated`, `peerDependencies`, one field per call. Berry, registry
 only in `.yarnrc.yml`: `yarn npm info <pkg> --fields dist-tags,deprecated,peerDependencies
 --json`. cargo: `cargo info <crate>`; yanked: the `<v>` line of `curl -fsS
 https://index.crates.io/<prefix>/<crate>`, all lowercase, prefix `1`, `2`, `3/<first char>` by
@@ -30,16 +30,16 @@ vet fails; empty with exit 0: unset.
 
 ## 3. Peers (JS)
 
-Conflicts with the manifest: newest fitting version, say so.
+Manifest conflict: newest fitting version, say so.
 
 ## 4. Vet in a copy
 
 ```bash
-cd "$(git rev-parse --show-toplevel)"; V=$(mktemp -d); git archive HEAD | tar -x -C "$V"
+cd "$(git rev-parse --show-toplevel)" && git archive HEAD | tar -x -C <V>
 ```
 
-Copy in uncommitted manifests, lockfile, manager config. **In `$V/<dir>`, not `$V`:**
-baseline audit, `<add> && <audit>`, `rm -rf "$V"`. Member: npm `-w <member>`,
+Copy in uncommitted manifests, lockfile, manager config. **`cd <V>/<dir> &&`, not `<V>`:**
+baseline audit, `<add> && <audit>`; `rm -rf <V>`. Member: npm `-w <member>`,
 pnpm `--filter ./<member>`, `yarn workspace <name> add`, cargo `-p <crate>`.
 
 | Manager | Add | Audit; block on exit ≠ 0, error, no report |
@@ -60,8 +60,8 @@ any) not accepted; a peer fit needs another dependency below its latest secure v
 alternatives. Baseline advisories: report separately, suggest an issue.
 
 **Never add an accepted advisory, lower a threshold or pass `--ignore`/`--force` without the
-user's explicit OK to that exact change**, even after "just ignore it". Propose an entry with
-reason and drop condition; wait: cargo `deny.toml` `[advisories] ignore`, else
+user's explicit OK to that exact change**, even after "just ignore it". Propose an entry
+(reason, drop condition); wait: cargo `deny.toml` `[advisories] ignore`, else
 `.cargo/audit.toml`; pnpm `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`; yarn berry
 `npmAuditIgnoreAdvisories` in `.yarnrc.yml`, the numeric `ID` from `--json`, not the GHSA; npm
 and yarn classic: none.
@@ -69,8 +69,8 @@ and yarn classic: none.
 ## 6. Apply
 
 After a pass, in `<dir>`: add (replacing: remove the old), audit (or `baton verify` if it
-runs one); on a failed add or an advisory the copy didn't show, restore both from `$S` (not HEAD).
-Blocked: `cmp` with `$S` passes.
+runs one); on a failed add or advisory the copy didn't show, restore both from `<S>` (not HEAD).
+Blocked: `cmp` with `<S>` passes.
 
 ## 7. Report
 
