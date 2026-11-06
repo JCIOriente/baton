@@ -6,17 +6,27 @@ on:
   push:
     branches: ["<base-branch>"] # baton:init sets git.baseBranch
   workflow_dispatch:
+    inputs:
+      # gh workflow run release.yml -f dry_run=true
+      dry_run:
+        description: "Build and check every package and run the registries' dry-run publish; release and publish nothing"
+        type: boolean
+        default: false
 
 permissions: {}
 
-concurrency:
-  group: release
-  cancel-in-progress: false
+# Concurrency is per job, not per workflow: a dry run must not queue behind or cancel a release,
+# and a publish waiting for approval must not hold up release-please for later pushes.
 
 jobs:
   release-please:
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
+    # One release-please at a time. A dry run never joins this group, even with the job skipped.
+    concurrency:
+      group: ${{ inputs.dry_run && 'release-dry-run' || 'release' }}
+      cancel-in-progress: false
     # The token is an environment secret: only runs on the base branch can read it.
     environment: release
     # release-please acts with RELEASE_PLEASE_TOKEN, not GITHUB_TOKEN, so CI runs on its PR.
@@ -36,17 +46,23 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # Publish jobs: trusted publishing (OIDC), so no registry token is stored. The build-npm and
-  # verify-crates jobs run dependency and build code with no credentials; the publish-npm and
-  # publish-crates jobs, the only ones with id-token, publish what was built and run no
-  # dependency code. Each pair publishes the tag release-please just created, refuses a package
+  # Publishing: trusted publishing (OIDC), so no registry token is stored. build-npm and
+  # verify-crates run dependency and build code with no credentials; publish, the only job with
+  # id-token, publishes what they built and runs no dependency code. publish waits for approval
+  # in the publish environment, so one approval publishes every package. It publishes the tag
+  # release-please just created, checks every package before publishing any, refuses a package
   # version that differs from the tag, and skips a version the registry already has, so
   # re-running a failed job is safe.
+  #
+  # A dry run (dry_run: true) skips release-please, checks the dispatched commit against the
+  # manifest version and runs the registries' dry-run publish, with no token, id-token or approval.
+  # Jobs on the dry-run path use !cancelled(): without a status function, GitHub skips every job
+  # downstream of the skipped release-please.
 
-  # baton:init: keep build-npm and publish-npm only when release.publish has "npm".
+  # baton:init: keep this job only when release.publish has "npm"
   build-npm:
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: ${{ !cancelled() && (needs.release-please.outputs.release_created == 'true' || inputs.dry_run) }}
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
@@ -54,10 +70,12 @@ jobs:
     defaults:
       run:
         shell: bash
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.release-please.outputs.sha }}
+          ref: ${{ inputs.dry_run && github.sha || needs.release-please.outputs.sha }}
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -65,15 +83,23 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - name: Check the version matches the tag
+        id: version
         env:
+          DRY_RUN: ${{ inputs.dry_run }}
           VERSION: ${{ needs.release-please.outputs.version }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
         run: |
           actual=$(node -p "require('./package.json').version")
+          # A dry run has no release: compare with the version release-please last recorded.
+          if [ "$DRY_RUN" = true ]; then
+            VERSION=$(node -p "require('./.release-please-manifest.json')['.']")
+            TAG="v$VERSION"
+          fi
           if [ "$actual" != "$VERSION" ] || [ "$TAG" != "v$VERSION" ]; then
             echo "::error::package.json version $actual, release version $VERSION and tag $TAG must match (tag v<version>)"
             exit 1
           fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       # Only npm repos with a package-lock.json get this install: with pnpm, yarn or bun, replace
       # this step with your package manager's install.
       - if: hashFiles('package-lock.json') != ''
@@ -86,15 +112,165 @@ jobs:
           name: npm-package
           path: ${{ runner.temp }}/pack
           if-no-files-found: error
-          retention-days: 7
+          # GitHub's maximum (the repo's own cap still applies): a re-run after the publish
+          # approval timed out still finds the tarball.
+          retention-days: 90
 
-  # baton:init: keep build-npm and publish-npm only when release.publish has "npm".
-  publish-npm:
-    needs: [release-please, build-npm]
-    if: needs.release-please.outputs.release_created == 'true'
+  # baton:init: keep this job only when release.publish has "crates"
+  verify-crates:
+    needs: release-please
+    if: ${{ !cancelled() && (needs.release-please.outputs.release_created == 'true' || inputs.dry_run) }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    outputs:
+      name: ${{ steps.version.outputs.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.dry_run && github.sha || needs.release-please.outputs.sha }}
+          persist-credentials: false
+      - name: Check the version matches the tag
+        id: version
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          # The package defined by the root Cargo.toml (resolves version.workspace = true).
+          pkg=$(cargo metadata --no-deps --format-version 1 \
+            | jq -c --arg manifest "$PWD/Cargo.toml" '.packages[] | select(.manifest_path == $manifest)')
+          [ -n "$pkg" ] || { echo "::error::root Cargo.toml defines no package"; exit 1; }
+          actual=$(jq -r .version <<<"$pkg")
+          # A dry run has no release: compare with the version release-please last recorded.
+          if [ "$DRY_RUN" = true ]; then
+            VERSION=$(jq -r '."."' .release-please-manifest.json)
+            TAG="v$VERSION"
+          fi
+          if [ "$actual" != "$VERSION" ] || [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::Cargo.toml version $actual, release version $VERSION and tag $TAG must match (tag v<version>)"
+            exit 1
+          fi
+          echo "name=$(jq -r .name <<<"$pkg")" >> "$GITHUB_OUTPUT"
+      # Compiles the crate, so build scripts run here, without credentials. On a dry run,
+      # cargo publish --dry-run packages and compiles the same way, so it replaces cargo package
+      # rather than compiling twice. It needs no token; a version crates.io already has is only a
+      # warning.
+      - name: Package the crate
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          # --locked only when Cargo.lock is tracked: a library need not commit one.
+          locked=()
+          if git ls-files --error-unmatch Cargo.lock >/dev/null 2>&1; then locked=(--locked); fi
+          if [ "$DRY_RUN" = true ]; then
+            cargo publish --dry-run "${locked[@]}"
+          else
+            cargo package "${locked[@]}"
+          fi
+
+  # baton:init: keep this job only when release.publish has "npm"
+  dry-run-npm:
+    needs: build-npm
+    if: ${{ !cancelled() && inputs.dry_run && needs.build-npm.result == 'success' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 15
-    environment: release
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-package
+          path: ${{ runner.temp }}/pack
+      - name: Check the tarball version
+        id: tarball
+        env:
+          VERSION: ${{ needs.build-npm.outputs.version }}
+        run: |
+          # The artifact comes from a job that ran dependency code, so treat its contents as
+          # untrusted: check the file name and package name before using either.
+          set -- "$RUNNER_TEMP"/pack/*.tgz
+          [ "$#" -eq 1 ] || { echo "::error::expected one tarball, found $#"; exit 1; }
+          case "${1##*/}" in
+            *[!A-Za-z0-9@._~-]*|.*|-*) echo "::error::unexpected tarball file name"; exit 1 ;;
+          esac
+          pkg=$(tar -xOf "$1" package/package.json)
+          name=$(node -p "String(JSON.parse(process.argv[1]).name)" "$pkg")
+          name_pattern='^(@[a-z0-9~-][a-z0-9._~-]*/)?[a-z0-9~-][a-z0-9._~-]*$'
+          [[ "$name" =~ $name_pattern ]] || { echo "::error::tarball has an invalid package name"; exit 1; }
+          actual=$(node -p "String(JSON.parse(process.argv[1]).version)" "$pkg")
+          if [ "$actual" != "$VERSION" ]; then
+            echo "::error::tarball version $actual differs from release version $VERSION"
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      # npm refuses even a dry-run publish of a version it already has, which is the usual case
+      # for a dry run between releases: the checks above still ran.
+      - name: Skip a version npm already has
+        id: npm-registry
+        env:
+          NAME: ${{ steps.tarball.outputs.name }}
+          VERSION: ${{ needs.build-npm.outputs.version }}
+        run: |
+          # Exits 0 with empty output for a missing version, and E404 for a missing package.
+          # Only E404 means "not published"; any other failure (network, auth) fails the job.
+          if found=$(npm view "$NAME@$VERSION" version 2>"$RUNNER_TEMP/npm-view.err"); then
+            :
+          elif grep -q E404 "$RUNNER_TEMP/npm-view.err"; then
+            found=""
+          else
+            cat "$RUNNER_TEMP/npm-view.err" >&2
+            echo "::error::could not check npm for $NAME@$VERSION"
+            exit 1
+          fi
+          if [ "$found" = "$VERSION" ]; then
+            echo "$NAME@$VERSION is already on npm; skipping."
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Report the skipped npm dry-run publish
+        if: steps.npm-registry.outputs.published == 'true'
+        env:
+          NAME: ${{ steps.tarball.outputs.name }}
+          VERSION: ${{ needs.build-npm.outputs.version }}
+        run: |
+          echo "::notice::npm dry-run publish skipped: npm already has $NAME@$VERSION and refuses to publish over it, even in a dry run"
+          echo "npm dry-run publish skipped: npm already has $NAME@$VERSION. The tarball checks ran." >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish to npm (dry run)
+        if: steps.npm-registry.outputs.published != 'true'
+        run: |
+          set -- "$RUNNER_TEMP"/pack/*.tgz
+          npm publish "$1" --dry-run --ignore-scripts
+
+  # No status function in if: the implicit success() needs every job in needs to have succeeded,
+  # so nothing is published unless every package built and checked. Never runs on a dry run,
+  # where release-please is skipped. Every step belongs to one target; baton:init deletes the
+  # steps of a target the repo doesn't publish, and the job itself when none is left.
+  publish:
+    needs: [release-please, build-npm, verify-crates]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    # One publish at a time; a pending publish never blocks release-please. A skipped publish
+    # (no release, or a dry run) gets a group of its own, so it never cancels a pending one.
+    concurrency:
+      group: ${{ needs.release-please.outputs.release_created == 'true' && 'publish' || format('publish-skipped-{0}', github.run_id) }}
+      cancel-in-progress: false
+    # Required reviewers on this environment: one approval publishes every package.
+    environment: publish
     permissions:
       contents: read
       id-token: write
@@ -102,12 +278,14 @@ jobs:
       run:
         shell: bash
     steps:
+      # baton:init: keep this step only when release.publish has "npm"
       # Trusted publishing needs npm >= 11.5.1 and Node >= 22.14.0; Node 26 ships both.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26"
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
+      # baton:init: keep this step only when release.publish has "npm"
       - name: Check npm supports trusted publishing
         run: |
           npm_version=$(npm --version)
@@ -115,10 +293,12 @@ jobs:
             echo "::error::npm $npm_version is older than 11.5.1, which trusted publishing needs"
             exit 1
           fi
+      # baton:init: keep this step only when release.publish has "npm"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: npm-package
           path: ${{ runner.temp }}/pack
+      # baton:init: keep this step only when release.publish has "npm"
       - name: Check the tarball version
         id: tarball
         env:
@@ -141,10 +321,32 @@ jobs:
             exit 1
           fi
           echo "name=$name" >> "$GITHUB_OUTPUT"
+      # baton:init: keep this step only when release.publish has "crates"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
+          persist-credentials: false
+      # baton:init: keep this step only when release.publish has "crates"
+      # verify-crates checked this commit; checked again so no registry gets anything unless
+      # every package matches the release. Reads the manifest only: no build code runs here.
+      - name: Check the crate version matches the tag
+        env:
+          VERSION: ${{ needs.release-please.outputs.version }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          pkg=$(cargo metadata --no-deps --format-version 1 \
+            | jq -c --arg manifest "$PWD/Cargo.toml" '.packages[] | select(.manifest_path == $manifest)')
+          [ -n "$pkg" ] || { echo "::error::root Cargo.toml defines no package"; exit 1; }
+          actual=$(jq -r .version <<<"$pkg")
+          if [ "$actual" != "$VERSION" ] || [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::Cargo.toml version $actual, release version $VERSION and tag $TAG must match (tag v<version>)"
+            exit 1
+          fi
+      # baton:init: keep this step only when release.publish has "npm"
       # Asked here, right before publishing, so re-running only this job after a hand publish or an
       # accepted-but-timed-out publish skips instead of failing.
       - name: Skip a version npm already has
-        id: registry
+        id: npm-registry
         env:
           NAME: ${{ steps.tarball.outputs.name }}
           VERSION: ${{ needs.release-please.outputs.version }}
@@ -166,69 +368,9 @@ jobs:
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
-      # No token: npm exchanges the job's OIDC identity and adds provenance for a public repo.
-      - if: steps.registry.outputs.published != 'true'
-        run: |
-          set -- "$RUNNER_TEMP"/pack/*.tgz
-          npm publish "$1" --ignore-scripts
-
-  # baton:init: keep verify-crates and publish-crates only when release.publish has "crates".
-  verify-crates:
-    needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    defaults:
-      run:
-        shell: bash
-    outputs:
-      name: ${{ steps.version.outputs.name }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.release-please.outputs.sha }}
-          persist-credentials: false
-      - name: Check the version matches the tag
-        id: version
-        env:
-          VERSION: ${{ needs.release-please.outputs.version }}
-          TAG: ${{ needs.release-please.outputs.tag_name }}
-        run: |
-          # The package defined by the root Cargo.toml (resolves version.workspace = true).
-          pkg=$(cargo metadata --no-deps --format-version 1 \
-            | jq -c --arg manifest "$PWD/Cargo.toml" '.packages[] | select(.manifest_path == $manifest)')
-          [ -n "$pkg" ] || { echo "::error::root Cargo.toml defines no package"; exit 1; }
-          actual=$(jq -r .version <<<"$pkg")
-          if [ "$actual" != "$VERSION" ] || [ "$TAG" != "v$VERSION" ]; then
-            echo "::error::Cargo.toml version $actual, release version $VERSION and tag $TAG must match (tag v<version>)"
-            exit 1
-          fi
-          echo "name=$(jq -r .name <<<"$pkg")" >> "$GITHUB_OUTPUT"
-      # Compiles the crate, so build scripts run here, without credentials.
-      - run: cargo package
-
-  # baton:init: keep verify-crates and publish-crates only when release.publish has "crates".
-  publish-crates:
-    needs: [release-please, verify-crates]
-    if: needs.release-please.outputs.release_created == 'true'
-    runs-on: ubuntu-26.04
-    timeout-minutes: 15
-    environment: release
-    permissions:
-      contents: read
-      id-token: write
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.release-please.outputs.sha }}
-          persist-credentials: false
+      # baton:init: keep this step only when release.publish has "crates"
       - name: Skip a version crates.io already has
-        id: registry
+        id: crates-registry
         env:
           NAME: ${{ needs.verify-crates.outputs.name }}
           VERSION: ${{ needs.release-please.outputs.version }}
@@ -244,12 +386,26 @@ jobs:
             404) echo "published=false" >> "$GITHUB_OUTPUT" ;;
             *) echo "::error::crates.io returned HTTP $status for $NAME $VERSION"; exit 1 ;;
           esac
-      # A short-lived token from the job's OIDC identity, revoked when the job ends.
+      # baton:init: keep this step only when release.publish has "crates"
+      # A short-lived token from the job's OIDC identity, revoked when the job ends. Asked before
+      # any publish, so a crates.io trusted-publisher mismatch fails before npm gets anything.
       - id: auth
-        if: steps.registry.outputs.published != 'true'
+        if: steps.crates-registry.outputs.published != 'true'
         uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+      # baton:init: keep this step only when release.publish has "npm"
+      # No token: npm exchanges the job's OIDC identity and adds provenance for a public repo.
+      - name: Publish to npm
+        if: steps.npm-registry.outputs.published != 'true'
+        run: |
+          set -- "$RUNNER_TEMP"/pack/*.tgz
+          npm publish "$1" --ignore-scripts
+      # baton:init: keep this step only when release.publish has "crates"
       # --no-verify: verify-crates already compiled the package, so no build code sees the token.
-      - if: steps.registry.outputs.published != 'true'
+      - name: Publish to crates.io
+        if: steps.crates-registry.outputs.published != 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish --no-verify
+        run: |
+          locked=()
+          if git ls-files --error-unmatch Cargo.lock >/dev/null 2>&1; then locked=(--locked); fi
+          cargo publish --no-verify "${locked[@]}"

@@ -6,17 +6,27 @@ on:
   push:
     branches: ["main"] # baton:init sets git.baseBranch
   workflow_dispatch:
+    inputs:
+      # gh workflow run release.yml -f dry_run=true
+      dry_run:
+        description: "Build and check every package and run the registries' dry-run publish; release and publish nothing"
+        type: boolean
+        default: false
 
 permissions: {}
 
-concurrency:
-  group: release
-  cancel-in-progress: false
+# Concurrency is per job, not per workflow: a dry run must not queue behind or cancel a release,
+# and a publish waiting for approval must not hold up release-please for later pushes.
 
 jobs:
   release-please:
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
+    # One release-please at a time. A dry run never joins this group, even with the job skipped.
+    concurrency:
+      group: ${{ inputs.dry_run && 'release-dry-run' || 'release' }}
+      cancel-in-progress: false
     # The token is an environment secret: only runs on the base branch can read it.
     environment: release
     # release-please acts with RELEASE_PLEASE_TOKEN, not GITHUB_TOKEN, so CI runs on its PR.
