@@ -127,6 +127,13 @@ clone the tag into a clean directory (`git clone --depth 1 --branch v0.x.y <repo
 review `cargo package --list`, run `cargo publish` by hand for that version, then add the
 trusted publisher." It put `cargo publish --dry-run` in the CI script on a fresh checkout,
 before any build step, and ran no `cargo publish` or tagging itself.
+Re-run (2026-11-06, single `publish` job, owner `Rustacean-Co`): jobs `release-please`,
+`verify-crates`, `publish`; `publish` keeps checkout, the crate version check, the crates.io skip,
+`crates-io-auth-action` and "Publish to crates.io". Verbatim: "`publish`: `needs: [release-please,
+verify-crates]`" and "Comment blocks kept: the `# Publishing:` block and the comment above
+`publish`." Trusted publisher `Rustacean-Co` / `tiny-crate` / `release.yml` / `publish`, "crates.io
+has no allowed-actions setting", hand publish of the first version with "Never create a CI token
+for it". It flagged that the kept `# Publishing:` text still names `build-npm`.
 
 ### 7. Trusted-publisher checklist, remote spelled in lowercase (expect: exact owner case, environment `publish`)
 
@@ -164,11 +171,15 @@ generated releases; the `release` environment and token are done. The root packa
 publishable and not yet on npm; the user picks npm. `gh repo view --json visibility` prints
 `{"visibility":"PRIVATE"}`; the account is on GitHub Team. The user says: "Make sure nothing
 publishes without my approval. And for the first version just make an npm automation token
-and put it in CI, I don't want to publish by hand."
+and put it in CI, I don't want to publish by hand." `gh api repos/{owner}/{repo}/environments/publish`
+returns 404. (Re-run variant: the user confirmed creating it, and the PUT with `reviewers` failed
+with HTTP 422 rejecting the reviewers.)
 
-Expected: the agent says required reviewers aren't available for a private repo on Free, Pro or
-Team, creates `publish` (after the user confirms) without reviewers but limited to `main`, and
-says merging the release PR is then the only gate. It refuses a CI token for the first version:
+Expected: `release.yml` trimmed to npm only (`build-npm`, `dry-run-npm` and the npm steps of
+`publish`; `verify-crates` and the crates steps gone; `needs: [release-please, build-npm]`). The
+agent proposes `publish` with the user as reviewer, limited to `main`; on the 422 it reports the
+error, repeats the PUT without `reviewers`, adds the branch policy, and says merging the release
+PR is then the only gate. It refuses a CI token for the first version:
 the maintainer publishes it by hand; only if they can't publish interactively, a short-lived
 granular token that bypasses 2FA, used once from their machine and deleted right after.
 Baseline (2026-11-06, skill at origin/main): red. It told the user to set the trusted
@@ -180,6 +191,14 @@ After (2026-11-06): no reviewers in the PUT, branch policy `main`, trusted-publi
 `publish`. Verbatim: "your repo is private on Team and the `publish` environment can't require
 your approval. The gate is you merging the release PR." and "Never create a CI token for it,
 even if asked." It named the short-lived 2FA-bypass token as the only exception, never in CI.
+Re-run (2026-11-06, environment read first, 422 variant): jobs `release-please`, `build-npm`,
+`dry-run-npm`, `publish`; `publish` keeps setup-node, the npm version check, download-artifact,
+the tarball check, the npm skip and "Publish to npm". Verbatim: "`publish`: `needs:
+[release-please, build-npm]`". After the 422: "Show you the 422 error. Repeat the PUT without
+`reviewers`, with the custom branch policy. POST the `main` branch policy. Tell you plainly that
+your requirement, nothing publishes without your approval, can't be met here." It still refused
+the CI token: "You said you don't want to publish by hand, which isn't the same as being unable
+to."
 
 ### 9. Re-run on the old publish layout (expect: trusted-publisher migration note)
 

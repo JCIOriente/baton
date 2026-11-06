@@ -305,11 +305,12 @@ test('releaseFindings_accepts_new_layout', () => {
 });
 
 // The baton:init release step's trim of templates/release/release.yml for `publish`: a marker line
-// deletes the job or step block below it (the comments under the marker, the key or `- ` line, and
-// every more-indented line) unless its target is kept, and kept blocks lose only the marker line.
-// Deleted job names leave `publish`'s `needs:`, and `publish` goes, with the comment above it, when
-// no step is left.
+// deletes the job or step block below it (the comments under the marker, the key or `- ` line, every
+// more-indented line and the blank lines that follow) unless its target is kept, and kept blocks
+// lose only the marker line. Deleted job names leave `publish`'s `needs:`. When no publish step is
+// left, `publish` goes with the comment above it, and so does the `# Publishing:` comment block.
 const INIT_MARKER = /^( *)# baton:init: keep this (job|step) only when release\.publish has "(\w+)"$/;
+const TARGET_JOBS = { npm: ['build-npm', 'dry-run-npm'], crates: ['verify-crates'] };
 const lineIndent = (line) => line.length - line.trimStart().length;
 const trimReleaseTemplate = (yml, publish) => {
   const lines = yml.split('\n');
@@ -324,7 +325,7 @@ const trimReleaseTemplate = (yml, publish) => {
     if (publish.includes(marker[3])) continue;
     const indent = marker[1].length;
     let k = i + 1;
-    while (lineIndent(lines[k]) === indent && lines[k].trim().startsWith('#')) k++;
+    while (k < lines.length && lineIndent(lines[k]) === indent && lines[k].trim().startsWith('#')) k++;
     if (marker[2] === 'job') deletedJobs.push(lines[k].trim().replace(/:$/, ''));
     k++;
     while (k < lines.length && (!lines[k].trim() || lineIndent(lines[k]) > indent)) k++;
@@ -332,19 +333,42 @@ const trimReleaseTemplate = (yml, publish) => {
   }
   const trimmed = out.join('\n').replace(/^( {4}needs: \[)(.*)\]$/m, (_, head, list) => `${head}${list.split(', ').filter((n) => !deletedJobs.includes(n)).join(', ')}]`);
   if (/^ {6}- /m.test(trimmed.split(/^ {2}publish:$/m)[1] ?? '')) return trimmed;
-  // No publish step left: drop `publish` with the comment block above it.
-  return trimmed.replace(/(?:^ {2}#.*\n)*^ {2}publish:\n[\s\S]*$/m, '');
+  return trimmed
+    .replace(/(?:^ {2}#.*\n)*^ {2}publish:\n[\s\S]*$/m, '')
+    .replace(/^ {2}# Publishing:.*\n(?: {2}#.*\n)*\n*/m, '');
+};
+// Job name -> the jobs its `needs:` names, scalar or list form.
+const jobNeeds = (yml) => {
+  const jobs = {};
+  let current = null;
+  for (const line of yml.split(/^jobs:$/m)[1].split('\n')) {
+    const key = line.match(/^ {2}([\w-]+):$/);
+    if (key) jobs[(current = key[1])] = [];
+    const needs = current && line.match(/^ {4}needs: (.*)$/);
+    if (needs) jobs[current] = needs[1].replace(/^\[|\]$/g, '').split(',').map((n) => n.trim());
+  }
+  return jobs;
 };
 
 test('releaseFindings: the release template trimmed by baton:init for each target reports nothing', () => {
   const template = readFileSync(new URL('../../templates/release/release.yml', import.meta.url), 'utf8');
   for (const publish of [['npm', 'crates'], ['npm'], ['crates'], []]) {
     const yml = trimReleaseTemplate(template, publish);
-    assert.doesNotMatch(yml, /baton:init: keep/, `${publish}: no marker left`);
-    const jobs = [...yml.matchAll(/^ {2}([\w-]+):$/gm)].map((m) => m[1]);
-    assert.equal(jobs.includes('publish'), publish.length > 0, `${publish}: publish job`);
-    for (const need of yml.match(/^ {4}needs: \[(.*)\]$/m)?.[1].split(', ') ?? []) assert.ok(jobs.includes(need), `${publish}: publish needs ${need}`);
-    assert.deepEqual(releaseMessages(releaseConfig(publish), releaseRepo(yml)), [], String(publish));
+    const label = `publish ${JSON.stringify(publish)}`;
+    assert.doesNotMatch(yml, /baton:init: keep/, `${label}: no marker left`);
+    const needs = jobNeeds(yml);
+    const jobs = Object.keys(needs);
+    assert.equal(jobs.includes('publish'), publish.length > 0, `${label}: publish job`);
+    if (!publish.length) assert.doesNotMatch(yml, /# Publishing:/, `${label}: no publishing comment`);
+    for (const [target, targetJobs] of Object.entries(TARGET_JOBS)) {
+      const kept = publish.includes(target);
+      for (const name of targetJobs) assert.equal(jobs.includes(name), kept, `${label}: job ${name}`);
+      assert.equal(yml.includes(`name: ${PUBLISH_STEP_NAMES[target]}\n`), kept, `${label}: step ${PUBLISH_STEP_NAMES[target]}`);
+    }
+    for (const [name, list] of Object.entries(needs)) {
+      for (const need of list) assert.ok(jobs.includes(need), `${label}: ${name} needs ${need}`);
+    }
+    assert.deepEqual(releaseMessages(releaseConfig(publish), releaseRepo(yml)), [], label);
   }
 });
 
