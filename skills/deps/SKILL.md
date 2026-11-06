@@ -4,19 +4,19 @@ description: Use when adding, upgrading or replacing a dependency in package.jso
 argument-hint: "<package>[@version]"
 ---
 
-# Vet a dependency
+# Dependencies
 
 **Never write a version you didn't read from the registry in this session, or add it to the
 worktree before it passed the vet**, however urgent or user-named.
 
 ## 1. Identify
 
-Package, manifest, reason; category only: ask which. Manager: nearest lockfile above the
-manifest. `package-lock.json` npm, `pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry with
-`.yarnrc.yml` or `packageManager: "yarn@2+"`, else classic), `Cargo.lock` cargo. Stop on
-`bun.lock`/`bun.lockb`, two in one directory, none, or cargo `registry =`/source replacement.
-`<dir>`: lockfile directory. `<S>`, `<V>`: `mktemp -d` outputs, **typed literally: tool calls
-share no variables**. `cp <manifest> <lockfile> <S>`.
+Package, manifest, reason; category only: ask which. Manager: nearest same-ecosystem lockfile
+at/above the manifest. `package-lock.json` npm, `pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry
+with `.yarnrc.yml` or `packageManager: "yarn@2+"`, else classic), `Cargo.lock` cargo. Stop on
+`bun.lock`/`bun.lockb`, two JS lockfiles in one directory, none, cargo `registry =`/source
+replacement. `<dir>`: lockfile directory. `<S>`, `<V>`: `mktemp -d` outputs, **typed
+literally: tool calls share no variables**. `cp <manifest> <lockfile> <S>`.
 
 ## 2. Look up
 
@@ -34,13 +34,10 @@ Manifest conflict: newest fitting version, say so.
 
 ## 4. Vet in a copy
 
-```bash
-cd "$(git rev-parse --show-toplevel)" && git archive HEAD | tar -x -C <V>
-```
-
-Copy in uncommitted manifests, lockfile, manager config. **`cd <V>/<dir> &&`, not `<V>`:**
-baseline audit, `<add> && <audit>`; `rm -rf <V>`. Member: npm `-w <member>`,
-pnpm `--filter ./<member>`, `yarn workspace <name> add`, cargo `-p <crate>`.
+`cd "$(git rev-parse --show-toplevel)" && git archive HEAD | tar -x -C <V>`; copy in
+uncommitted manifests, lockfile, manager config. **`cd <V>/<dir> &&`, not `<V>`:** baseline
+audit, `<add> && <audit>`; `rm -rf <V>`. Member: npm `-w <member>`, pnpm `--filter ./<member>`,
+`yarn workspace <name> add`, cargo `-p <crate>`.
 
 | Manager | Add | Audit; block on exit ≠ 0, error, no report |
 |---|---|---|
@@ -51,25 +48,27 @@ pnpm `--filter ./<member>`, `yarn workspace <name> add`, cargo `-p <crate>`.
 | cargo | `cargo add <crate>@<v>` | `cargo deny check advisories` with `deny.toml`, else `cargo audit` |
 
 Install scripts (report only): npm `hasInstallScript`, cargo `custom-build` (`cargo
-metadata --format-version 1 --locked`); pnpm, yarn: "not checked".
+metadata --format-version 1 --locked`); pnpm/yarn: "not checked".
 
 ## 5. Decide
 
-Block when: deprecated or yanked; the add failed; a new advisory (JS high or critical, cargo
-any) not accepted; a peer fit needs another dependency below its latest secure version. Offer
+Block when: deprecated or yanked; add failed; new advisory (JS high/critical, cargo any) not
+accepted; peer fit needs another dependency below its latest secure version. Offer
 alternatives. Baseline advisories: report separately, suggest an issue.
 
 **Never add an accepted advisory, lower a threshold or pass `--ignore`/`--force` without the
 user's explicit OK to that exact change**, even after "just ignore it". Propose an entry
 (reason, drop condition); wait: cargo `deny.toml` `[advisories] ignore`, else
-`.cargo/audit.toml`; pnpm `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`; yarn berry
-`npmAuditIgnoreAdvisories` in `.yarnrc.yml`, the numeric `ID` from `--json`, not the GHSA; npm
-and yarn classic: none.
+`.cargo/audit.toml`; pnpm `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`; berry
+`npmAuditIgnoreAdvisories` in `.yarnrc.yml`, the numeric `ID` from `--json`, not the GHSA; npm,
+yarn classic: none.
 
 ## 6. Apply
 
-After a pass, in `<dir>`: add (replacing: remove the old), audit (or `baton verify` if it
-runs one); on a failed add or advisory the copy didn't show, restore both from `<S>` (not HEAD).
+Passed: in `<dir>`, the Add without
+`--package-lock-only`/`--lockfile-only`/`--mode`/`--ignore-scripts` (replacing: remove old),
+then audit (or `baton verify` if it runs one). Failed add, audit error, no report, or advisory
+the copy didn't show: restore both from `<S>` (not HEAD), then JS frozen install (`npm ci`).
 Blocked: `cmp` with `<S>` passes.
 
 ## 7. Report
@@ -80,7 +79,7 @@ Blocked: `cmp` with `<S>` passes.
 - Version: <v>, <why, major bump?>, checked <date>
 - Replaces: <old, removed/n/a>
 - Deprecated: <no/yes: message>   Yanked: <yes/no/n/a>   Peers: <ok/conflict>
-- Audit: <result> (baseline <result>)
+- Audit: <result> (baseline <result>; worktree <result/error>)
 - Install scripts: <new packages/none/not checked>
 Action: <added to/upgraded in/blocked, nothing changed/apply failed: <error>, reverted>
 ```
