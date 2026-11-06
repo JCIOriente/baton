@@ -40,8 +40,8 @@ spec and the stack guides, and nothing else.
    acceptance criteria, or to `validate` if it applies to every change.
 7. Write the plan from `${CLAUDE_PLUGIN_ROOT}/templates/plan.md` to
    `<docs.plans>/YYYY-MM-DD-<topic>.md`. Link the spec. **Write it in a worktree:** the spec's
-   while its branch is unmerged, otherwise a new one from `baton worktree add <topic>-plan`. Never
-   in the main checkout; uncommitted files already there are left alone and reported.
+   while its PR is open (`gh pr view <branch> --json state` says `OPEN`), otherwise a new one
+   from `baton worktree add <topic>-plan`. Never in the main checkout; uncommitted files already there are left alone and reported.
 8. **Self-review:** check that every spec requirement maps to at least one task and that no
    task lacks an acceptance criterion. Check for file-ownership overlaps between parallel
    tasks and for dependency cycles.

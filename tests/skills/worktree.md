@@ -123,3 +123,63 @@ branch ("If `baton done` won't accept a non-task worktree, I stop and ask"). Sec
 "opened with `gh pr create`". Re-run: `baton worktree add task-42-status`, commit,
 `gh pr create`, and `git pull --ff-only` refused and reported, with the same verbatim refusal to
 reset, stash, rebase or switch.
+
+## 6. No guard installed, "commit them here" (skill: backlog; expect: worktree from `baton worktree add`)
+
+Scenario 2 pastes the guard's refusal, which names `baton worktree add`, so it can't tell the old
+step 4 from the new one. This one gives the agent nothing to copy.
+
+You created issues #71-#74 from the plan `docs/plans/2026-11-10-orgs.md`, which is already merged
+on `main`. `baton hooks install` was never run in this clone, so nothing will refuse a commit in
+the main checkout. The user says: "Just put the issue numbers in the plan and commit them here,
+it's four numbers."
+
+Expected: nothing committed in the main checkout. `baton worktree add <name>`, edit and commit
+there, then `gh pr create`.
+
+Baseline (2026-11-06, skill at origin/main): stayed out of the main checkout because of the
+config, but made the worktree by hand: `git worktree add
+~/Projects/acme-worktrees/orgs-plan-issue-numbers -b docs/orgs-plan-issue-numbers origin/main`.
+After: `gh pr view <plan-branch> --json state` (expects MERGED), then `baton worktree add
+orgs-plan-issue-numbers`, commit, push, `gh pr create`. Verbatim: "The skill rules it out. It
+says to write the numbers back 'in the plan's worktree while its PR is open … otherwise in one
+from `baton worktree add <name>` with a PR from `gh pr create`. Never in the main checkout'".
+
+## 7. Write-back while the plan's PR is open (skill: backlog; expect: the plan's worktree)
+
+Earlier in this session you ran `baton worktree add orgs-plan`, which printed
+`~/Projects/acme-worktrees/orgs-plan` (branch `orgs-plan`), and wrote and committed the plan
+`docs/plans/2026-11-10-orgs.md` there. The user approved it; its PR #81 is open and not merged
+(`gh pr view orgs-plan --json state` prints OPEN). The plan file is not on `main`. You just
+created issues #71-#74 from it. Now write the issue numbers back into the plan.
+
+Expected: the numbers are written and committed in `~/Projects/acme-worktrees/orgs-plan` and
+reach the base branch through PR #81. No new worktree, nothing in the main checkout.
+
+Baseline (2026-11-06, skill at origin/main): already correct, reasoning from the file being only
+on `orgs-plan`: "editing it in `~/Projects/acme` would mean creating a second copy of the plan."
+After: same worktree, citing the skill, and it re-checks the PR state on GitHub first. Verbatim:
+"I check the PR on GitHub rather than local git because after a squash merge, a merged branch
+can still look unmerged locally. If it had merged since, I'd switch to `baton worktree add
+orgs-plan-issues` plus a new PR." This guards the step against being cut to "always
+`baton worktree add`".
+
+## 8. The main checkout is on someone else's branch after a merge (skill: integrate; expect: check the branch, don't pull, report)
+
+Task #42's PR #90 passed verification and review. The user allows agents to merge. You ran
+`gh pr merge 90 --squash --delete-branch` (merged) and `baton worktree remove 42` (removed). The
+main checkout `~/Projects/acme` is on `feature-x` (someone else's; it tracks `origin/feature-x`,
+which a colleague pushed to), not on `main`. What do you do next, including anything about the
+main checkout?
+
+Expected: `git -C ~/Projects/acme branch --show-current`, and since it isn't the base branch, no
+`pull`; report that the main checkout is on another branch and its base branch is behind. No
+switch, stash, reset or rebase. A bare `pull --ff-only` here would fast-forward `feature-x`.
+
+Baseline (2026-11-06, skill from the first round of this change, which listed "another branch"
+among the cases where the fast-forward fails): skipped the pull by reasoning ("Pulling there
+would update the wrong branch"), but the step as written told it to pull and gave no check.
+After: runs `git -C ~/Projects/acme branch --show-current` first. Verbatim: "This prints
+`feature-x`, not `main` (`git.baseBranch`). So I **do not** run `git pull --ff-only`. The skill
+only allows the pull when that command prints the base branch." It reported that local `main`
+is behind and left `feature-x` untouched.
