@@ -11,9 +11,9 @@ worktree before it passed the vet**, however urgent or user-named.
 
 ## 1. Identify
 
-Package, manifest, reason; category only: ask which. Manager: nearest lockfile of its
-ecosystem. `package-lock.json` npm, `pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry with
-`.yarnrc.yml` or `packageManager: "yarn@2+"`, else classic), `Cargo.lock` cargo. Stop on
+Package, manifest, reason; category only: ask which. Manager: nearest same-ecosystem lockfile
+at/above the manifest. `package-lock.json` npm, `pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry
+with `.yarnrc.yml` or `packageManager: "yarn@2+"`, else classic), `Cargo.lock` cargo. Stop on
 `bun.lock`/`bun.lockb`, two JS lockfiles in one directory, none, cargo `registry =`/source
 replacement. `<dir>`: lockfile directory. `<S>`, `<V>`: `mktemp -d` outputs, **typed
 literally: tool calls share no variables**. `cp <manifest> <lockfile> <S>`.
@@ -48,7 +48,7 @@ audit, `<add> && <audit>`; `rm -rf <V>`. Member: npm `-w <member>`, pnpm `--filt
 | cargo | `cargo add <crate>@<v>` | `cargo deny check advisories` with `deny.toml`, else `cargo audit` |
 
 Install scripts (report only): npm `hasInstallScript`, cargo `custom-build` (`cargo
-metadata --format-version 1 --locked`); pnpm, yarn: "not checked".
+metadata --format-version 1 --locked`); pnpm/yarn: "not checked".
 
 ## 5. Decide
 
@@ -65,10 +65,11 @@ yarn classic: none.
 
 ## 6. Apply
 
-After a pass, in `<dir>`: the Add without `--package-lock-only`, `--lockfile-only`, `--mode`,
-`--ignore-scripts` (replacing: remove old), then audit (or `baton verify` if it runs one).
-Failed add, audit error, no report, or advisory the copy didn't show: restore both from `<S>`
-(not HEAD). Blocked: `cmp` with `<S>` passes.
+Passed: in `<dir>`, the Add without
+`--package-lock-only`/`--lockfile-only`/`--mode`/`--ignore-scripts` (replacing: remove old),
+then audit (or `baton verify` if it runs one). Failed add, audit error, no report, or advisory
+the copy didn't show: restore both from `<S>` (not HEAD), then JS frozen install (`npm ci`).
+Blocked: `cmp` with `<S>` passes.
 
 ## 7. Report
 

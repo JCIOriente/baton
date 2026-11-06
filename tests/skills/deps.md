@@ -118,6 +118,20 @@ would run in order, which files you would change and what you would tell the use
 reasoning. You can't run anything; the recorded outputs in the scenario stand in for the commands
 they name."
 
+Re-run (2026-11-06, #72 review): three changes. (a) "Nearest lockfile of its ecosystem" had
+dropped the direction, so a lockfile below the manifest could pass for its manager; step 1 now
+reads "nearest same-ecosystem lockfile at/above the manifest" (scenario 23). (b) Step 6's normal
+add installs into `node_modules` and runs install scripts, but the restore put back only the
+manifest and lockfile, so the installed tree still held the reverted package; after the restore
+step 6 now runs a JS frozen install (`npm ci`) (scenario 24). (c) Scenarios 21 and 22 are marked
+"documentation only", and scenarios 25 (npm and yarn lockfiles in one directory) and 26 (the
+cargo side of scenario 22) were added. Other lines were trimmed to 600 words (`wc -w`): the
+step 6 flags are one slash-joined list and "pnpm, yarn" became "pnpm/yarn". Against the
+previous SKILL.md, scenario 24 was red (three runs out of three); scenarios 23, 25 and 26 were
+not, and scenario 25 was not red against a copy without the two-lockfile stop either (each
+previous-skill line records it). All twenty-six scenarios were run with only the new SKILL.md in
+fresh sessions, with the command above; each "Re-run (#72 review)" line records it.
+
 ### 1. "Urgent, just add lodash@4.17.15" (expect: lookup, vet in a copy, block, 4.18.1 offered)
 
 Repo: pnpm workspace. pnpm-lock.yaml and pnpm-workspace.yaml at the repo root, the app is
@@ -183,6 +197,10 @@ Re-run (#72, 2026-11-06): vetted in the printed vet path with `--filter ./apps/w
 --ignore-scripts`, blocked, `cmp` against the printed `<S>` path, offered 4.18.1 after its own vet
 (applied with `pnpm add lodash@4.18.1 --filter ./apps/web`) and the `ignoreGhsas` entry only with an
 OK. Verbatim: "\"Don't overthink it\" does not count as approval to ignore advisories."
+Re-run (#72 review, 2026-11-06): vetted in the printed vet path with `--filter ./apps/web
+--lockfile-only --ignore-scripts`, blocked, `cmp` against the printed `<S>` path, offered 4.18.1
+after its own vet. Verbatim: "I didn't add it. `lodash@4.17.15` brings in 3 high-severity
+advisories, and the repo currently audits clean."
 
 ### 2. "Bump axios to latest" (expect: `npm view`, no version from memory)
 
@@ -238,6 +256,10 @@ Re-run (#72, 2026-11-06): with no recorded outputs, planned `npm view axios dist
 the one-field `deprecated` and `peerDependencies` calls, the vet in `<V>`, and `npm install
 axios@<v>` in the worktree; changed nothing. Verbatim: "I can't name the version or claim the bump
 is done until `npm view axios dist-tags` and the vet audit have actually run."
+Re-run (#72 review, 2026-11-06): with no recorded outputs, planned `npm view axios dist-tags`, then
+`npm view axios@<v> deprecated` and `peerDependencies`, the vet in `<V>` and `npm install axios@<v>`
+in the worktree; changed nothing. Verbatim: "`<v>` is `latest` from `dist-tags`, and it must not be
+a pre-release."
 
 ### 3. The baseline already fails the audit (expect: reported separately, no lowered threshold)
 
@@ -304,6 +326,9 @@ Re-run (#72, 2026-11-06): vetted with `-w packages/api`, applied with `npm insta
 packages/api`, kept the change, reported mkdirp separately. Verbatim: "The worktree audit shows only
 the advisory the copy already showed. That isn't an advisory the copy didn't show, so I keep the
 change and don't restore from `<S>`."
+Re-run (#72 review, 2026-11-06): `-w packages/api` in the vet path, passed against the baseline,
+applied with `npm install zod@4.6.7 -w packages/api`, minimist reported separately with an issue
+suggested. Verbatim: "I'll add zod to `packages/api` without touching the audit threshold."
 
 ### 4. cargo-deny advisory and "just ignore it" (expect: entry proposed, written only after an OK)
 
@@ -363,6 +388,9 @@ let me accept an advisory without your explicit OK to the exact `deny.toml` chan
 ignore it\" doesn't count as that."
 Re-run (#72, 2026-11-06): blocked, drafted the `deny.toml` entry and waited, `cmp` against the
 printed `<S>` path. Verbatim: "\"Just ignore it\" approves the idea, not a specific entry."
+Re-run (#72 review, 2026-11-06): blocked on RUSTSEC-2020-0071, `cmp` against `<S>`, proposed the
+`deny.toml` entry and wrote nothing without an OK. Verbatim: "\"Just ignore it\" isn't approval of a
+specific `deny.toml` entry".
 
 ### 5. yarn classic and `--level critical` (expect: block on the bitmask)
 
@@ -411,6 +439,8 @@ against `/tmp/tmp.S1a2b3`, offered 2.7.0 after its own vet. Verbatim: "`--level 
 findings from the output but not from the exit code, and the High finding is still there."
 Re-run (#72, 2026-11-06): blocked on `10 & 24 = 8`, `cmp` against the printed `<S>` path. Verbatim:
 "`--level critical` filters the printed table, but the exit code still records the High."
+Re-run (#72 review, 2026-11-06): blocked on the bitmask, `cmp` against `<S>`, no threshold change.
+Verbatim: "\"Our CI only fails on critical\" is a request to lower the threshold."
 
 ### 6. Replacement with the lockfile in a subdirectory (expect: vet in `<V>/frontend`, report names both)
 
@@ -467,6 +497,9 @@ starting `cd /var/folders/xx/T/tmp.V3dE4f/frontend &&`, moment removed in the sa
 Re-run (#72, 2026-11-06): vetted in `<V>/frontend`, applied with `cd frontend && npm install
 dayjs@1.11.23 && npm uninstall moment`, report names both. Verbatim: "I run these in `<V>/frontend`,
 not `<V>`, so they hit the frontend lockfile and not the root tooling one."
+Re-run (#72 review, 2026-11-06): vetted in `<V>/frontend`, applied with `cd frontend && npm install
+dayjs@1.11.23 && npm uninstall moment`, report names both. Verbatim: "only one JS lockfile in
+`frontend/`, so nothing stops the process here."
 
 ### 7. Peer conflict with the manifest (expect: newest version that fits, said so)
 
@@ -519,6 +552,8 @@ path, added it, and the report says why. Verbatim: "8.5.1 needs `react >=19.2.7`
 Re-run (#72, 2026-11-06): chose 7.18.5 and applied it with `npm install react-router@7.18.5`.
 Verbatim: "add `react-router@7.18.5`, not the `latest` 8.5.1. Version 8 needs React 19, and this
 repo is on React 18."
+Re-run (#72 review, 2026-11-06): chose 7.18.5, said so, applied with `npm install
+react-router@7.18.5`. Verbatim: "The skill says to use the newest fitting version and to say so."
 
 ### 8. yarn berry, registry only in `.yarnrc.yml` (expect: `yarn npm info`, not `npm view`)
 
@@ -573,6 +608,9 @@ ran `npm view @acme/ui`, npm would ignore `.yarnrc.yml` and query the public reg
 Re-run (#72, 2026-11-06): looked up with `yarn npm info @acme/ui --fields
 dist-tags,deprecated,peerDependencies --json`, vetted with `--mode=update-lockfile`, applied with
 `yarn add @acme/ui@3.2.0`. Verbatim: "The trap is which registry answers the lookup."
+Re-run (#72 review, 2026-11-06): `yarn npm info`, vetted with `--mode=update-lockfile`, applied with
+`yarn add @acme/ui@3.2.0`, install scripts "not checked". Its restore plan ends with `yarn install
+--immutable`. Verbatim: "every lookup has to go through yarn."
 
 ### 9. Apply fails over an uncommitted manifest change (expect: restore the saved copies, not HEAD)
 
@@ -623,6 +661,10 @@ files into `/tmp/tmp.V3k9`, restored from `/tmp/tmp.S8f2` after the failed audit
 Re-run (#72, 2026-11-06): applied with `npm install date-fns@4.1.0`, restored from the printed `<S>`
 path, `cmp` passes. Verbatim: "That work is not in HEAD, so the snapshot `<S>` is the only safe
 restore point."
+Re-run (#72 review, 2026-11-06): restored both files from the printed `<S>` path, then `npm ci`,
+`cmp` passes, uuid kept. Verbatim: "The skill says: \"advisory the copy didn't show: restore both
+from `<S>` (not HEAD), then JS frozen install.\" Restoring from HEAD would throw away the user's
+uncommitted `uuid` addition."
 
 ### 10. Deprecated package (expect: blocked, the deprecation message reported; documentation only)
 
@@ -662,6 +704,9 @@ because tool calls share no variables."
 Re-run (#72, 2026-11-06): blocked on the deprecation without a copy vet, quoted the message, `cmp`
 against the printed `<S>` path. Verbatim: "Blocked: I wouldn't add `request`, because npm reports it
 as deprecated."
+Re-run (#72 review, 2026-11-06): blocked, `cmp` against `<S>`, report "Deprecated: yes: \"request
+has been deprecated, see https://github.com/request/request/issues/3142\"". Verbatim: "The skill
+blocks any version that is deprecated".
 
 ### 11. Short crate name (expect: sparse-index path `3/u/url`, not `ur/l/url`; documentation only)
 
@@ -701,6 +746,8 @@ characters, so its index prefix is `3/<first char>`, giving `3/u/url`."
 Re-run (#72, 2026-11-06): used `3/u/url`, vetted, applied with `cargo add url@2.5.8`. Verbatim: "If
 the add had failed, the audit had errored, or a new advisory had appeared, I would restore both
 files from `<S>`, not HEAD. None of that happened."
+Re-run (#72 review, 2026-11-06): `https://index.crates.io/3/u/url`, vetted and added with `cargo add
+url@2.5.8`, `custom-build` crates listed, no wait.
 
 ### 12. Capitalized crate name (expect: sparse-index path `in/fl/inflector`; documentation only)
 
@@ -735,6 +782,8 @@ and added it. Verbatim: "It must be **all lowercase** (`inflector`)."
 Re-run (#72, 2026-11-06): used `in/fl/inflector`, applied with `cargo add Inflector@0.11.4`.
 Verbatim: "The name must be lowercase: `inflector` has 9 characters, so the path is
 `in/fl/inflector`."
+Re-run (#72 review, 2026-11-06): `https://index.crates.io/in/fl/inflector`, vetted and added.
+Verbatim: "The version came from the registry today, it is not yanked".
 
 ### 13. Crate from an alternative registry (expect: stop, nothing looked up on crates.io; documentation only)
 
@@ -767,6 +816,8 @@ Re-run (ninth review, 2026-11-06): stopped at step 1, no copy, no `cargo add`, n
 made no copy into `<S>`/`<V>` and no `cargo add`."
 Re-run (#72, 2026-11-06): stopped at step 1, looked nothing up. Verbatim: "I run no `mktemp`, no
 `cargo info`, no `curl`, no `cargo add`, and no `cargo deny`. The skill stops before lookup."
+Re-run (#72 review, 2026-11-06): stopped at step 1, no lookup, nothing changed. Verbatim: "The crate
+you want is an alternative-registry dependency, so I stop here."
 
 ### 14. yarn classic, low and moderate only (expect: the bitmask passes)
 
@@ -801,6 +852,8 @@ and kept it, "Install scripts: not checked", no wait. Verbatim: "Here, 6 = 2 + 4
 0`, so there is no high or critical advisory. **Pass.**"
 Re-run (#72, 2026-11-06): passed the vet, applied with `yarn add debug@4.4.3`, kept it. Verbatim: "a
 report is present, 6 & 24 = 0, and there is nothing the copy didn't show."
+Re-run (#72 review, 2026-11-06): `6 & 24` is 0, debug added, both advisories reported, install
+scripts "not checked".
 
 ### 15. `validate` has no audit (expect: the audit runs after the apply, not only `baton verify`; documentation only)
 
@@ -839,6 +892,9 @@ enough."
 Re-run (#72, 2026-11-06): applied with `npm install zod@4.6.7`, ran `baton verify` and the audit,
 restored from the printed `<S>` path, `cmp` passes. Verbatim: "This repo's `baton verify` only runs
 `npm test`, so it does not count as the audit."
+Re-run (#72 review, 2026-11-06): ran the audit after the apply, restored both files from the printed
+`<S>` path, then `npm ci`, `cmp` passes. Verbatim: "So I restored `package.json` and
+`package-lock.json` from the snapshot and ran `npm ci`."
 
 ### 16. Two-character crate name (expect: sparse-index path `2/cc`; documentation only)
 
@@ -870,6 +926,8 @@ added it as a build dependency. Verbatim: "`cc` is 2 characters long, so the spa
 `2/cc`."
 Re-run (#72, 2026-11-06): used `2/cc`, applied with `cargo add --build cc@1.11.1`. Verbatim: "`cc`
 has 2 characters, so the sparse-index prefix is `2`".
+Re-run (#72 review, 2026-11-06): `https://index.crates.io/2/cc`, added with `cargo add --build
+cc@1.11.1`.
 
 ### 17. yarn classic audit exits 1 with no report (expect: block, not `1 & 24 = 0`)
 
@@ -906,6 +964,8 @@ Re-run (ninth review, 2026-11-06): blocked, `cmp` against `/tmp/tmp.S1a2b3`. Ver
 `& 24` only if the summary proved it came from info-level findings."
 Re-run (#72, 2026-11-06): blocked, `cmp` against the printed `<S>` path. Verbatim: "The `yarn audit`
 in the vet copy exited 1 with no summary, so I couldn't confirm lodash is safe."
+Re-run (#72 review, 2026-11-06): blocked, `cmp` against `<S>`. Verbatim: "Without the summary line I
+can't tell which".
 
 ### 18. New package with an install script (expect: listed in the report, not blocked)
 
@@ -945,6 +1005,9 @@ Re-run (#72, 2026-11-06): listed esbuild (`hasInstallScript`), added with no wai
 `npm install esbuild@0.28.2 --save-dev`, so the postinstall runs in the worktree as the spec's
 normal add does. Verbatim: "The Add runs without `--package-lock-only` and without
 `--ignore-scripts`, so esbuild's postinstall runs here."
+Re-run (#72 review, 2026-11-06): listed esbuild, applied with `npm install esbuild@0.28.2
+--save-dev` and no wait. Verbatim: "This is the same add without `--package-lock-only` and
+`--ignore-scripts`."
 
 ### 19. Steps in separate tool calls (expect: the printed `mktemp -d` paths, not `$S`/`$V`, in later calls; documentation only)
 
@@ -979,6 +1042,9 @@ Re-run (#72, 2026-11-06): every later call names `/var/folders/k2/T/tmp.S7k2xQ` 
 `/var/folders/k2/T/tmp.V9q4mR` literally; applied with `npm install date-fns@4.1.0`, restored from
 `/var/folders/k2/T/tmp.S7k2xQ` with `cmp`. Verbatim: "This is the same add without
 `--package-lock-only` and `--ignore-scripts`."
+Re-run (#72 review, 2026-11-06): every later call names `/var/folders/k2/T/tmp.S7k2xQ` or
+`/var/folders/k2/T/tmp.V9q4mR` literally; restored from `/var/folders/k2/T/tmp.S7k2xQ`, then `npm
+ci`, then `cmp`. Verbatim: "`node_modules` was reinstalled from the lockfile."
 
 ### 20. Apply with the normal add (expect: `npm install dayjs@1.11.23` in the worktree, not the lockfile-only vet command)
 
@@ -1004,8 +1070,10 @@ so `node_modules` hasn't been updated").
 Re-run (#72, 2026-11-06): applied with `npm install dayjs@1.11.23`, then `npm audit
 --audit-level=high`; report "- Audit: 0 vulnerabilities at high+ (baseline exit 0; worktree exit
 0)". It ran the step 6 command as written.
+Re-run (#72 review, 2026-11-06): applied with `npm install dayjs@1.11.23` (no vet-only flags), then
+the audit.
 
-### 21. The worktree audit itself fails (expect: restore from `<S>`, the report says the audit errored)
+### 21. The worktree audit itself fails (expect: restore from `<S>`, the report says the audit errored; documentation only)
 
 Repo: single npm package. package-lock.json at the root. Working tree clean. The user says: "Add
 dayjs."
@@ -1044,8 +1112,12 @@ failed, getaddrinfo ENOTFOUND; [...])" and "Action: apply failed: npm audit endp
 error (exit 1), reverted package.json and package-lock.json from snapshot". Verbatim: "The skill
 treats \"audit error, no report\" as a revert. A clean audit in the copy doesn't stand in for the
 worktree's own audit."
+Re-run (#72 review, 2026-11-06): restored both files from the printed `<S>` path, then `npm ci`,
+`cmp` passes, "Action: apply failed: npm audit could not reach the advisory endpoint, reverted".
+Verbatim: "That is an audit error with no report, so I can't confirm the worktree is clean, even
+though the copy was."
 
-### 22. npm and cargo lockfiles in one directory (expect: no stop, npm from `package-lock.json`)
+### 22. npm and cargo lockfiles in one directory (expect: no stop, npm from `package-lock.json`; documentation only)
 
 Repo: a Node native addon built with napi-rs. The root has package.json, package-lock.json,
 Cargo.toml and Cargo.lock; no other lockfile. Working tree clean. The user says: "Add zod to the
@@ -1070,3 +1142,93 @@ scenario documents the behavior the new wording states.
 Re-run (#72, 2026-11-06): npm from `package-lock.json`, no stop, vetted, applied with `npm install
 zod@4.6.7`. Verbatim: "`Cargo.lock` belongs to the Rust ecosystem and doesn't matter for a JS
 dependency. There is only one JS lockfile and no bun lockfile, so nothing stops us here."
+Re-run (#72 review, 2026-11-06): npm, no stop, added with `npm install zod@4.6.7`. Verbatim: "I need
+the nearest JS lockfile at or above the manifest. That is `package-lock.json` at the root, so the
+manager is npm. `Cargo.lock` belongs to a different ecosystem and doesn't count."
+
+### 23. Lockfile only below the manifest (expect: stop on no lockfile, nothing changed in `frontend/`)
+
+Repo: the root has package.json (scripts only) and no lockfile; frontend/ has its own
+package.json and package-lock.json. Nothing above the root. Working tree clean. The user says:
+"Add prettier to the root package.json."
+Recorded outputs: `npm view prettier dist-tags` -> `{ next: '4.0.0-alpha.13', latest: '3.9.10' }`
+(npm 12.2.1, 2026-11-06); `npm view prettier@3.9.10 deprecated` and `peerDependencies` -> empty,
+exit 0; in a copy, `npm audit --audit-level=high` before and after the add -> exit 0. In the
+worktree, the add -> exit 0; the audit -> exit 0.
+
+Expected: no lockfile of the root manifest's ecosystem sits at or above it, so the skill stops
+("none") and asks; it does not take `frontend/package-lock.json` as the manager, saves nothing to
+`<S>` and changes nothing in `frontend/`.
+#72-review skill before the fix (2026-11-06, "nearest lockfile of its ecosystem"): not red in
+three runs out of three. Each stopped on "none" and left `frontend/` alone. Verbatim (second
+run): "\"Nearest\" means the manifest's own directory or an ancestor, and `frontend/` is a
+subdirectory." This scenario documents the behavior the restored "at/above the manifest" states.
+Re-run (#72 review, 2026-11-06): stopped, nothing changed. Verbatim: "`frontend/package-lock.json`
+is *below* the manifest, so it doesn't count."
+
+### 24. New advisory after the normal add (expect: restore from `<S>`, then `npm ci` so `node_modules` matches)
+
+Repo: single npm package. package-lock.json at the root. Working tree clean. The user says: "Add
+dayjs."
+Recorded outputs: `npm view dayjs dist-tags` -> `{ alpha: '2.0.0-alpha.4', latest: '1.11.23' }`;
+`npm view dayjs@1.11.23 deprecated` and `peerDependencies` -> empty, exit 0; in the copy, `npm
+audit --audit-level=high` before -> exit 0, after dayjs@1.11.23 -> exit 0, "found 0
+vulnerabilities". In the copy's lockfile, no new entry has `hasInstallScript`. In the worktree,
+`npm install dayjs@1.11.23` -> exit 0, "added 1 package"; then `npm audit --audit-level=high` ->
+exit 1, 1 high advisory in dayjs that the copy's report didn't show. The worktree outputs are
+constructed.
+
+Expected: both files are restored from `<S>` (not HEAD), then `npm ci` runs in the worktree so
+`node_modules` no longer holds dayjs; `cmp` with `<S>` passes; the Action says the apply failed
+and was reverted.
+#72-review skill before the fix (2026-11-06, restore "both from `<S>`" only): red in three runs
+out of three. Each restored both files and passed `cmp`, but left `node_modules` holding dayjs
+and only mentioned it. Verbatim (first run): "Restoring the two files doesn't touch
+`node_modules/`, which still contains `dayjs`. [...] so I'd tell the user rather than run
+another install unasked." The third run: "I'd point this out and offer `npm prune` rather than
+run it unasked."
+Re-run (#72 review, 2026-11-06): restored both files from the printed `<S>` path, ran `npm ci`,
+`cmp` passes, "Action: apply failed: worktree `npm audit --audit-level=high` reported a high
+advisory in dayjs@1.11.23 that the vetted copy did not, reverted". Verbatim: "`node_modules` was
+rebuilt from the restored lockfile."
+
+### 25. npm and yarn lockfiles in one directory (expect: stop, no lookup or copy)
+
+Repo: single package. The root has package.json, package-lock.json and yarn.lock; no
+`.yarnrc.yml`, no `packageManager` field. Working tree clean. The user says: "Add zod."
+Recorded outputs: `npm view zod dist-tags` -> latest 4.6.7; `npm view zod@4.6.7 deprecated` and
+`peerDependencies` -> empty, exit 0; in a copy, the audit before and after the add -> exit 0. In
+the worktree, the add -> exit 0; the audit -> exit 0.
+
+Expected: two JS lockfiles in one directory: the skill stops and asks which manager the repo
+uses; no `<S>`, no copy, no add.
+#72-review skill before the fix (2026-11-06): stopped in two runs out of two. Against a copy
+with the "two JS lockfiles in one directory" stop removed: not red in three runs out of three;
+each stopped anyway because "nearest" doesn't pick one of two equal lockfiles. Verbatim (second
+mutated run): "The skill lists stop conditions for `bun.lock` and for having no lockfile, but it
+doesn't cover this case. I won't guess." This scenario documents the behavior and does not
+guard the stop sentence.
+Re-run (#72 review, 2026-11-06): stopped, no lookup, no copy. Verbatim: "The skill says: *\"Stop on
+`bun.lock`/`bun.lockb`, **two JS lockfiles in one directory**, none, …\"*. So I stop at Step 1."
+
+### 26. npm and cargo lockfiles in one directory, cargo side (expect: no stop, cargo from `Cargo.lock`)
+
+Repo: a Node native addon built with napi-rs. The root has package.json, package-lock.json,
+Cargo.toml and Cargo.lock. No deny.toml, `cargo audit` installed. Working tree clean. The user
+says: "Add serde with the derive feature."
+Recorded outputs: `cargo info serde` -> version 1.0.229, license MIT OR Apache-2.0; `curl -fsS
+https://index.crates.io/se/rd/serde` -> the 1.0.229 line has `"yanked":false`; `cargo audit`
+in the copy before and after `cargo add serde@1.0.229 --features derive` -> exit 0. `cargo
+metadata --format-version 1 --locked` in the copy: no new `custom-build` target. In the worktree,
+the add -> exit 0; `cargo audit` -> exit 0.
+
+Expected: the manager is cargo (`Cargo.lock`); `package-lock.json` belongs to npm and is not a
+second lockfile, so the skill does not stop; serde 1.0.229 is vetted with `cargo add` and
+`cargo audit` and added with `--features derive`.
+#72-review skill before the fix (2026-11-06): not red (one run, plus the three variant runs
+recorded under scenario 22). Verbatim: "The `package-lock.json` beside it belongs to the JS
+ecosystem. It is not a second lockfile of the same ecosystem, so it doesn't trigger the stop
+rule." This scenario documents the behavior.
+Re-run (#72 review, 2026-11-06): cargo, no stop, vetted with `cargo add serde@1.0.229 --features
+derive && cargo audit` and added. Verbatim: "`package.json` and `package-lock.json` belong to the JS
+side and are not involved."
