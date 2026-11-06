@@ -33,6 +33,10 @@ Can start immediately in parallel: T1, T2, T4
 - Depends on: none
 - Owns: `path/**`
 - Touches (read-only or additive): `path`
+- Interfaces (exact names, signatures, types or endpoints, no bodies; `none` for docs, skill
+  text or config):
+  - Consumes: `name(arg: Type): Return` from `path` (T<N>), spelled as T<N>'s Produces line
+  - Produces: `name(arg: Type): Return`, `METHOD /path` -> `Type`: what later tasks rely on
 - Acceptance:
   - [ ] concrete, checkable criterion
 - Tests first: `test_name_describing_behavior`
@@ -42,3 +46,8 @@ Can start immediately in parallel: T1, T2, T4
 | Spec requirement | Task(s) |
 |---|---|
 | | |
+| Failure mode: <input or condition> | <task>: `<test name>` |
+
+Failure-mode rows: the inputs or conditions the spec implies but no task tests yet, at most 5,
+the most likely first. Add each test to the owning task's Tests first. The spec's silence on an
+input is not permission to break; an empty set means you checked.

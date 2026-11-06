@@ -8,6 +8,11 @@ Spec: <path> · Plan: <path>#t<N>
 - Touches (additive only): `path`
 - Out of scope: <what not to do here>
 
+## Interfaces
+<copied verbatim from the plan's task block, or `none`>
+- Consumes: `name(arg: Type): Return` from `path` (#<issue>)
+- Produces: `name(arg: Type): Return`
+
 ## Acceptance criteria
 - [ ] <checkable criterion>
 

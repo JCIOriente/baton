@@ -39,28 +39,13 @@ spec and the stack guides, and nothing else.
    If a change can break a module that depends on it, add that module's checks to the task's
    acceptance criteria, or to `validate` if it applies to every change.
 7. Write the plan from `${CLAUDE_PLUGIN_ROOT}/templates/plan.md` to
-   `<docs.plans>/YYYY-MM-DD-<topic>.md`. Link the spec. **Write it in a worktree:** the spec's
-   while its PR is open (`gh pr view <branch> --json state` says `OPEN`), otherwise a new one
+   `<docs.plans>/YYYY-MM-DD-<topic>.md`, one task block per task, Interfaces included
+   (`baton:backlog` turns each into an issue). Link the spec.
+   **Write it in a worktree:** the spec's while its PR is open (`gh pr view <branch> --json state` says `OPEN`), otherwise a new one
    from `baton worktree add <topic>-plan`. Never in the main checkout; uncommitted files already there are left alone and reported.
 8. **Self-review:** check that every spec requirement maps to at least one task and that no
    task lacks an acceptance criterion. Check for file-ownership overlaps between parallel
-   tasks and for dependency cycles.
+   tasks and for dependency cycles. For each input class or failure mode the spec implies,
+   some task's tests exercise it; add the five most likely uncovered ones as coverage rows.
 9. Commit in that worktree and ask the user to approve. Then push and open the PR with
    `gh pr create` (or update the spec's open PR), and hand off to `baton:backlog`.
-
-## Task block format
-
-Each task in the plan uses this block, which `baton:backlog` turns into an issue body:
-
-```markdown
-### T3: Organization CRUD API
-- Priority: 1
-- Depends on: T1, T2
-- Owns: `crates/api/src/orgs/**`, `crates/api/tests/orgs.rs`
-- Touches (read-only or additive): `crates/api/src/router.rs`
-- Acceptance:
-  - [ ] `GET /orgs` lists the 18 local organizations, paginated
-  - [ ] non-national roles only see their own organization
-- Tests first: `orgs_list_scoped_to_member_org`, `orgs_create_requires_national_admin`
-- Notes: follow the repository pattern in `crates/api/src/users/`
-```
