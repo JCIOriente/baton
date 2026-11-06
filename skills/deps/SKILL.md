@@ -9,30 +9,29 @@ argument-hint: "<package>[@version]"
 **Never write a version you didn't read from the registry in this session, or add it to the
 worktree before it passed the vet**, however urgent or user-named.
 
+Per-manager commands and lists: `${CLAUDE_PLUGIN_ROOT}/skills/deps/managers.md`; read it
+before step 2.
+
 ## 1. Identify
 
-Package, manifest, reason; for a category ("a date library"), ask which.
+Package, manifest, reason; for a category ("a date library"), ask which. Replacing: the new
+package is the candidate, the old one goes in step 6.
 Manager: nearest lockfile walking up from the manifest. `package-lock.json` npm,
 `pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry with `.yarnrc.yml` or `packageManager: "yarn@2+"`,
 else classic), `Cargo.lock` cargo (`cargo locate-project --workspace`). Stop and report on
-`bun.lock`/`bun.lockb` (unsupported), two lockfiles in one directory, or none.
+`bun.lock`/`bun.lockb` (unsupported), two lockfiles in one directory, or none. `<dir>` below is
+the lockfile's directory, relative to the repo root.
 
 ## 2. Look up
 
-- JS: `npm view <pkg> dist-tags` (`latest`, not a pre-release), then
-  `npm view <pkg>@<v> deprecated` and `npm view <pkg>@<v> peerDependencies`, one field per
-  call (with several, npm prints a bare value when one is set). Berry with a registry only in
-  `.yarnrc.yml`: `yarn npm info <pkg> --fields dist-tags,deprecated,peerDependencies --json`.
-- cargo: `cargo info <crate>` (in a project already using it, the `latest` in parentheses).
-  Yanked: `curl -fsS https://index.crates.io/<prefix>/<crate>`, a JSON line per version;
-  `<prefix>` from the lowercased name: `1`, `2`, `3/<c1>`, else `<c1c2>/<c3c4>` (`se/rd/serde`).
-  No line whose `vers` is `<v>`: the lookup failed. Never the crates.io web API.
-
-Registry error or offline, here or in an audit: the vet fails, no fallback to memory.
+Latest non-pre-release version, deprecated, `peerDependencies` (JS), yanked (cargo), with the
+commands in managers.md. Registry error or offline, here or in an audit: the vet fails, no
+fallback to memory.
 
 ## 3. Peer compatibility (JS)
 
-On a conflict, take the newest version that fits and say so.
+Compare the candidate's `peerDependencies` from step 2 with the versions in the manifest. On a
+conflict, take the newest version that fits and say so.
 
 ## 4. Vet in a throwaway copy
 
@@ -42,24 +41,17 @@ From the repo root (from a subdirectory, `git archive` copies only that subdirec
 cd "$(git rev-parse --show-toplevel)"; V=$(mktemp -d); git archive HEAD | tar -x -C "$V"
 ```
 
-Copy in uncommitted manifests, lockfile and manager config. In `$V`: baseline audit,
-`<add> && <audit>`, `rm -rf "$V"`. Workspace members, from the root: npm `-w <dir>`, pnpm
-`--filter ./<dir>`, yarn `yarn workspace <name> add`, cargo `-p <crate>`.
+Copy in uncommitted manifests, lockfile and manager config. **In `$V/<dir>`, not `$V`:**
+baseline audit, `<add> && <audit>` (a workspace member with its member flag), then
+`rm -rf "$V"`. List install scripts in new packages.
 
-| Manager | Add | Audit, block when |
-|---|---|---|
-| npm | `npm install <pkg>@<v> --package-lock-only --ignore-scripts --no-audit --no-fund` | `npm audit --audit-level=high`, exit ≠ 0 |
-| pnpm | `pnpm add <pkg>@<v> --lockfile-only --ignore-scripts` | `pnpm audit --audit-level=high`, exit ≠ 0 |
-| yarn berry | `yarn add <pkg>@<v> --mode=update-lockfile` | `yarn npm audit --all --recursive --severity high`, exit ≠ 0 |
-| yarn classic | `yarn add <pkg>@<v> --ignore-scripts` | `yarn audit`, `exit & 24` ≠ 0 (a bitmask `--level` doesn't change); counts only with its `N vulnerabilities found` summary, as exit 1 is also a request error |
-| cargo | `cargo add <crate>@<v>` | `cargo deny check advisories` with `deny.toml`, else `cargo audit`; exit ≠ 0 |
+Commands per manager: managers.md. Adds are lockfile-only without scripts (yarn classic
+installs into the copy); audits block at high (cargo: any advisory), exit ≠ 0, except **yarn
+classic: block when `exit & 24` ≠ 0**, whatever `--level` says.
 
 An audit counts only when its output lists the advisories or a summary. An `error` line, an
 endpoint error or no report, in the baseline or after the add, fails the vet with that error
 on the Audit line, never compared with the other run.
-
-Install scripts in new packages: npm `hasInstallScript` in `package-lock.json`; cargo a
-`custom-build` target in `cargo metadata --format-version 1 --locked`; pnpm, yarn "not checked".
 
 ## 5. Decide
 
@@ -69,18 +61,15 @@ dependency below its latest secure version. Offer another version or package. Ba
 advisories: report separately, suggest an issue.
 
 **Never add an accepted advisory, lower a threshold or pass `--ignore`/`--force` without the
-user's explicit OK to that exact change**, even after "just ignore it". Propose the entry with
-a reason and a drop condition, then wait. Lists: `deny.toml` `[advisories] ignore`, else
-`.cargo/audit.toml`; pnpm `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml` (`pnpm audit
---ignore` writes there: don't run it); berry `npmAuditIgnoreAdvisories` in `.yarnrc.yml`, the
-numeric `ID` from `--json`, not the GHSA. npm and classic: none.
+user's explicit OK to that exact change**, even after "just ignore it". Propose the ignore-list
+entry (managers.md) with a reason and a drop condition, then wait.
 
 ## 6. Apply
 
-After a pass only: the manager's normal add in the worktree, then the project's audit or
-`baton verify`; on a new advisory, or if the add or verify fails, revert
-(`git checkout -- <manifest> <lockfile>`) and report it. Blocked: manifest and lockfile stay byte-identical
-(`git diff --exit-code -- <manifest> <lockfile>`). Replacing: remove the old package too.
+After a pass only, in `<dir>`: the manager's normal add (replacing: remove the old package too),
+then the project's audit or `baton verify`; on a new advisory, or if the add or verify fails,
+revert (`git checkout -- <manifest> <lockfile>`) and report it. Blocked: manifest and lockfile
+stay byte-identical (`git diff --exit-code -- <manifest> <lockfile>`).
 
 ## 7. Report
 
@@ -88,6 +77,7 @@ After a pass only: the manager's normal add in the worktree, then the project's 
 ## baton:deps: <package>
 - Manager: <manager> (<lockfile path>)
 - Version chosen: <v>, <why, major bump?> (dist-tag latest, checked <date>)
+- Replaces: <old package, removed/n/a>
 - Deprecated: <yes/no>   Yanked: <yes/no/n/a>   Peer compat: <ok/conflict>
 - Audit: <result> (baseline <result>)
 - Install scripts in new packages: <list/none/not checked>
