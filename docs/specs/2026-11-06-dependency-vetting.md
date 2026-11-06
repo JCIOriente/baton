@@ -1,6 +1,6 @@
 # Dependency vetting — Spec
 
-- Status: draft
+- Status: approved
 - Date: 2026-11-06
 - Owner: Arnold Gandarillas
 - Related: `reviewers/security.md` item 13, `stacks/common.md` § Dependencies
@@ -318,6 +318,7 @@ mechanical part (lookup, copy, chained add and audit, bitmask handling) is a goo
 following "skills decide when and why, `baton` does how".
 
 ## Open questions
+Checked during implementation (plan T1), by running the commands:
 - pnpm 11: where the persistent audit ignore list lives (`auditConfig.ignoreGhsas` in
   `package.json` `pnpm` or in `pnpm-workspace.yaml`). `pnpm audit --ignore <id>` is verified;
   the config key and its location are not.
@@ -331,4 +332,4 @@ following "skills decide when and why, `baton` does how".
   exists, the report says "not checked" for those managers.
 
 ## Implementation status
-- [ ] Plan not written yet.
+- [x] Plan: [docs/plans/2026-11-06-dependency-vetting.md](../plans/2026-11-06-dependency-vetting.md)
