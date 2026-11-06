@@ -7,7 +7,7 @@ argument-hint: "[topic]"
 # Spec
 
 Turn an idea into a spec the user approved. **Hard gate:** no implementation, scaffolding or
-code until the spec is written, self-reviewed and approved.
+code until the spec is written, self-reviewed, builder-checked and approved.
 
 "Too simple to need a spec" is how unexamined assumptions get built. The spec can be five
 lines. It still gets written and approved.
@@ -53,9 +53,15 @@ lines. It still gets written and approved.
    - Domain terms that needed explaining, or that have more than one meaning, go in
      `CONTEXT.md` at the repo root (template: `${CLAUDE_PLUGIN_ROOT}/templates/context.md`).
      Use those terms consistently in the spec, the code and the issues.
-9. **Commit the spec** (with any ADRs and the glossary) in that worktree and ask the user to
-   review the file. Iterate there until they approve. Then push the branch and open the PR with
-   `gh pr create`.
+9. **Builder check, then commit.** Your context fills gaps a builder can't see: dispatch a
+   fresh subagent with `${CLAUDE_PLUGIN_ROOT}/templates/builder-check.md` and only the spec's
+   path (no subagent tool: read it as that builder yourself). Sort its questions: answered by
+   the conversation or code (write the answer in), minor (decide it, mark it as the author's
+   call), or the user's call (it changes what gets built: ask them all in one message).
+   **A default you picked is the author's call, never something the user agreed to.**
+   Commit the spec (with any ADRs and the glossary) in that worktree and ask the user to review
+   the file and your calls. Iterate there until they approve. Then push the branch and open the
+   PR with `gh pr create`.
 10. **Hand off** to `baton:plan`.
 
 ## Design principles
