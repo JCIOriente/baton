@@ -3,6 +3,26 @@
 Generated from PR titles at release by release-please. Versions follow
 [semver](https://semver.org); before 1.0, minor versions may change behavior.
 
+## [0.4.0](https://github.com/JCIOriente/baton/compare/v0.3.0...v0.4.0) (2026-11-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **hooks:** every edit happens in a linked worktree ([#57](https://github.com/JCIOriente/baton/issues/57))
+
+### Features
+
+* **cli:** add hooks.worktreeOnly and baton worktree add ([#55](https://github.com/JCIOriente/baton/issues/55)) ([1671b11](https://github.com/JCIOriente/baton/commit/1671b1196acd819b8138190f98fc9799b56350f5))
+* **cli:** doctor recognises the old publish layout ([#69](https://github.com/JCIOriente/baton/issues/69)) ([56ae6f0](https://github.com/JCIOriente/baton/commit/56ae6f01c3a49e033cfbc319220bb01ed8db3803))
+* **cli:** git worktree guard, baton hooks install, doctor and context checks ([#59](https://github.com/JCIOriente/baton/issues/59)) ([67e323c](https://github.com/JCIOriente/baton/commit/67e323c3a94e5d91db77003f40c78f2a04794038))
+* **deps:** always-on context line and pointers to baton:deps ([#76](https://github.com/JCIOriente/baton/issues/76)) ([e4a3c21](https://github.com/JCIOriente/baton/commit/e4a3c21684b46e1d4674a4f048c723cbee92015a))
+* **deps:** vet dependencies with baton:deps before adding or upgrading them ([#71](https://github.com/JCIOriente/baton/issues/71)) ([0b4e4bd](https://github.com/JCIOriente/baton/commit/0b4e4bdc3a7ef80890955d3fd05df62a03ae3040))
+* **hooks:** every edit happens in a linked worktree ([#57](https://github.com/JCIOriente/baton/issues/57)) ([a4ccb2e](https://github.com/JCIOriente/baton/commit/a4ccb2e4a131781b05a8911c9a896524ecf548ab))
+* **init:** set up the publish environment and print the trusted-publisher checklist ([#73](https://github.com/JCIOriente/baton/issues/73)) ([09d7277](https://github.com/JCIOriente/baton/commit/09d72773f729e6cdcb0fae9f8dc11873fe484c58))
+* **release:** baton:release gates on a dry run and handles approval, registry checks, failures and rollback ([#66](https://github.com/JCIOriente/baton/issues/66)) ([4c1712c](https://github.com/JCIOriente/baton/commit/4c1712c1159f6eea70795908ec7020d9c1d4437a))
+* **release:** one approved publish job, npm before crates, and a dry run ([#68](https://github.com/JCIOriente/baton/issues/68)) ([b1e58df](https://github.com/JCIOriente/baton/commit/b1e58df513225c03261c7e1ebf91451a4a9146f7))
+* **skills:** specs, plans, backlog write-backs and lessons happen in a worktree ([#70](https://github.com/JCIOriente/baton/issues/70)) ([1e3119c](https://github.com/JCIOriente/baton/commit/1e3119cbdf4748d15610be5ad7c3ec2d7312b639))
+
 ## [0.3.0](https://github.com/JCIOriente/baton/compare/v0.2.0...v0.3.0) (2026-11-06)
 
 
