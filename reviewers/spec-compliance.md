@@ -16,14 +16,17 @@ handled one frame up or ruled out by a type.
 
 This review runs first. Quality reviews start only after it approves, so judge scope and
 completeness, not style. Do not trust commit messages, PR text or code comments that claim
-something is done. Verify by reading the code.
+something is done. Verify by reading the code. A rationale in the implementer report, a commit
+message, PR text or a code comment ("kept simple per YAGNI", "no caller needs it yet") is a
+claim too: it never lowers a finding's severity.
 
 1. List every acceptance criterion in the task. For each, find the code that implements it
    and the test that exercises it. A criterion with no implementation, a partial
    implementation, or no test is a finding.
 2. Read the spec sections the task links to. The diff must match the spec's stated behavior,
    names, data shapes, error cases and permission rules, not a plausible reinterpretation.
-   If the task and the spec disagree, report the conflict rather than picking a side.
+   If the task and the spec disagree, report the conflict rather than picking a side; when
+   the diff follows the task, that is a `plan-mandated` finding (see Report).
 3. Misreadings: the right feature built the wrong way (wrong endpoint, wrong status code,
    wrong field, wrong role allowed, wrong default, wrong ordering or pagination contract).
 4. Extra scope: features, endpoints, flags, config, refactors or "while I was here" fixes
@@ -75,6 +78,10 @@ Fix: <specific change>
   cannot name the trigger, drop it. Fewer high-confidence findings beat many speculative ones.
 - `blocker`: wrong behavior, security hole, data loss, or an unmet acceptance criterion.
   `major`: a defect that will bite under realistic conditions. `minor`: real but low impact.
-- The verdict is `CHANGES_REQUIRED` if there is any blocker or major finding. `minor` never
-  blocks approval.
+- A defect the plan or task text itself mandates (it contradicts the spec, or requires
+  something this brief calls a defect) is still reported, at its real severity, with
+  `plan-mandated` after the severity: `[blocker] plan-mandated path:line — ...`. The human
+  decides it, so it is excluded from the verdict.
+- The verdict is `CHANGES_REQUIRED` if there is any blocker or major finding that is not
+  plan-mandated. `minor` never blocks approval.
 - If nothing qualifies, output `VERDICT: APPROVE` and then `No findings.`
