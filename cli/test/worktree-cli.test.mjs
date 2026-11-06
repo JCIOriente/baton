@@ -324,3 +324,45 @@ test('init in the main checkout writes worktreeOnly explicitly', (t) => {
   assert.ok(res.stdout.startsWith('Wrote .baton/config.json\n'), res.stdout);
   assert.deepEqual(JSON.parse(readFileSync(join(root, '.baton/config.json'), 'utf8')).hooks, { factGate: false, worktreeOnly: true });
 });
+
+test('worktree_add_refuses_an_existing_directory', (t) => {
+  const { root, base } = repo(t);
+  mkdirSync(join(base, 'orgs-spec'), { recursive: true });
+  writeFileSync(join(base, 'orgs-spec', 'note.txt'), 'mine\n');
+  const res = baton(root, 'worktree', 'add', 'orgs-spec');
+  assert.notEqual(res.status, 0);
+  assert.match(res.stderr, /already taken/);
+  assert.equal(git(root, 'branch', '--list', 'orgs-spec'), '', 'no branch was created');
+});
+
+test('worktree_add_refuses_the_task_branch_prefix', (t) => {
+  const { root } = repo(t);
+  const res = baton(root, 'worktree', 'add', 'task');
+  assert.notEqual(res.status, 0);
+  assert.match(res.stderr, /prefix/);
+  assert.equal(git(root, 'branch', '--list', 'task'), '', 'no branch was created');
+});
+
+test('worktree_add_reports_a_locked_worktree_whose_directory_is_gone', (t) => {
+  const { root, base } = repo(t);
+  assert.equal(baton(root, 'worktree', 'add', 'orgs-spec').status, 0);
+  const path = join(base, 'orgs-spec');
+  git(root, 'worktree', 'lock', path);
+  rmSync(path, { recursive: true, force: true });
+  const res = baton(root, 'worktree', 'add', 'orgs-spec');
+  assert.notEqual(res.status, 0);
+  assert.match(res.stderr, /locked/);
+  assert.match(res.stderr, /git worktree unlock/);
+});
+
+test('worktree_remove_reports_a_locked_worktree_whose_directory_is_gone', (t) => {
+  const { root, base } = repo(t);
+  assert.equal(baton(root, 'worktree', 'add', 'orgs-spec').status, 0);
+  const path = join(base, 'orgs-spec');
+  git(root, 'worktree', 'lock', path);
+  rmSync(path, { recursive: true, force: true });
+  const res = baton(root, 'worktree', 'remove', 'orgs-spec');
+  assert.notEqual(res.status, 0);
+  assert.doesNotMatch(res.stdout, /cleared its record/);
+  assert.match(res.stderr, /git worktree unlock/);
+});

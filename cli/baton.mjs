@@ -402,6 +402,21 @@ function isStale(w) {
 }
 
 /**
+ * Prunes the stale record `w` and returns the worktrees left. git never prunes a locked record,
+ * so one that survives (e.g. a locked worktree on an unmounted drive) is an error, not success.
+ */
+function pruneStale(root, w) {
+  git(['worktree', 'prune'], { cwd: root });
+  const worktrees = listWorktrees(root);
+  if (worktrees.some((x) => x.path === w.path)) {
+    throw new BatonError(`Worktree ${w.path} is missing on disk but its record is locked`, {
+      hint: `Remount it if it lives on a removable drive, or run \`git worktree unlock ${w.path}\` and retry.`,
+    });
+  }
+  return worktrees;
+}
+
+/**
  * The worktree for `branch` under `worktreeBase`: an existing one is reused, an existing local
  * branch is checked out, otherwise the branch starts from the remote base with no upstream.
  * A stale record for the branch is pruned first, so the worktree is made again.
@@ -410,8 +425,7 @@ function createWorktree(root, config, branch) {
   let worktrees = listWorktrees(root);
   let existing = worktrees.find((w) => w.branch === branch);
   if (existing && isStale(existing)) {
-    git(['worktree', 'prune'], { cwd: root });
-    worktrees = listWorktrees(root);
+    worktrees = pruneStale(root, existing);
     existing = worktrees.find((w) => w.branch === branch);
   }
   if (existing) return { path: existing.path, created: false };
@@ -452,6 +466,10 @@ function worktree(argv) {
     if (branch === config.git.baseBranch) {
       throw new BatonError(`'${branch}' is the base branch`, { hint: 'Pick another name; work on the base branch goes through a branch of its own.' });
     }
+    // git cannot hold refs/heads/task next to refs/heads/task/12-x, so the task prefix is off limits.
+    if (`${config.git.branchPrefix}/`.startsWith(`${branch}/`)) {
+      throw new BatonError(`'${branch}' clashes with the task branch prefix '${config.git.branchPrefix}/'`, { hint: 'Pick another name.' });
+    }
     if (listWorktrees(root).some((w) => w.branch === branch && w.path === root)) {
       throw new BatonError(`Branch ${branch} is checked out in the main checkout`, { hint: `Switch the main checkout back to ${config.git.baseBranch}, or pick another name.` });
     }
@@ -476,7 +494,7 @@ function worktree(argv) {
       : all.find((w) => w.branch === name);
     if (!wt) throw new BatonError(`No worktree for ${label}`);
     if (isStale(wt)) {
-      git(['worktree', 'prune'], { cwd: root });
+      pruneStale(root, wt);
       return print(`Worktree ${wt.path} was already missing on disk; cleared its record (branch ${wt.branch} kept).`);
     }
     if (!values.force && hasUncommittedChanges(wt.path)) {
