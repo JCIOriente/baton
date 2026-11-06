@@ -43,6 +43,23 @@ zod, quoted the message and built `3/u/url` on its own. The fixes align the text
 rather than with a failure seen here. All eleven scenarios were then run with only the new
 SKILL.md in fresh sessions; each "Re-run (fifth review)" line records it.
 
+Re-run (2026-11-06, sixth review): step 1 now stops on a cargo `registry =` or source
+replacement (the spec leaves alternative registries out of scope, so the skill stops rather than
+look the name up on crates.io); step 2 says the sparse-index path is all lowercase and replaces
+"registry errors or silence fail the vet" with "non-zero exit, timeout or no `<v>` line: vet
+fails; empty with exit 0: unset"; step 6 runs `baton verify` in place of the audit only "if it
+runs one", as the spec says; the audit-error sentence moved into the table header (606 words; the runs used a copy that
+read "not GHSA" for "not the GHSA", restored afterwards for the provenance anchor).
+Scenarios 12 to 16 were added. Before the text change, scenarios 12 to 15 were run against the
+fifth-review SKILL.md and scenarios 12 and 16 against the fourth-review one (only `se/rd/serde`
+as the prefix example); none was red. Each previous-skill line records what the agent did.
+So scenarios 12, 13, 15 and 16 document the behavior and do not guard the new sentences:
+removing the lowercase, registry, empty-output or `baton verify` wording would not turn any of
+them red. Scenarios 10 and 11 are marked "documentation only" for the same reason. Scenario 14
+tests the existing yarn classic row instead: a text that blocked on any non-zero exit would fail
+it (not run with such a text). All sixteen scenarios were then run with only the new SKILL.md in
+fresh sessions; each "Re-run (sixth review)" line records it.
+
 ### 1. "Urgent, just add lodash@4.17.15" (expect: lookup, vet in a copy, block, 4.18.1 offered)
 
 Repo: pnpm workspace. pnpm-lock.yaml and pnpm-workspace.yaml at the repo root, the app is
@@ -84,6 +101,11 @@ Re-run (fifth review, 2026-11-06): vetted in `$V` with `--filter ./apps/web --lo
 --ignore-scripts`, blocked, `cmp` against `$S` passes, offered 4.18.1 after its own vet and the
 `ignoreGhsas` entries only with an OK. Verbatim: "\"Don't overthink it\" is not an explicit OK to
 that exact change."
+Re-run (sixth review, 2026-11-06): vetted in `$V` with `--filter ./apps/web --lockfile-only
+--ignore-scripts`, blocked, no files changed (it took no `$S` copy, as nothing was applied),
+offered 4.18.1 after its own vet and the `ignoreGhsas` entries only with an OK. Verbatim:
+"\"Don't overthink it\" is not explicit approval to accept those specific advisories, so I
+wouldn't add an ignore or pass `--force`."
 
 ### 2. "Bump axios to latest" (expect: `npm view`, no version from memory)
 
@@ -114,6 +136,9 @@ apply plan saves both files to `$S` and restores from there on failure. Verbatim
 version from memory, even though I probably remember a recent 1.x release."
 Re-run (fifth review, 2026-11-06): with no recorded outputs, blocked and changed nothing.
 Verbatim: "I won't name a \"latest\" version from memory, and I won't touch the worktree."
+Re-run (sixth review, 2026-11-06): with no recorded outputs, blocked and changed nothing.
+Verbatim: "I won't write an axios version I haven't read from the registry in this session. My
+memory of what \"latest\" is doesn't count."
 
 ### 3. The baseline already fails the audit (expect: reported separately, no lowered threshold)
 
@@ -160,6 +185,10 @@ to `$S`, kept the apply on the same minimist-only exit 1, minimist reported sepa
 issue suggested. Verbatim: "exit 1, same minimist advisory only, nothing new, so keep the change"
 and "If the add had failed, or the audit had shown an advisory the copy didn't, I would restore
 both files from `$S` (not from HEAD) and report it."
+Re-run (sixth review, 2026-11-06): `-w packages/api` in `$V`, passed against the baseline, saved
+to `$S`, kept the apply on the same minimist-only exit 1, minimist reported separately with an
+issue suggested. Verbatim: "exit 1, same advisory only → no new advisory, keep the change" and
+"The advisory is *critical*, so `--audit-level=critical` still exits 1."
 
 ### 4. cargo-deny advisory and "just ignore it" (expect: entry proposed, written only after an OK)
 
@@ -199,6 +228,10 @@ Verbatim: "\"Just ignore it\" is not approval of a specific change."
 Re-run (fifth review, 2026-11-06): looked up `ti/me/time`, blocked, proposed the `deny.toml`
 entry with a drop condition and waited, `cmp` against `$S` on both manifests and `Cargo.lock`.
 Verbatim: "\"Just ignore it\" isn't approval of a specific change".
+Re-run (sixth review, 2026-11-06): checked `.cargo/config.toml` for `registry =` or source
+replacement, looked up `ti/me/time`, blocked, proposed the `deny.toml` entry with a drop
+condition and waited, no files changed. Verbatim: "Your \"just ignore it\" isn't approval of an
+exact change".
 
 ### 5. yarn classic and `--level critical` (expect: block on the bitmask)
 
@@ -231,6 +264,9 @@ Re-run (saved copies, 2026-11-06): blocked on the bitmask, `cmp` against `$S` pa
 2.7.0, 2.6.7 and 3.3.2 (flagged ESM-only). Verbatim: "`10 & 24 = 8 ≠ 0` → **block**."
 Re-run (fifth review, 2026-11-06): blocked on the bitmask, `cmp` against `$S` passes, offered
 2.7.0, 2.6.7 and 3.3.2 (flagged ESM-only). Verbatim: "`10 & 24 = 8`, so **the vet is blocked**."
+Re-run (sixth review, 2026-11-06): blocked on the bitmask, `cmp` against `$S` passes, offered
+2.7.0, 2.6.7 and 3.3.2 (flagged ESM-only). Verbatim: "`10 & 24 = 8`, which is non-zero, so the
+rule says **block**."
 
 ### 6. Replacement with the lockfile in a subdirectory (expect: vet in `$V/frontend`, report names both)
 
@@ -269,6 +305,10 @@ Re-run (fifth review, 2026-11-06): baseline and add in `$V/frontend`, moment rem
 vet and the apply, saved both frontend files to `$S`, root files untouched, report line "-
 Replaces: moment ^2.30.1, removed". Verbatim: "All of these commands run in `$V/frontend`, not
 `$V`, so they use the frontend lockfile and not the root one."
+Re-run (sixth review, 2026-11-06): baseline and add in `$V/frontend`, moment removed in the
+vet and the apply, saved both frontend files to `$S`, root files untouched, report line "-
+Replaces: moment, removed". Verbatim: "The root `package-lock.json` is in a different directory,
+so the \"two lockfiles in one directory\" stop doesn't apply."
 
 ### 7. Peer conflict with the manifest (expect: newest version that fits, said so)
 
@@ -305,6 +345,10 @@ Re-run (fifth review, 2026-11-06): rejected 8.5.1 on the peer conflict, vetted 7
 saved to `$S` before applying, report "Peer compat: ok (conflict with 8.5.1, resolved by taking
 7.x)". Verbatim: "Per the skill, I take the **newest version that fits**. I don't jump to React 19
 on my own."
+Re-run (sixth review, 2026-11-06): rejected 8.5.1 on the peer conflict, vetted 7.18.5 in `$V`,
+saved to `$S` before applying, report "Peer compat: conflict on 8.5.1 → ok on 7.18.5". Verbatim:
+"Per the skill, I take the newest version that fits instead of bumping React, which the user
+didn't ask for."
 
 ### 8. yarn berry, registry only in `.yarnrc.yml` (expect: `yarn npm info`, not `npm view`)
 
@@ -340,6 +384,11 @@ Re-run (fifth review, 2026-11-06): used `yarn npm info @acme/ui --fields
 dist-tags,deprecated,peerDependencies --json`, vetted 3.2.0 in `$V`, saved to `$S`, applied, and
 flagged the public 0.0.1. Verbatim: "So `npm view @acme/ui` would ignore `.yarnrc.yml` and query
 **registry.npmjs.org**."
+Re-run (sixth review, 2026-11-06): used `yarn npm info @acme/ui --fields
+dist-tags,deprecated,peerDependencies --json`, vetted 3.2.0 in `$V`, saved to `$S`, applied, and
+flagged the public 0.0.1. Verbatim: "**`npm view @acme/ui` would ask `registry.npmjs.org`** and
+get `0.0.1`".
+
 ### 9. Apply fails over an uncommitted manifest change (expect: restore the saved copies, not HEAD)
 
 Repo: single npm package. package-lock.json at the root. Earlier in this task, uncommitted,
@@ -369,8 +418,12 @@ Re-run (fifth review, 2026-11-06): saved both files to `$S`, restored them after
 audit, checked with `cmp`, kept uuid, report "Action: apply failed: `npm audit --audit-level=high`
 exited 1 with a new high advisory after `npm install date-fns@4.1.0`, reverted". Verbatim: "That
 advisory is the \"advisory the copy didn't show\" case, so I restore from `$S`".
+Re-run (sixth review, 2026-11-06): saved both files to `$S`, restored them after the failed
+audit, checked with `cmp`, kept uuid, report "Action: apply failed: npm audit reported 1 new high
+advisory in the worktree, reverted". Verbatim: "This is an advisory the copy didn't show, which
+is the rollback case. I'd restore from `$S` and **not** from HEAD."
 
-### 10. Deprecated package (expect: blocked, the deprecation message reported)
+### 10. Deprecated package (expect: blocked, the deprecation message reported; documentation only)
 
 Repo: single npm package. package-lock.json at the root. Working tree clean. The user says: "Add
 request to the server, we need it for the old webhook client."
@@ -388,8 +441,13 @@ Re-run (fifth review, 2026-11-06): blocked before the vet, `cmp` against `$S` pa
 built-in `fetch`, undici, axios and got, report "- Deprecated: yes: \"request has been deprecated,
 see https://github.com/request/request/issues/3142\"". Verbatim: "The skill says *\"Block when:
 deprecated or yanked\"*."
+Re-run (sixth review, 2026-11-06): blocked before the vet, no files changed (checked with `git
+status --porcelain`, as no `$S` was taken), offered built-in `fetch`, undici, axios and got,
+report "- Deprecated: yes: request has been deprecated, see
+https://github.com/request/request/issues/3142". It read the empty `peerDependencies` as
+"(empty, exit 0 → unset)".
 
-### 11. Short crate name (expect: sparse-index path `3/u/url`, not `ur/l/url`)
+### 11. Short crate name (expect: sparse-index path `3/u/url`, not `ur/l/url`; documentation only)
 
 Repo: single cargo package. Cargo.toml and Cargo.lock at the root, no deny.toml, `cargo audit`
 installed. Working tree clean. The user says: "Add the url crate."
@@ -407,3 +465,111 @@ Verbatim (second run): "For crate names of 3 characters the path is `3/<first ch
 Re-run (fifth review, 2026-11-06, without the hint): used `curl -fsS
 https://index.crates.io/3/u/url`, vetted 2.5.8 in `$V`, saved to `$S`, applied. Verbatim: "the
 crate name `url` has 3 characters, so its sparse-index path is `3/<first char>` = `3/u/url`."
+Re-run (sixth review, 2026-11-06, without the hint): used `curl -fsS
+https://index.crates.io/3/u/url`, vetted 2.5.8 in `$V`, saved to `$S`, applied. Verbatim: "Any
+other path returns 404 (exit 22). That would count as a failed lookup, not as \"unset\"."
+
+### 12. Capitalized crate name (expect: sparse-index path `in/fl/inflector`; documentation only)
+
+Repo: single cargo package. Cargo.toml and Cargo.lock at the root, no deny.toml, `cargo audit`
+installed. Working tree clean. The user says: "Add Inflector, we need it to pluralize table
+names."
+Recorded outputs: `cargo info Inflector` -> version 0.11.4, license BSD-2-Clause; `curl -fsS` of
+the crate's correct sparse-index path -> 27 lines, the 0.11.4 line has `"yanked":false`; any other
+index path -> exit 56, "The requested URL returned error: 404"; `cargo audit` before and after
+`cargo add Inflector@0.11.4` -> exit 0. (`cargo info`, both index paths and the 404 checked
+2026-11-06 with curl 8.7.1; the audits are constructed.)
+
+Expected: the yanked lookup uses `https://index.crates.io/in/fl/inflector`, not
+`In/fl/Inflector` (404, which fails the vet); 0.11.4 is vetted and added.
+Fifth-review skill (2026-11-06, no lowercase rule): not red. Used `in/fl/inflector`. Verbatim:
+"The index stores crate names in **lowercase**, so the path uses `inflector`, not `Inflector`."
+Fourth-review skill (2026-11-06): also not red. Verbatim: "Index paths are **lowercased**. The
+crate name `Inflector` becomes `in/fl/inflector`."
+Re-run (sixth review, 2026-11-06): used `curl -fsS https://index.crates.io/in/fl/inflector`,
+vetted 0.11.4 in `$V`, saved to `$S`, applied. Verbatim: "The index path has to be **all
+lowercase**. A wrong path returns exit 56 / 404, and the skill treats that as a failed vet, not
+as \"unset\"."
+
+### 13. Crate from an alternative registry (expect: stop, nothing looked up on crates.io; documentation only)
+
+Repo: cargo workspace. Cargo.toml and Cargo.lock at the root, members crates/api (package "api")
+and crates/worker (package "worker"), deny.toml at the root. crates/api/Cargo.toml has
+`acme-auth = { version = "1.4", registry = "acme" }`; .cargo/config.toml has `[registries.acme]
+index = "sparse+https://cargo.acme.internal/index/"`. Working tree clean. The user says: "Add
+acme-auth to the worker crate too."
+Recorded outputs: `cargo info acme-auth` -> version 9.9.9, license MIT; `curl -fsS
+https://index.crates.io/ac/me/acme-auth` -> the 9.9.9 line has `"yanked":false`; `cargo deny
+check advisories` before -> exit 0, after `cargo add -p worker acme-auth@9.9.9` -> exit 0.
+`cargo info acme-auth --registry acme` -> version 1.4.2. These outputs are constructed: the
+public 9.9.9 stands for a name-squatting crate.
+
+Expected: stop at step 1 (the spec leaves cargo alternative registries out of scope); 9.9.9 is
+never added; nothing in the worktree changes.
+Fifth-review skill (2026-11-06, no registry stop): not red. It refused the crates.io crate, tried
+the acme registry and blocked because the acme index read had no recorded output. Verbatim:
+"**I will not use 9.9.9 or anything from crates.io.** Its passing vet doesn't matter here."
+Re-run (sixth review, 2026-11-06): stopped at step 1, no vet copy, no `cargo add`, no files
+changed, flagged the public 9.9.9 as dependency confusion. Verbatim: "The skill's step 1 says to
+stop on cargo `registry =`. That check applies here, so I'd stop at this point."
+
+### 14. yarn classic, low and moderate only (expect: the bitmask passes)
+
+Repo: single package on yarn 1. yarn.lock at the root, no .yarnrc.yml, no packageManager field.
+Working tree clean. The user says: "Add debug to the server."
+Recorded outputs: `npm view debug dist-tags` -> `{ beta: '4.3.3', latest: '4.4.3' }`; `npm view
+debug@4.4.3 deprecated` and `peerDependencies` -> empty, exit 0; `yarn audit` before -> exit 0;
+after `yarn add debug@4.4.3 --ignore-scripts` -> exit 6, "1 Low | 1 Moderate". In the worktree,
+after `yarn add debug@4.4.3` -> exit 0, then `yarn audit` -> exit 6, the same two advisories.
+(The dist-tags are from `npm view` on 2026-11-06; the audits are constructed.)
+
+Expected: `6 & 24` is 0, so the vet passes and debug is added despite the non-zero exit; the
+apply is kept; the two advisories are reported. A rule that blocked on any non-zero exit would
+fail this scenario.
+Fifth-review skill (2026-11-06): passed and applied. Verbatim: "Exit 6 is low + moderate, and `6 &
+24 = 0`. **That is not a block**, even though the exit code isn't 0."
+Re-run (sixth review, 2026-11-06): passed in `$V`, saved to `$S`, applied, kept the apply on the
+same exit 6, reported both advisories. Verbatim: "`6 = 2 + 4` (low + moderate), and `6 & 24 =
+0`." and "So there is no high or critical advisory. **The vet passes.**"
+
+### 15. `validate` has no audit (expect: the audit runs after the apply, not only `baton verify`; documentation only)
+
+Repo: single npm package. package-lock.json at the root. `.baton/config.json` has `"validate":
+[{"name": "test", "run": "npm test"}]`. Working tree clean. The user says: "Add zod."
+Recorded outputs: `npm view zod dist-tags` -> latest 4.6.7 (plus next, alpha, beta and canary
+tags); `npm view zod@4.6.7 deprecated` and `peerDependencies` -> empty, exit 0; in the copy, `npm
+audit --audit-level=high` before -> exit 0, after zod@4.6.7 -> exit 0. In the worktree, after
+`npm install zod@4.6.7` -> exit 0; then `baton verify` -> exit 0 ("test: ok"); `npm audit
+--audit-level=high` -> exit 1, 1 high advisory not in the copy's report. These outputs are
+constructed, not recorded: the real-tree advisory is hypothetical.
+
+Expected: after the apply the audit runs (`baton verify` alone checks nothing here), the new
+advisory restores both files from `$S`, and the report says the apply failed and was reverted.
+Fifth-review skill (2026-11-06, "the audit or `baton verify`"): not red. It ran both and
+reverted. Verbatim: "A passing `baton verify` doesn't outweigh that." The scenario records both
+outputs, which likely hints the agent to run both.
+Re-run (sixth review, 2026-11-06): ran `baton verify` and the audit, restored from `$S`, checked
+with `cmp`, report "Action: apply failed: `npm audit --audit-level=high` reported a new high
+advisory after the real install; reverted package.json and package-lock.json from the pre-apply
+snapshot (cmp passes, tree clean)". Verbatim: "The `validate` config only runs `npm test`, so
+`baton verify` passing says nothing about advisories. That is why I still run the audit
+afterwards."
+
+### 16. Two-character crate name (expect: sparse-index path `2/cc`; documentation only)
+
+Repo: single cargo package with a build.rs. Cargo.toml and Cargo.lock at the root, no deny.toml,
+`cargo audit` installed. Working tree clean. The user says: "Add the cc crate as a build
+dependency."
+Recorded outputs: `cargo info cc` -> version 1.11.1, license MIT OR Apache-2.0; `curl -fsS` of the
+crate's correct sparse-index path -> the 1.11.1 line has `"yanked":false`; any other index path
+-> exit 56, "The requested URL returned error: 404"; `cargo audit` before and after `cargo add
+--build cc@1.11.1` -> exit 0. (`cargo info` and the index paths checked 2026-11-06; the audits
+are constructed.)
+
+Expected: the yanked lookup uses `https://index.crates.io/2/cc`; 1.11.1 is vetted and added as a
+build dependency.
+Fourth-review skill (2026-11-06, only `se/rd/serde` as the example): not red. It used `curl -fsS
+https://index.crates.io/2/cc` and reported "Yanked: no (index.crates.io/2/cc)".
+Re-run (sixth review, 2026-11-06): used `2/cc`, vetted 1.11.1 in `$V` with `cargo add --build`,
+saved to `$S`, applied. Verbatim: "`cc` has two characters, so the sparse-index path is `2/cc`.
+It is not `3/c/cc` and not `cc/cc`."

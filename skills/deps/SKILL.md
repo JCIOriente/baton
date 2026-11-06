@@ -12,22 +12,24 @@ worktree before it passed the vet**, however urgent or user-named.
 ## 1. Identify
 
 Package, manifest, reason; for a category, ask which. Manager: nearest lockfile above the
-manifest. `package-lock.json` npm, `pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry with `.yarnrc.yml` or `packageManager:
-"yarn@2+"`, else classic), `Cargo.lock` cargo. Stop on `bun.lock`/`bun.lockb`, two
-lockfiles in one directory, or none. `<dir>`: the lockfile's directory.
+manifest. `package-lock.json` npm, `pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry with
+`.yarnrc.yml` or `packageManager: "yarn@2+"`, else classic), `Cargo.lock` cargo. Stop on
+`bun.lock`/`bun.lockb`, two lockfiles in one directory, none, or cargo `registry =`/source
+replacement. `<dir>`: the lockfile's directory.
 
 ## 2. Look up
 
-JS: `npm view <pkg> dist-tags` (`latest`, not a pre-release), then `npm view <pkg>@<v>
-deprecated` and `npm view <pkg>@<v> peerDependencies`, one field per call. Berry, registry set
+JS: `npm view <pkg> dist-tags` (`latest`, not pre-release), then `npm view <pkg>@<v>
+deprecated` and `npm view <pkg>@<v> peerDependencies`, one field per call. Berry, registry
 only in `.yarnrc.yml`: `yarn npm info <pkg> --fields dist-tags,deprecated,peerDependencies
 --json`. cargo: `cargo info <crate>`; yanked: the `<v>` line of `curl -fsS
-https://index.crates.io/<prefix>/<crate>`, prefix `1`, `2`, `3/<first char>` by length, else
-`se/rd` (serde); not the crates.io API. Registry errors or silence fail the vet.
+https://index.crates.io/<prefix>/<crate>`, all lowercase, prefix `1`, `2`, `3/<first char>` by
+length, else `se/rd` (serde); not the crates.io API. Non-zero exit, timeout or no `<v>` line:
+vet fails; empty with exit 0: unset.
 
 ## 3. Peer compatibility (JS)
 
-On a `peerDependencies` conflict with the manifest, take the newest fitting version; say so.
+Peers conflict with the manifest: take the newest fitting version, say so.
 
 ## 4. Vet in a throwaway copy
 
@@ -36,10 +38,10 @@ cd "$(git rev-parse --show-toplevel)"; V=$(mktemp -d); git archive HEAD | tar -x
 ```
 
 Copy in uncommitted manifests, lockfile, manager config. **In `$V/<dir>`, not `$V`:**
-baseline audit, `<add> && <audit>`, `rm -rf "$V"`. Member: npm `-w <member dir>`,
-pnpm `--filter ./<member dir>`, `yarn workspace <name> add`, cargo `-p <crate>`.
+baseline audit, `<add> && <audit>`, `rm -rf "$V"`. Member: npm `-w <member>`,
+pnpm `--filter ./<member>`, `yarn workspace <name> add`, cargo `-p <crate>`.
 
-| Manager | Add | Audit, block when exit ≠ 0 |
+| Manager | Add | Audit; block on exit ≠ 0, an error or no report |
 |---|---|---|
 | npm | `npm install <pkg>@<v> --package-lock-only --ignore-scripts` | `npm audit --audit-level=high` |
 | pnpm | `pnpm add <pkg>@<v> --lockfile-only --ignore-scripts` | `pnpm audit --audit-level=high` |
@@ -47,10 +49,8 @@ pnpm `--filter ./<member dir>`, `yarn workspace <name> add`, cargo `-p <crate>`.
 | yarn classic | `yarn add <pkg>@<v> --ignore-scripts` | `yarn audit`; **block when `exit & 24` ≠ 0**, any `--level` |
 | cargo | `cargo add <crate>@<v>` | `cargo deny check advisories` with `deny.toml`, else `cargo audit` |
 
-An audit error or missing report fails the vet.
-
-Install scripts: npm `hasInstallScript` in the lockfile, cargo `custom-build` targets in `cargo
-metadata --format-version 1 --locked`, pnpm, yarn "not checked".
+Install scripts: npm `hasInstallScript`, cargo `custom-build` (`cargo metadata
+--format-version 1 --locked`), pnpm, yarn "not checked".
 
 ## 5. Decide
 
@@ -68,9 +68,9 @@ and yarn classic: none.
 ## 6. Apply
 
 First `S=$(mktemp -d); cp <manifest> <lockfile> "$S"/`. After a pass, in `<dir>`: the normal
-add (replacing: remove the old), then the audit or `baton verify`; on a failed add or an
-advisory the copy didn't show, restore both from `$S` (not HEAD), report. Blocked: `cmp` with
-`$S` passes.
+add (replacing: remove the old), then the audit (or `baton verify` if it runs one); on a
+failed add or an advisory the copy didn't show, restore both from `$S` (not HEAD), report.
+Blocked: `cmp` with `$S` passes.
 
 ## 7. Report
 
