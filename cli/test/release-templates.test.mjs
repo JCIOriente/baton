@@ -34,7 +34,6 @@ test('release_workflow_uses_release_please_token', () => {
   assert.match(yml, /^ {2}push:\n {4}branches: \["<base-branch>"\]/m, 'runs on push to the base branch placeholder');
   assert.match(yml, /^ {10}target-branch: "<base-branch>"$/m);
   assert.match(yml, /^permissions: \{\}$/m, 'top-level permissions are empty');
-  assert.match(yml, /^concurrency:\n {2}group: release\n {2}cancel-in-progress: false$/m);
   assert.match(yml, /^ {2}release-please:$/m, 'release-please job');
   assert.match(yml, /^ {2}release-please:\n(?: {4}.*\n)*? {4}environment: release$/m, 'token is an environment secret');
   assert.match(yml, /^ {6}- id: release\n {8}uses: googleapis\/release-please-action@/m, 'outputs come from the release-please step');
@@ -183,7 +182,11 @@ test('single_publish_job_needs_every_build_and_verify_job', () => {
   assert.equal(jobMarker(yml, 'publish'), null, 'init deletes publish only when no target step is left');
   const steps = markedSteps(jobs.publish);
   for (const step of steps) assert.ok(step.target, `publish step is marked: ${step.text.split('\n')[0]}`);
-  const named = (re) => steps.find((s) => re.test(s.text));
+  const named = (re) => {
+    const step = steps.find((s) => re.test(s.text));
+    assert.ok(step, `publish has a step matching ${re}`);
+    return step;
+  };
   assert.equal(named(/uses: actions\/setup-node@/).target, 'npm');
   assert.equal(named(/name: Check npm supports trusted publishing/).target, 'npm');
   assert.equal(named(/uses: actions\/download-artifact@/).target, 'npm');
@@ -237,17 +240,39 @@ test('dry_run_jobs_have_no_id_token_or_environment', () => {
   // The tarball check is the same script in both jobs.
   const tarball = (j) => stepsOf(j).find((s) => /id: tarball/.test(s)).split(/^ {8}run: \|$/m)[1].split('\n').filter((l) => indentOf(l) >= 10).join('\n');
   assert.equal(tarball(dry), tarball(job('publish')));
+  const registry = (j) => stepsOf(j).find((s) => /id: npm-registry/.test(s)).split(/^ {8}run: \|$/m)[1].split('\n').filter((l) => indentOf(l) >= 10).join('\n');
+  assert.ok(registry(dry).includes('npm view'), 'the registry script is captured');
+  assert.equal(registry(dry), registry(job('publish')), 'same registry skip check as publish');
+  // npm refuses a dry-run publish of a version it already has; the skip is reported, not silent.
+  const report = stepsOf(dry).find((s) => /^ {8}if: steps\.npm-registry\.outputs\.published == 'true'$/m.test(s));
+  assert.ok(report, 'a step reports the skipped dry-run publish');
+  assert.match(report, /echo "::notice::npm dry-run publish skipped/);
+  assert.match(report, />> "\$GITHUB_STEP_SUMMARY"/);
 });
 
 test('verify_crates_dry_run_publish_only_on_dry_run', () => {
   const steps = stepsOf(job('verify-crates'));
-  const pkg = steps.find((s) => /cargo package/.test(s));
-  const dry = steps.find((s) => /cargo publish --dry-run/.test(s));
-  assert.ok(pkg && dry);
-  assert.match(pkg, /^if: \$\{\{ !inputs\.dry_run \}\}$/m, 'cargo package only outside a dry run');
-  assert.match(dry, /^if: inputs\.dry_run$/m, 'cargo publish --dry-run only on a dry run');
-  assert.match(dry, /if git ls-files --error-unmatch Cargo\.lock[^\n]*; then\n {12}cargo publish --dry-run --locked\n {10}else\n {12}cargo publish --dry-run\n {10}fi/, '--locked only when Cargo.lock is tracked');
-  assert.equal(steps.filter((s) => /cargo (package|publish)/.test(s)).length, 2, 'one compile per run');
+  const compile = steps.filter((s) => /^ +cargo (package|publish)/m.test(s));
+  assert.equal(compile.length, 1, 'one step compiles the crate');
+  assert.match(compile[0], /^ {10}DRY_RUN: \$\{\{ inputs\.dry_run \}\}$/m);
+  assert.match(
+    compile[0],
+    /^ {10}if \[ "\$DRY_RUN" = true \]; then\n {12}cargo publish --dry-run "\$\{locked\[@\]\}"\n {10}else\n {12}cargo package "\$\{locked\[@\]\}"\n {10}fi$/m,
+    'cargo publish --dry-run replaces cargo package only on a dry run',
+  );
+});
+
+// --locked only when Cargo.lock is tracked, the same way wherever cargo packages the crate.
+const LOCKED = /^ {10}locked=\(\)\n {10}if git ls-files --error-unmatch Cargo\.lock >\/dev\/null 2>&1; then locked=\(--locked\); fi$/m;
+test('cargo_uses_locked_when_cargo_lock_is_tracked', () => {
+  for (const name of ['verify-crates', 'publish']) {
+    const cargoSteps = stepsOf(job(name)).filter((s) => /^ +cargo (package|publish)/m.test(s));
+    assert.equal(cargoSteps.length, 1, `${name} packages the crate in one step`);
+    for (const step of cargoSteps) {
+      assert.match(step, LOCKED, `${name}: ${step.split('\n')[0]}`);
+      assert.match(step, /cargo (package|publish)[^\n]* "\$\{locked\[@\]\}"$/m);
+    }
+  }
 });
 
 test('dry_run_path_ifs_use_not_cancelled', () => {
@@ -261,6 +286,22 @@ test('publish_if_has_no_status_function', () => {
   const cond = ifOf(job('publish'));
   assert.doesNotMatch(cond, /success\(\)|failure\(\)|always\(\)|cancelled\(\)/, 'implicit success() needs every job to succeed');
   assert.doesNotMatch(cond, /build-npm|verify-crates/, 'names no build or verify job, so init can delete either');
+});
+
+test('concurrency_is_per_job_and_dry_runs_never_join_release', () => {
+  // Per-workflow concurrency would let a dry run cancel a pending release run (one pending run
+  // per group), and a publish waiting for approval would hold up release-please for every push.
+  assert.doesNotMatch(workflow(), /^concurrency:/m, 'no workflow-level concurrency');
+  const groups = Object.fromEntries(
+    Object.entries(jobsOf(workflow())).map(([name, text]) => [name, text.match(/^ {4}concurrency:\n {6}group: (.*)\n {6}cancel-in-progress: false$/m)?.[1]]),
+  );
+  assert.deepEqual(groups, {
+    'release-please': "${{ inputs.dry_run && 'release-dry-run' || 'release' }}",
+    'build-npm': undefined,
+    'verify-crates': undefined,
+    'dry-run-npm': undefined,
+    publish: 'publish',
+  });
 });
 
 test('release_please_exports_the_tagged_sha', () => {
@@ -307,7 +348,7 @@ test('publish_jobs_check_the_registry_right_before_publishing', () => {
   const j = job('publish');
   const steps = stepsOf(j);
   // The publish job asks the registry itself, so a re-run of only that job sees a hand publish.
-  for (const [target, id, publish] of [['npm', 'npm-registry', /^ {8}run: \|\n(?: {10}.*\n)*? {10}npm publish "\$1" --ignore-scripts$/m], ['crates', 'crates-registry', /^ {8}run: cargo publish --no-verify$/m]]) {
+  for (const [target, id, publish] of [['npm', 'npm-registry', /^ {8}run: \|\n(?: {10}.*\n)*? {10}npm publish "\$1" --ignore-scripts$/m], ['crates', 'crates-registry', /^ {8}run: \|\n(?: {10}.*\n)*? {10}cargo publish --no-verify "\$\{locked\[@\]\}"$/m]]) {
     const check = steps.findIndex((s) => new RegExp(`^ {8}id: ${id}$`, 'm').test(s));
     const last = steps.findIndex((s) => publish.test(s));
     assert.ok(check >= 0, `${target} has a registry check`);
@@ -358,8 +399,8 @@ test('npm_builds_without_credentials_and_uploads_the_tarball', () => {
   assert.match(steps[upload], /^uses: actions\/upload-artifact@/m);
   assert.match(steps[upload], /name: npm-package/);
   assert.match(steps[upload], /if-no-files-found: error/);
-  // A failed publish is retried with "Re-run failed jobs" within the retention window.
-  assert.match(steps[upload], /retention-days: 7$/m);
+  // The tarball must outlive the wait for the publish approval and a later "Re-run failed jobs".
+  assert.match(steps[upload], /retention-days: 30$/m);
 });
 
 // No expression is spliced into a shell script: values reach it through env, so a crafted
@@ -443,10 +484,10 @@ test('publish_npm_publishes_only_the_prepared_tarball', () => {
 
 test('crates_build_runs_without_credentials', () => {
   const verify = job('verify-crates');
-  assert.match(verify, /^ {8}run: cargo package$/m, 'verify-crates compiles the package');
+  assert.match(verify, /^ {12}cargo package "\$\{locked\[@\]\}"$/m, 'verify-crates compiles the package');
   assert.doesNotMatch(verify, /CARGO_REGISTRY_TOKEN|crates-io-auth-action/, 'no token while building');
   const publish = job('publish');
-  assert.match(publish, /run: cargo publish --no-verify$/m, 'publish does not rebuild');
+  assert.match(publish, /^ {10}cargo publish --no-verify "\$\{locked\[@\]\}"$/m, 'publish does not rebuild');
   assert.doesNotMatch(publish, /cargo (package|build|test)/, 'no build in the job with id-token');
 });
 

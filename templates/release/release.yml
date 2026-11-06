@@ -15,15 +15,18 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: release
-  cancel-in-progress: false
+# Concurrency is per job, not per workflow: a dry run must not queue behind or cancel a release,
+# and a publish waiting for approval must not hold up release-please for later pushes.
 
 jobs:
   release-please:
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
+    # One release-please at a time. A dry run never joins this group, even with the job skipped.
+    concurrency:
+      group: ${{ inputs.dry_run && 'release-dry-run' || 'release' }}
+      cancel-in-progress: false
     # The token is an environment secret: only runs on the base branch can read it.
     environment: release
     # release-please acts with RELEASE_PLEASE_TOKEN, not GITHUB_TOKEN, so CI runs on its PR.
@@ -109,7 +112,8 @@ jobs:
           name: npm-package
           path: ${{ runner.temp }}/pack
           if-no-files-found: error
-          retention-days: 7
+          # Outlives a long wait for the publish approval and a later "Re-run failed jobs".
+          retention-days: 30
 
   # baton:init: keep this job only when release.publish has "crates"
   verify-crates:
@@ -151,17 +155,21 @@ jobs:
             exit 1
           fi
           echo "name=$(jq -r .name <<<"$pkg")" >> "$GITHUB_OUTPUT"
-      # Compiles the crate, so build scripts run here, without credentials.
-      - if: ${{ !inputs.dry_run }}
-        run: cargo package
-      # Packages and compiles like cargo package, so it replaces it on a dry run rather than
-      # compiling twice. Needs no token; a version crates.io already has is only a warning.
-      - if: inputs.dry_run
+      # Compiles the crate, so build scripts run here, without credentials. On a dry run,
+      # cargo publish --dry-run packages and compiles the same way, so it replaces cargo package
+      # rather than compiling twice. It needs no token; a version crates.io already has is only a
+      # warning.
+      - name: Package the crate
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          if git ls-files --error-unmatch Cargo.lock >/dev/null 2>&1; then
-            cargo publish --dry-run --locked
+          # --locked only when Cargo.lock is tracked: a library need not commit one.
+          locked=()
+          if git ls-files --error-unmatch Cargo.lock >/dev/null 2>&1; then locked=(--locked); fi
+          if [ "$DRY_RUN" = true ]; then
+            cargo publish --dry-run "${locked[@]}"
           else
-            cargo publish --dry-run
+            cargo package "${locked[@]}"
           fi
 
   # baton:init: keep this job only when release.publish has "npm"
@@ -232,6 +240,14 @@ jobs:
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Report the skipped npm dry-run publish
+        if: steps.npm-registry.outputs.published == 'true'
+        env:
+          NAME: ${{ steps.tarball.outputs.name }}
+          VERSION: ${{ needs.build-npm.outputs.version }}
+        run: |
+          echo "::notice::npm dry-run publish skipped: npm already has $NAME@$VERSION and refuses to publish over it, even in a dry run"
+          echo "npm dry-run publish skipped: npm already has $NAME@$VERSION. The tarball checks ran." >> "$GITHUB_STEP_SUMMARY"
       - name: Publish to npm (dry run)
         if: steps.npm-registry.outputs.published != 'true'
         run: |
@@ -247,6 +263,10 @@ jobs:
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
+    # One publish at a time; a pending publish never blocks release-please.
+    concurrency:
+      group: publish
+      cancel-in-progress: false
     # Required reviewers on this environment: one approval publishes every package.
     environment: publish
     permissions:
@@ -383,4 +403,7 @@ jobs:
         if: steps.crates-registry.outputs.published != 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish --no-verify
+        run: |
+          locked=()
+          if git ls-files --error-unmatch Cargo.lock >/dev/null 2>&1; then locked=(--locked); fi
+          cargo publish --no-verify "${locked[@]}"
