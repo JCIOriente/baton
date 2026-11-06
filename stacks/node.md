@@ -45,7 +45,7 @@ the database. Project conventions override this.
 - Paths from user input: resolve and verify the result stays inside the intended directory.
 - Don't build `RegExp` from user input; guard user-facing regexes against catastrophic
   backtracking.
-- `npm audit` / `pnpm audit` in CI. Pin versions with a lockfile.
+- Lockfile, frozen installs and audit: see the common guide's Dependencies section.
 
 ## Reliability
 
