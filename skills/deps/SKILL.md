@@ -19,15 +19,15 @@ lockfiles in one directory, or none. `<dir>`: the lockfile's directory.
 ## 2. Look up
 
 JS: `npm view <pkg> dist-tags` (`latest`, not a pre-release), then `npm view <pkg>@<v>
-deprecated` and `npm view <pkg>@<v> peerDependencies`, one field per call. cargo: `cargo info
-<crate>`; yanked: the `<v>` line of `curl -fsS
+deprecated` and `npm view <pkg>@<v> peerDependencies`, one field per call. Berry, registry set
+only in `.yarnrc.yml`: `yarn npm info <pkg> --fields dist-tags,deprecated,peerDependencies
+--json`. cargo: `cargo info <crate>`; yanked: the `<v>` line of `curl -fsS
 https://index.crates.io/<prefix>/<crate>` (`se/rd/serde`; never the crates.io web API). A
-registry error or missing answer fails the vet: no memory fallback.
+registry error or no answer fails the vet.
 
 ## 3. Peer compatibility (JS)
 
-Compare `peerDependencies` with the manifest; on a conflict, take the newest fitting version
-and say so.
+On a `peerDependencies` conflict with the manifest, take the newest fitting version; say so.
 
 ## 4. Vet in a throwaway copy
 
@@ -47,7 +47,7 @@ pnpm `--filter ./<member dir>`, `yarn workspace <name> add`, cargo `-p <crate>`.
 | yarn classic | `yarn add <pkg>@<v> --ignore-scripts` | `yarn audit`; **block when `exit & 24` ≠ 0**, any `--level` |
 | cargo | `cargo add <crate>@<v>` | `cargo deny check advisories` with `deny.toml`, else `cargo audit` |
 
-An audit without an advisory list or summary (an error, no report) fails the vet.
+An audit that errors or prints no report fails the vet.
 
 Install scripts: npm `hasInstallScript` in the lockfile, cargo `custom-build` targets in `cargo
 metadata --format-version 1 --locked`, pnpm, yarn "not checked".
@@ -56,7 +56,7 @@ metadata --format-version 1 --locked`, pnpm, yarn "not checked".
 
 Block when: deprecated or yanked; the add failed; a new advisory (JS high or critical, cargo
 any) not accepted; a peer fit needs another dependency below its latest secure version. Offer
-another version or package. Baseline advisories: report separately, suggest an issue.
+alternatives. Baseline advisories: report separately, suggest an issue.
 
 **Never add an accepted advisory, lower a threshold or pass `--ignore`/`--force` without the
 user's explicit OK to that exact change**, even after "just ignore it". Propose the entry with
@@ -67,9 +67,9 @@ and yarn classic: none.
 
 ## 6. Apply
 
-After a pass only, in `<dir>`: the normal add (replacing: remove the old package), then the
-audit or `baton verify`; on a failure, revert (`git checkout -- <manifest> <lockfile>`) and
-report. Blocked: `git diff --exit-code -- <manifest> <lockfile>` passes.
+After a pass, in `<dir>`: the normal add (replacing: remove the old one), then the
+audit or `baton verify`; on failure, `git checkout -- <manifest> <lockfile>` and report.
+Blocked: `git diff --exit-code -- <manifest> <lockfile>` passes.
 
 ## 7. Report
 
