@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { decide, denyText } from '../../hooks/worktree-guard.mjs';
@@ -28,12 +28,17 @@ function git(cwd, ...args) {
   return res.stdout.trim();
 }
 
-/** Runs the hook with `input` on stdin (a string is sent as is) and returns its stdout. */
-function runHook(input, extraEnv = {}) {
+/** Runs the hook with `input` on stdin (a string is sent as is) and returns its exit result. */
+function spawnHook(input, extraEnv = {}) {
   const stdin = typeof input === 'string' ? input : JSON.stringify(input);
   const res = spawnSync(process.execPath, [hook], { input: stdin, env: { ...env, ...extraEnv }, encoding: 'utf8' });
   assert.equal(res.status, 0, res.stderr);
-  return res.stdout;
+  return res;
+}
+
+/** Runs the hook with `input` on stdin and returns its stdout. */
+function runHook(input, extraEnv = {}) {
+  return spawnHook(input, extraEnv).stdout;
 }
 
 function denialReason(stdout) {
@@ -44,20 +49,21 @@ function denialReason(stdout) {
 }
 
 /**
- * A repo whose HEAD holds `config` as .baton/config.json (none if null), with a gitignored
- * `.env`, a sibling linked worktree and one nested at `.claude/worktrees/x`.
+ * A repo whose HEAD holds `config` as .baton/config.json (none if null; a string is written
+ * as is), with a gitignored `.env`, a sibling linked worktree and one nested at
+ * `.claude/worktrees/x` (gitignored unless `ignoreNested` is false).
  */
-function repo(t, config = {}) {
+function repo(t, config = {}, { ignoreNested = true } = {}) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'baton-guard-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'acme');
   mkdirSync(root);
   git(root, 'init', '-q', '-b', 'main');
   writeFileSync(join(root, 'README.md'), 'acme\n');
-  writeFileSync(join(root, '.gitignore'), '.env\n.claude/worktrees/\n');
+  writeFileSync(join(root, '.gitignore'), ignoreNested ? '.env\n.claude/worktrees/\n' : '.env\n');
   if (config) {
     mkdirSync(join(root, '.baton'));
-    writeFileSync(join(root, '.baton/config.json'), JSON.stringify(config));
+    writeFileSync(join(root, '.baton/config.json'), typeof config === 'string' ? config : JSON.stringify(config));
   }
   git(root, 'add', '-A');
   git(root, 'commit', '-qm', 'init');
@@ -97,6 +103,11 @@ test('decide_allows_without_committed_config', () => {
   assert.equal(decide({ ...main, config: null }), null, 'absent or unparseable');
   assert.equal(decide({ ...main, config: 'oops' }), null, 'not an object');
   assert.equal(decide({ ...main, config: [1] }), null, 'an array');
+  assert.equal(decide({ ...main, config: { hooks: { worktreeOnly: 'false' } } }), null, 'non-boolean switch');
+  assert.equal(decide({ ...main, config: { hooks: { worktreeOnly: 0 } } }), null, 'numeric switch');
+  assert.equal(decide({ ...main, config: { hooks: 'x' } }), null, 'hooks not an object');
+  assert.equal(decide({ ...main, config: { hooks: [] } }), null, 'hooks an array');
+  assert.equal(decide({ ...main, config: { hooks: null } }), null, 'hooks null');
 });
 
 test('decide_reads_switch_from_head_not_worktree', () => {
@@ -124,6 +135,40 @@ test('hook_denies_main_checkout_edit_and_allows_worktrees', (t) => {
   assert.equal(edit(root, join(sibling, 'README.md')), '');
   assert.equal(edit(sibling, 'README.md'), '');
   assert.equal(edit(root, join(nested, 'README.md')), '');
+  // The edited file's directory picks the checkout, not the session cwd.
+  assert.equal(denialReason(edit(sibling, join(root, 'README.md'))), denyText('README.md', root));
+  assert.equal(denialReason(edit(nested, join(root, 'README.md'))), denyText('README.md', root));
+});
+
+test('hook_allows_nested_worktree_not_gitignored', (t) => {
+  const { root, nested } = repo(t, {}, { ignoreNested: false });
+  const edit = (file_path) => runHook({ tool_name: 'Edit', cwd: root, tool_input: { file_path } });
+  assert.equal(edit(join(nested, 'README.md')), '');
+  assert.equal(edit(join(nested, 'docs/specs/new.md')), '');
+  assert.equal(denialReason(edit(join(root, 'README.md'))), denyText('README.md', root));
+});
+
+test('hook_resolves_symlinked_paths', (t) => {
+  const { dir, root } = repo(t);
+  const link = join(realpathSync(tmpdir()), `baton-guard-link-${process.pid}-${Date.now()}`);
+  symlinkSync(dir, link);
+  t.after(() => rmSync(link, { force: true }));
+  const linkedRoot = join(link, 'acme');
+  const edit = (file_path) => runHook({ tool_name: 'Edit', cwd: linkedRoot, tool_input: { file_path } });
+  assert.equal(denialReason(edit(join(linkedRoot, 'README.md'))), denyText('README.md', root));
+  assert.equal(denialReason(edit('README.md')), denyText('README.md', root), 'relative to a linked cwd');
+  assert.equal(denialReason(edit(join(linkedRoot, 'docs/new.md'))), denyText('docs/new.md', root), 'new dir');
+});
+
+test('hook_does_not_run_repo_configured_fsmonitor', (t) => {
+  const { dir, root } = repo(t);
+  const sentinel = join(dir, 'PWNED');
+  git(root, 'config', 'core.fsmonitor', `touch '${sentinel}'; false`);
+  const out = runHook({ tool_name: 'Write', cwd: root, tool_input: { file_path: join(root, 'new.txt'), content: 'x' } });
+  assert.equal(existsSync(sentinel), false, 'core.fsmonitor ran');
+  assert.equal(denialReason(out), denyText('new.txt', root));
+  assert.equal(runHook({ tool_name: 'Edit', cwd: root, tool_input: { file_path: join(root, '.env') } }), '', 'ignore check still works');
+  assert.equal(existsSync(sentinel), false, 'core.fsmonitor ran');
 });
 
 test('hook_denies_new_file_in_new_dir_in_main_checkout', (t) => {
@@ -157,6 +202,12 @@ test('hook_allows_ignored_git_internal_outside_and_unconfigured', (t) => {
 
   const { root: bare } = repo(t, null);
   assert.equal(runHook({ tool_name: 'Edit', cwd: bare, tool_input: { file_path: join(bare, 'README.md') } }), '', 'no committed config');
+
+  const { root: broken } = repo(t, '{not json');
+  assert.equal(runHook({ tool_name: 'Edit', cwd: broken, tool_input: { file_path: join(broken, 'README.md') } }), '', 'unparseable committed config');
+
+  const { root: wrongType } = repo(t, { hooks: { worktreeOnly: 'false' } });
+  assert.equal(runHook({ tool_name: 'Edit', cwd: wrongType, tool_input: { file_path: join(wrongType, 'README.md') } }), '', 'invalid committed switch');
 });
 
 test('hook_reads_switch_from_head_not_worktree', (t) => {
@@ -183,7 +234,16 @@ test('hook_fails_open_on_bad_input', (t) => {
   assert.equal(runHook({ tool_name: 'Edit', cwd: root }), '', 'missing tool_input');
   assert.equal(runHook({ tool_name: 'Read', cwd: root, tool_input: { file_path: join(root, 'README.md') } }), '', 'ungated tool');
   // A non-string cwd makes path resolution throw inside the hook.
-  assert.equal(runHook({ tool_name: 'Edit', cwd: 42, tool_input: { file_path: 'README.md' } }), '', 'thrown error');
+  const thrown = spawnHook({ tool_name: 'Edit', cwd: 42, tool_input: { file_path: 'README.md' } });
+  assert.equal(thrown.stdout, '', 'thrown error');
+  assert.match(thrown.stderr, /^baton worktree-guard: allowing edit, /, 'a thrown error leaves a trace');
+});
+
+test('hook_reports_git_failure_on_stderr', (t) => {
+  const { root } = repo(t);
+  const res = spawnHook({ tool_name: 'Edit', cwd: root, tool_input: { file_path: join(root, 'README.md') } }, { PATH: '/nonexistent' });
+  assert.equal(res.stdout, '');
+  assert.match(res.stderr, /^baton worktree-guard: allowing edit, git /);
 });
 
 test('hooks_json_registers_the_guard', async () => {

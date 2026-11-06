@@ -37,9 +37,22 @@ export function decide({ path, gitDir, commonDir, top, ignored, config, env }) {
   if (!gitDir || !commonDir || !top) return null;
   if (gitDir !== commonDir) return null; // a linked worktree
   if (ignored) return null;
-  if (!config || typeof config !== 'object' || Array.isArray(config)) return null;
-  if (config.hooks?.worktreeOnly === false) return null;
+  if (!isPlainObject(config)) return null;
+  if ('hooks' in config) {
+    // An invalid committed switch fails open; only a missing key or `true` means on.
+    if (!isPlainObject(config.hooks)) return null;
+    if ('worktreeOnly' in config.hooks && config.hooks.worktreeOnly !== true) return null;
+  }
   return denyText(relative(top, path), top);
+}
+
+function isPlainObject(v) {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** Leaves a trace of a fail-open on stderr (shown in debug/verbose output; never blocks). */
+function allowing(cause) {
+  process.stderr.write(`baton worktree-guard: allowing edit, ${cause}\n`);
 }
 
 function readStdin() {
@@ -50,8 +63,19 @@ function readStdin() {
   }
 }
 
+// The target repo may be untrusted (a clone, an extracted archive), and this hook runs before
+// the user approves the edit, so git must not run any command that repo's config names.
+// core.fsmonitor runs on index reads (check-ignore); hooksPath is belt and braces.
+const SAFE_GIT = ['-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', '-c', 'core.hooksPath=/dev/null'];
+
 function git(cwd, ...args) {
-  return spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8', timeout: GIT_TIMEOUT_MS });
+  return spawnSync('git', [...SAFE_GIT, '-C', cwd, ...args], { encoding: 'utf8', timeout: GIT_TIMEOUT_MS });
+}
+
+/** Describes a git call that neither succeeded nor gave an expected answer. */
+function gitFailure(args, res) {
+  const why = res.error?.message ?? (res.signal ? `signal ${res.signal}` : `exit ${res.status}: ${res.stderr.trim().split('\n')[0]}`);
+  return `git ${args} failed (${why})`;
 }
 
 function nearestExistingDir(path) {
@@ -84,12 +108,13 @@ function main() {
   const path = join(realpathSync(existing), relative(existing, abs));
 
   const rev = git(existing, 'rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir', '--show-toplevel');
+  if (rev.error || rev.signal) return allowing(gitFailure('rev-parse', rev));
   if (rev.status !== 0) return; // not a repo, or inside .git
   const [gitDir, commonDir, top] = rev.stdout.trim().split('\n');
   if (gitDir !== commonDir) return; // a linked worktree: skip the remaining git calls
 
   const ignore = git(existing, 'check-ignore', '-q', path);
-  if (ignore.status !== 0 && ignore.status !== 1) return; // git error
+  if (ignore.status !== 0 && ignore.status !== 1) return allowing(gitFailure('check-ignore', ignore));
   const reason = decide({ path, gitDir, commonDir, top, ignored: ignore.status === 0, config: committedConfig(top), env: process.env });
   if (!reason) return;
   process.stdout.write(
@@ -100,7 +125,8 @@ function main() {
 if (process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]))) {
   try {
     main();
-  } catch {
-    // Allow the edit on any internal error.
+  } catch (err) {
+    // Allow the edit on any internal error, but leave a trace.
+    allowing(err?.message ?? String(err));
   }
 }
