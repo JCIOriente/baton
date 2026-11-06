@@ -172,6 +172,17 @@ test('context_uses_worktree_rule_when_on', async (t) => {
   const { spawnSync } = await import('node:child_process');
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'baton-ctx-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
+  // installGuard and guardStatus run git in this process: isolate it from the user's git config.
+  const saved = Object.fromEntries(['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'CI', 'CLAUDE_CODE_REMOTE'].map((k) => [k, process.env[k]]));
+  t.after(() => {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+  Object.assign(process.env, { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' });
+  delete process.env.CI;
+  delete process.env.CLAUDE_CODE_REMOTE;
   spawnSync('git', ['init', '-q'], { cwd: root });
   const rules = (text) => text.split('\n').filter((l) => l.startsWith('- '));
 
@@ -182,6 +193,10 @@ test('context_uses_worktree_rule_when_on', async (t) => {
   const missingLine = on.split('\n').filter((l) => l.includes('baton hooks install'));
   assert.equal(missingLine.length, 1, on);
   assert.match(missingLine[0], /git guard .*not installed/);
+  process.env.CLAUDE_CODE_REMOTE = 'true';
+  const remote = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
+  assert.ok(!remote.includes('baton hooks install'), 'a cloud session has no guard to install');
+  delete process.env.CLAUDE_CODE_REMOTE;
 
   installGuard(root);
   const installed = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });

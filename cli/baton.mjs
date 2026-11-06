@@ -9,7 +9,7 @@ import { parseArgs } from 'node:util';
 import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, CONFIG_FILE, reviewerFocus, reviewersFor } from './lib/config.mjs';
 import { buildContext } from './lib/context.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
-import { guardStatus, installGuard } from './lib/git-guard.mjs';
+import { guardStatus, installGuard, isDisposableClone, isMainCheckout } from './lib/git-guard.mjs';
 import {
   branchName,
   currentBranch,
@@ -685,9 +685,8 @@ function doctor(argv) {
     findings.push(...releaseFindings({ config, files }));
   }
 
-  // CI and cloud sessions are single-use clones, where the guard stands down.
-  const disposable = process.env.CI === 'true' || process.env.CLAUDE_CODE_REMOTE === 'true';
-  if (loaded.found && config.hooks.worktreeOnly && !disposable) {
+  // The guard stands down in CI and cloud sessions; a bare repo has no main checkout to protect.
+  if (loaded.found && config.hooks.worktreeOnly && !isDisposableClone() && isMainCheckout(root)) {
     const guard = guardStatus(root);
     if (guard !== 'installed') findings.push({ kind: 'worktree', message: `The git guard is ${guard} (run \`baton hooks install\`)` });
     // symbolic-ref also answers on an unborn branch, where `rev-parse HEAD` fails.

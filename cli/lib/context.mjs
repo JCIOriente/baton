@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { currentBranch, currentTop, issueFromBranch } from './git.mjs';
 import { BASELINE_GUIDE } from './config.mjs';
 import { detectStacks } from './detect.mjs';
-import { guardStatus } from './git-guard.mjs';
+import { guardStatus, isDisposableClone, isMainCheckout } from './git-guard.mjs';
 
 // Agents skip optional skills often, so the rules that must never be skipped are always in context.
 export const ALWAYS_RULES = [
@@ -37,7 +37,7 @@ export function buildContext({ root, found, config }, { pluginRoot, cwd = proces
   lines.push('', 'Always, even without loading a skill:');
   const worktreeOnly = config.hooks.worktreeOnly;
   for (const rule of ALWAYS_RULES) lines.push(`- ${worktreeOnly && rule === TASK_WORKTREE_RULE ? WORKTREE_RULE : rule}`);
-  if (worktreeOnly && safeGuardStatus(root) !== 'installed') {
+  if (worktreeOnly && !isDisposableClone() && safeGuardStatus(root) !== 'installed') {
     lines.push('- The git guard that refuses commits in the main checkout is not installed in this clone; `baton hooks install` installs it.');
   }
   lines.push('');
@@ -90,7 +90,8 @@ export function buildContext({ root, found, config }, { pluginRoot, cwd = proces
 
 function safeGuardStatus(root) {
   try {
-    return guardStatus(root);
+    // Without a main checkout (a bare repo) there is nothing for the guard to protect.
+    return isMainCheckout(root) ? guardStatus(root) : 'installed';
   } catch {
     // Not a git repo or git failed: nothing reliable to report.
     return 'installed';
