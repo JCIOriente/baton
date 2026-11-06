@@ -9,7 +9,7 @@ Spec: <path> · Plan: <path>#t<N>
 - Out of scope: <what not to do here>
 
 ## Interfaces
-<copied verbatim from the plan's task block, or `none`>
+<copied verbatim from the plan's task block, each (T<N>) replaced by its issue number, or `none`>
 - Consumes: `name(arg: Type): Return` from `path` (#<issue>)
 - Produces: `name(arg: Type): Return`
 

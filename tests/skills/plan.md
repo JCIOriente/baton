@@ -26,10 +26,11 @@ Write the plan's Overview, Contract, Dependency graph and Tasks sections. The ch
 CSV export must be able to run in parallel.
 
 Expected: the shared record is a foundation task, and each task block has an Interfaces entry. The
-API task and the export task both name the shared type, its module and its fields identically in
-`Consumes:` (the same spelling the foundation task gives in `Produces:`), and a task without a
-code contract says `none`. Red: task blocks without Consumes/Produces, or the two parallel tasks
-naming the record or its fields differently.
+API task and the export task both name the shared type and its module identically in
+`Consumes:` (the same spelling the foundation task gives in `Produces:`); the fields are defined
+once, in the producer's line, and a consumer that repeats them repeats them exactly. A task
+without a code contract says `none`. Red: task blocks without Consumes/Produces, or the two
+parallel tasks naming the record, its module or any field they list differently.
 
 ## 2. A failure mode the spec implies but doesn't name (expect: coverage rows)
 
@@ -43,9 +44,10 @@ Write the plan's Tasks and Coverage check sections, then say what the self-revie
 
 Expected: the Coverage check table has `Failure mode: ...` rows (at most 5) for inputs the spec
 implies but never names (an email that already exists, an unknown chapter, a missing column, an
-empty file, a malformed row), each mapped to a task and a test name, and each of those tests is
-also listed in the owning task's `Tests first`. Red: no failure-mode rows, or failure-mode tests
-named in the table but missing from the owning task.
+empty file, a malformed row), one input or condition per row, each mapped to a task and a test
+name, and each of those tests is also listed in the owning task's `Tests first`. Red: no
+failure-mode rows, failure-mode tests named in the table but missing from the owning task, or a
+row that bundles two or more inputs or conditions (that slips more than five past the cap).
 
 ## 3. Turning a task with Interfaces into an issue (expect: Interfaces section copied)
 
@@ -71,8 +73,9 @@ The approved plan `docs/plans/2026-11-06-event-check-in.md` (spec
 Write the exact issue body you would pass to `baton create --body-file` for T2.
 
 Expected: the body follows `templates/task.md` and carries the Consumes and Produces lines
-verbatim in an Interfaces section. Red: the Interfaces lines dropped, or paraphrased so the type
-or endpoint differs from the plan.
+verbatim in an Interfaces section, except that the producer reference `(T1)` becomes `(#41)`, so
+an implementer who sees only the issue can find it. Red: the Interfaces lines dropped, paraphrased
+so the type or endpoint differs from the plan, or still pointing at `(T1)`.
 
 ## Runs
 
@@ -130,3 +133,68 @@ After: green. A `## Interfaces` section between Scope and Acceptance criteria wi
 exactly as in the plan. Rationale: "Interfaces are copied unchanged, so they still say `(T1)`. The
 skill says to copy them as written. I resolved T1 to #41 in Context and Notes instead, so a reader
 still gets the issue link."
+
+## Re-run after review (2026-11-06)
+
+Review found that `baton:backlog` step 3 ("copy ... unchanged") and the `(#<issue>)` example in
+`templates/task.md` disagreed, so the plan's `(T1)` reached the issue unresolved. It also found
+that scenario 2 had no way to catch rows that bundle several failure modes and so slip past the
+cap of five. Scenarios 2 and 3 gained those red conditions. Step 3 now says
+"unchanged except that each `(T<N>)` becomes its issue number from the map", the task template's
+placeholder says the same, and the plan template's failure-mode note now reads "One input or
+condition per row, never two joined by "or" or a list in parentheses: the cap counts failure
+modes, not rows." Same command and prompt shape as above (Claude Code 2.1.316), each run in a
+new empty directory.
+
+Scenario 1 was re-graded, not re-run. Its Expected line used to require the consumers to repeat
+the fields. Neither the issue's Decision 6 ("name it identically") nor the template asks for
+that: the fields are defined once, in the producer's line. Expected now asks for the same type
+name and module, and asks that any field a consumer repeats match exactly. The recorded after
+run meets that (T3 and T4 both say "`type CheckIn` ... from `shared/src/api` (T1)", and neither
+repeats a field), so it stays green.
+
+### Scenario 2
+
+Red (text before this review): bundled rows. Five rows covering eight failure modes, three of them bundled:
+
+```
+| Failure mode: email already a member, or repeated in the file | T2: `test_import_existing_member_email_rejected`, `test_import_duplicate_email_in_file_rejected` |
+| Failure mode: header missing a column or in a different order | T2: `test_import_rejects_missing_column`, `test_import_header_order_and_whitespace_tolerated` |
+| Failure mode: invalid email or blank name in a row | T2: `test_import_invalid_email_rejected`, `test_import_blank_name_rejected` |
+```
+
+The earlier recorded after run (above) is red under the new Expected for the same reason.
+
+First green attempt, with only "one per row" added to the note: still red. Five rows, three of
+them bundled, e.g. "| Failure mode: wrong/missing header, empty or header-only file | T2:
+`test_rejects_missing_header`, `test_rejects_empty_file`, `test_header_only_is_invalid_file` |"
+and "| Failure mode: spreadsheet export quirks (BOM, CRLF, quoted commas, chapter name with
+different case or spaces) | ... |".
+
+Green (final text): five rows, one condition each, and every test also in the owning task's
+Tests first:
+
+```
+| Failure mode: chapter name matches no chapter | T3: `test_import_unknown_chapter_creates_no_member` |
+| Failure mode: email already belongs to a member | T3: `test_import_existing_email_does_not_create_duplicate` |
+| Failure mode: caller is a chapter admin | T3: `test_import_as_chapter_admin_returns_403` |
+| Failure mode: same email twice in one file | T3: `test_import_duplicate_email_within_file_creates_one_member` |
+| Failure mode: required column missing | T2: `test_parse_missing_email_column_raises_csv_format_error` |
+```
+
+The rest went into the self-review instead of more rows: "**Less likely failure modes left out by
+the five-row cap:** invalid email format, empty file, blank `name`, non-UTF-8 encoding, and quoted
+commas in names."
+
+### Scenario 3
+
+Red (text before this review): the Interfaces section was copied exactly, `(T1)` included:
+"- Consumes: `CheckIn { id: string; memberId: string; eventId: string; checkedInAt: string }` from
+`shared/src/check-in.ts` (T1)". Rationale: "**Interfaces** is copied unchanged from the plan, as
+the skill requires. That is why it still says `(T1)` and not `#41`. I mapped T1 → #41 in Context
+and Notes so a reader without context can resolve it."
+
+Green: "- Consumes: `CheckIn { id: string; memberId: string; eventId: string; checkedInAt: string
+}` from `shared/src/check-in.ts` (#41)", and the Produces line unchanged. Rationale:
+"**Interfaces**: copied exactly from the plan. The only change is `(T1)` → `(#41)`, as the skill
+requires. The `Depends on` value comes from the same map, so it is `--depends-on 41`."

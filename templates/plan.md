@@ -49,5 +49,6 @@ Can start immediately in parallel: T1, T2, T4
 | Failure mode: <input or condition> | <task>: `<test name>` |
 
 Failure-mode rows: the inputs or conditions the spec implies but no task tests yet, at most 5,
-the most likely first. Add each test to the owning task's Tests first. The spec's silence on an
+the most likely first. One input or condition per row, never two joined by "or" or a list in
+parentheses: the cap counts failure modes, not rows. Add each test to the owning task's Tests first. The spec's silence on an
 input is not permission to break; an empty set means you checked.
