@@ -61,3 +61,17 @@ test('provenance.json tracks every action pinned in the release template', () =>
   const tracked = loadProvenance(root).facts.filter((f) => f.pkg.startsWith('github:')).map((f) => f.pkg.slice(7));
   assert.deepEqual(tracked.sort(), pinned.sort());
 });
+
+test('upstreamFindings turns a throwing gh on a source into an error and still checks facts', async () => {
+  const prov = {
+    sources: [{ id: 's1', repo: 'o/r', baseline: { sha: 'a'.repeat(40) }, files: [] }],
+    facts: [{ id: 'a.one', file: 'f', anchor: 'x', pkg: 'github:o/old', requires: '>=1 <2' }],
+  };
+  const gh = ([, path]) => {
+    if (path.includes('/compare/')) throw new BatonError("'gh' not found on PATH");
+    return { code: 0, stdout: 'v2.0.0', stderr: '' };
+  };
+  const findings = await upstreamFindings(prov, { gh });
+  assert.deepEqual(findings.map((f) => `${f.kind}:${f.source ?? f.fact}`), ['error:s1', 'release:a.one']);
+  assert.match(findings[0].message, /not found on PATH/);
+});

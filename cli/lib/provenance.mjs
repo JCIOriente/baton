@@ -139,16 +139,20 @@ export async function latestVersion(pkg, { gh = ghRunner } = {}) {
 export async function upstreamFindings(prov, { gh = ghRunner } = {}) {
   const findings = [];
   for (const src of prov.sources) {
-    const res = gh(['api', `repos/${src.repo}/compare/${src.baseline.sha}...HEAD`, '--jq', '{ahead: .ahead_by, head: .commits[-1].sha, files: [.files[] | {filename, status, additions, deletions}]}']);
-    if (res.code !== 0) {
-      findings.push({ kind: 'error', source: src.id, message: res.stderr || 'compare failed' });
-      continue;
+    try {
+      const res = gh(['api', `repos/${src.repo}/compare/${src.baseline.sha}...HEAD`, '--jq', '{ahead: .ahead_by, head: .commits[-1].sha, files: [.files[] | {filename, status, additions, deletions}]}']);
+      if (res.code !== 0) {
+        findings.push({ kind: 'error', source: src.id, message: res.stderr || 'compare failed' });
+        continue;
+      }
+      const cmp = JSON.parse(res.stdout);
+      const changed = (cmp.files ?? []).flatMap((f) =>
+        src.files.filter((t) => f.filename === t.upstream || f.filename.startsWith(t.upstream)).map((t) => ({ ...f, local: t.local })),
+      );
+      if (changed.length) findings.push({ kind: 'upstream', source: src.id, repo: src.repo, ahead: cmp.ahead, head: cmp.head, changed, truncated: (cmp.files ?? []).length >= 300 });
+    } catch (err) {
+      findings.push({ kind: 'error', source: src.id, message: err.message });
     }
-    const cmp = JSON.parse(res.stdout);
-    const changed = (cmp.files ?? []).flatMap((f) =>
-      src.files.filter((t) => f.filename === t.upstream || f.filename.startsWith(t.upstream)).map((t) => ({ ...f, local: t.local })),
-    );
-    if (changed.length) findings.push({ kind: 'upstream', source: src.id, repo: src.repo, ahead: cmp.ahead, head: cmp.head, changed, truncated: (cmp.files ?? []).length >= 300 });
   }
   for (const fact of prov.facts) {
     try {
