@@ -112,8 +112,9 @@ jobs:
           name: npm-package
           path: ${{ runner.temp }}/pack
           if-no-files-found: error
-          # Outlives a long wait for the publish approval and a later "Re-run failed jobs".
-          retention-days: 30
+          # GitHub's maximum (the repo's own cap still applies): a re-run after the publish
+          # approval timed out still finds the tarball.
+          retention-days: 90
 
   # baton:init: keep this job only when release.publish has "crates"
   verify-crates:
@@ -263,9 +264,10 @@ jobs:
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
-    # One publish at a time; a pending publish never blocks release-please.
+    # One publish at a time; a pending publish never blocks release-please. A skipped publish
+    # (no release, or a dry run) gets a group of its own, so it never cancels a pending one.
     concurrency:
-      group: publish
+      group: ${{ needs.release-please.outputs.release_created == 'true' && 'publish' || format('publish-skipped-{0}', github.run_id) }}
       cancel-in-progress: false
     # Required reviewers on this environment: one approval publishes every package.
     environment: publish

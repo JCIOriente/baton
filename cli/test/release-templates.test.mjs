@@ -300,7 +300,7 @@ test('concurrency_is_per_job_and_dry_runs_never_join_release', () => {
     'build-npm': undefined,
     'verify-crates': undefined,
     'dry-run-npm': undefined,
-    publish: 'publish',
+    publish: "${{ needs.release-please.outputs.release_created == 'true' && 'publish' || format('publish-skipped-{0}', github.run_id) }}",
   });
 });
 
@@ -399,8 +399,8 @@ test('npm_builds_without_credentials_and_uploads_the_tarball', () => {
   assert.match(steps[upload], /^uses: actions\/upload-artifact@/m);
   assert.match(steps[upload], /name: npm-package/);
   assert.match(steps[upload], /if-no-files-found: error/);
-  // The tarball must outlive the wait for the publish approval and a later "Re-run failed jobs".
-  assert.match(steps[upload], /retention-days: 30$/m);
+  // The tarball must outlive the publish approval wait, even a re-run after it timed out.
+  assert.match(steps[upload], /retention-days: 90$/m);
 });
 
 // No expression is spliced into a shell script: values reach it through env, so a crafted
