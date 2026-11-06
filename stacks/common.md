@@ -99,8 +99,9 @@ For the ecosystems the project uses (JS: npm, pnpm, yarn; Rust: cargo):
   JS: `npm ci`, `pnpm install --frozen-lockfile`, `yarn install --immutable` (classic:
   `--frozen-lockfile`). Rust: `cargo build --locked`, `cargo test --locked`.
 - An audit command is part of `validate`, so `baton verify` and CI run the same check.
-- An ignored advisory lives only in the ecosystem's committed ignore list (Rust: `deny.toml`,
-  see the rust guide), with a comment saying why it isn't reachable and when to drop it. Never
+- An ignored advisory lives only in the ecosystem's committed ignore list (pnpm: `audit.ignore`
+  in `pnpm-workspace.yaml`, GHSA IDs, read by older pnpm as `auditConfig.ignoreGhsas`; yarn
+  berry: `npmAuditIgnoreAdvisories` in `.yarnrc.yml`; Rust: `deny.toml`, see the rust guide), with a comment saying why it isn't reachable and when to drop it. Never
   as a command-line flag (`--ignore <id>`) in CI, the Makefile or a script, where local runs and
   CI end up reading different lists. A repo that passes such flags moves them into the list. npm
   and yarn classic have no list: fix the advisory (upgrade, or `overrides` / `resolutions` to a
