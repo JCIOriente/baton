@@ -12,7 +12,8 @@ ask which one the user means before merging anything.
 Releases come from release-please: it keeps one open release PR, and merging it creates the tag
 `v<version>`, the GitHub Release and, if configured, the publish jobs in
 `.github/workflows/release.yml`. Your job is to check that PR, fix bad entries at their source,
-merge when told and confirm the result.
+merge when told and confirm the result. On any failed run, job or check, read
+`${CLAUDE_PLUGIN_ROOT}/skills/release/failures.md`.
 
 ## 0. Check that releases are enabled
 
@@ -58,14 +59,17 @@ entries, say it may be cut off. Report each `feat`, `fix`, `perf` or `!` PR whos
 missing from the notes. First check its body for the commit override marker in prose:
 release-please reads everything after it as the commit. Fix it in step 3.
 
-If `release.publish` is set and `git diff v<last>..origin/<base> -- .github/workflows/release.yml`
-isn't empty, dispatch a dry run with `gh workflow run release.yml -f dry_run=true`, wait for the
-run created after the dispatch (as in step 3), and report it. **A failed dry run blocks the
-merge**, whatever the user says.
+If `release.publish` has at least one target, get the PR's branch (`gh pr view <pr> --json
+headRefName`), run `git fetch origin <branch> --tags`, take `v<last>` from
+`gh release list -L 1 --exclude-drafts --json tagName` and check
+`git diff v<last>..origin/<branch> -- .github/workflows/release.yml`. If it isn't empty, or
+there is no previous Release, run `gh workflow run release.yml --ref <branch> -f dry_run=true`.
+**Don't merge until the run created after it succeeded** and `gh run view <run-id> --json jobs`
+shows a dry run (`release-please` skipped). A dispatch error, no run, or a failed or cancelled
+run blocks the merge, whatever the user says.
 
-If the version is `1.0.0` or a new major, ask whether a versioning and stability policy is
-written down (an ADR, or a file the maintainer names). If not, offer to draft one from the code
-for the maintainer to decide on, and don't merge until they confirm it.
+For `1.0.0` or a new major, ask where the versioning and stability policy is written down. If
+nowhere, offer to draft one from the code, and don't merge until the maintainer confirms it.
 
 ## 3. Fix entries at their source
 
@@ -120,7 +124,8 @@ Merge only after the user says to in this conversation, not because they're in a
 - `BLOCKED` with pending checks: watch them, then read again.
 - `BEHIND`: if step 1's release run is in progress, wait and read again (a `feat` or `fix`
   changes the notes). Else `gh pr update-branch <pr>`, read `headRefOid` again, and once
-  `gh pr checks <pr>` lists that head's checks, add `--watch`.
+  `gh pr checks <pr>` lists that head's checks, add `--watch`. Then redo step 2's
+  `release.yml` check.
 
 Show the head you'll merge. If `gh pr diff <pr>` no longer shows the approved notes, show the PR
 and ask again. Then squash-merge:
@@ -145,19 +150,21 @@ gh run view <run-id>
 gh release view v<version>
 ```
 
-If `release.publish` is set, the job `publish` must show success; `skipped` counts as a
-failure. While it waits for approval, tell the user to approve the `publish` deployment on the
-run page, and keep watching. **Never approve or bypass it yourself**, even as an admin.
+If `release.publish` has at least one target, `publish` must succeed (`skipped` fails). While
+it waits for approval, ask the user to approve it on the run page and keep watching. **Never
+approve or bypass it yourself**, even as an admin.
 
-Then check each registry for that exact version, every 30 seconds for up to 10 minutes before
-calling it missing: `npm view <package>@<version> version` or `cargo info <crate>@<version>`.
-For npm, `npm view <package>@<version> dist.attestations --json` must be non-empty, and for a
-package with `bin`, `npm exec --yes --package=<package>@<version> -- <bin> --version` in an
-empty temp directory must print `<version>`.
+Then poll each registry every 30 seconds, for up to 10 minutes, before calling the version
+missing: `npm view <package>@<version> version` must print exactly `<version>`, and
+`cargo info <crate>@<version> --registry crates-io` must find it. For npm in a public repo,
+`npm view <package>@<version> dist.attestations --json` must be non-empty. For each name in
+`npm view <package>@<version> bin --json`, `npm exec --yes --package=<package>@<version> --
+<bin> --version`, run in an empty temp directory (a disposable sandbox if available: it runs the
+published code), must print output containing `<version>`.
 
-When a run, job or check fails, the tag and Release stay. Read
-`${CLAUDE_PLUGIN_ROOT}/skills/release/failures.md`, report the matching cause and give its
-action. A broken package follows its "Broken release" section.
+On a failure the tag and Release stay: give the matching `failures.md` action, and for a broken
+package its "Broken release" section. With no row, report the log and offer
+`gh run rerun <run-id> --failed`, which waits for approval of `publish` again.
 
 **Never publish from your machine** (`npm publish`, `cargo publish`), and never re-tag, move or
 delete a tag, or bump the version to recover. Don't offer these, even when the user wants it out
