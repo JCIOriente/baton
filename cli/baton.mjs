@@ -376,7 +376,8 @@ function start(argv) {
   const n = issueArg(positionals);
   const res = claimTask(getProvider(config, root), n, values.force);
   const existing = listWorktrees(root).find((w) => issueFromBranch(config, w.branch) === n);
-  const path = existing ? existing.path : createWorktree(root, config, branchName(config, n, res.task.title)).path;
+  // A stale record (directory gone) keeps its branch: createWorktree prunes it and checks the branch out again.
+  const path = existing && !isStale(existing) ? existing.path : createWorktree(root, config, existing?.branch ?? branchName(config, n, res.task.title)).path;
 
   const setup = runSteps(config.setup, path, 'setup');
   if (!setup.ok) {
@@ -395,13 +396,24 @@ function start(argv) {
   print(lines.join('\n'));
 }
 
+/** A worktree record whose directory is gone (removed by hand without `git worktree prune`). */
+function isStale(w) {
+  return w.prunable || !existsSync(w.path);
+}
+
 /**
  * The worktree for `branch` under `worktreeBase`: an existing one is reused, an existing local
  * branch is checked out, otherwise the branch starts from the remote base with no upstream.
+ * A stale record for the branch is pruned first, so the worktree is made again.
  */
 function createWorktree(root, config, branch) {
-  const worktrees = listWorktrees(root);
-  const existing = worktrees.find((w) => w.branch === branch);
+  let worktrees = listWorktrees(root);
+  let existing = worktrees.find((w) => w.branch === branch);
+  if (existing && isStale(existing)) {
+    git(['worktree', 'prune'], { cwd: root });
+    worktrees = listWorktrees(root);
+    existing = worktrees.find((w) => w.branch === branch);
+  }
   if (existing) return { path: existing.path, created: false };
   const path = join(worktreeBase(root, config), branch.replace(/\//g, '-'));
   // Checked before git runs, so a clash never leaves a new branch behind.
@@ -452,7 +464,8 @@ function worktree(argv) {
   }
   if (sub === 'remove') {
     // A number is a task (`worktree remove 12`); anything else is a name from `worktree add`.
-    const n = /^#?\d+$/.test(positionals[0] ?? '') ? issueArg(positionals) : null;
+    // Only a positive number can be a task, so a name like `0` from `worktree add` takes the name path.
+    const n = /^#?\d*[1-9]\d*$/.test(positionals[0] ?? '') ? issueArg(positionals) : null;
     const name = n ? null : slugify(positionals[0] ?? '');
     if (!n && !name) throw new BatonError('Expected a task number or worktree name, e.g. `baton worktree remove orgs-spec`');
     const label = n ? `#${n}` : name;
@@ -462,6 +475,10 @@ function worktree(argv) {
       ? (all.find((w) => issueFromBranch(config, w.branch) === n) ?? all.find((w) => w.branch === slugify(positionals[0])))
       : all.find((w) => w.branch === name);
     if (!wt) throw new BatonError(`No worktree for ${label}`);
+    if (isStale(wt)) {
+      git(['worktree', 'prune'], { cwd: root });
+      return print(`Worktree ${wt.path} was already missing on disk; cleared its record (branch ${wt.branch} kept).`);
+    }
     if (!values.force && hasUncommittedChanges(wt.path)) {
       throw new BatonError(`Worktree for ${label} has uncommitted changes`, { hint: 'Commit or discard them, or pass --force.' });
     }

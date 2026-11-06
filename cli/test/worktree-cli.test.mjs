@@ -223,6 +223,73 @@ test('start_reuses_the_task_worktree_after_a_title_change', (t) => {
   assert.equal(git(root, 'branch', '--list', 'task/12-*'), '+ task/12-old', 'no new task branch');
 });
 
+test('start_creates_the_task_worktree_from_the_remote_base', (t) => {
+  const { dir, root, base } = repo(t);
+  const gh = withFakeGh(dir, { title: 'Task' });
+  const res = gh.run(root, 'start', '12', '--no-baseline', '--json');
+  assert.equal(res.status, 0, res.stderr);
+  const path = join(base, 'task-12-task');
+  assert.equal(JSON.parse(res.stdout).path, path);
+  assert.equal(git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), 'task/12-task');
+  assert.equal(git(path, 'rev-parse', 'HEAD'), git(root, 'rev-parse', 'origin/main'));
+  const upstream = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'task/12-task@{u}'], { cwd: root, env, encoding: 'utf8' });
+  assert.notEqual(upstream.status, 0, 'the task branch has no upstream');
+});
+
+test('start_recreates_a_task_worktree_whose_directory_is_gone', (t) => {
+  const { dir, root, base } = repo(t);
+  const path = join(base, 'task-12-old');
+  git(root, 'worktree', 'add', '-q', '-b', 'task/12-old', path, 'main');
+  rmSync(path, { recursive: true, force: true });
+  const gh = withFakeGh(dir, { title: 'New title' });
+  const res = gh.run(root, 'start', '12', '--no-baseline', '--json');
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(JSON.parse(res.stdout).path, path);
+  assert.ok(existsSync(path), 'the worktree is back on disk');
+  assert.equal(git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), 'task/12-old');
+});
+
+test('worktree_add_recreates_a_worktree_whose_directory_is_gone', (t) => {
+  const { root, base } = repo(t);
+  assert.equal(baton(root, 'worktree', 'add', 'orgs-spec').status, 0);
+  const path = join(base, 'orgs-spec');
+  rmSync(path, { recursive: true, force: true });
+  const res = baton(root, 'worktree', 'add', 'orgs-spec', '--json');
+  assert.equal(res.status, 0, res.stderr);
+  assert.deepEqual(JSON.parse(res.stdout), { path, branch: 'orgs-spec', created: true });
+  assert.ok(existsSync(path), 'the worktree is back on disk');
+  assert.equal(git(path, 'rev-parse', '--abbrev-ref', 'HEAD'), 'orgs-spec');
+});
+
+test('worktree_remove_clears_a_record_whose_directory_is_gone', (t) => {
+  const { root, base } = repo(t);
+  assert.equal(baton(root, 'worktree', 'add', 'orgs-spec').status, 0);
+  rmSync(join(base, 'orgs-spec'), { recursive: true, force: true });
+  const res = baton(root, 'worktree', 'remove', 'orgs-spec');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /missing on disk/);
+  assert.ok(!git(root, 'worktree', 'list', '--porcelain').includes('orgs-spec'), 'the stale record is gone');
+  assert.equal(git(root, 'branch', '--list', 'orgs-spec'), 'orgs-spec', 'the branch is kept');
+});
+
+test('worktree_remove_by_zero_name', (t) => {
+  const { root, base } = repo(t);
+  assert.equal(baton(root, 'worktree', 'add', '0').status, 0);
+  const res = baton(root, 'worktree', 'remove', '0');
+  assert.equal(res.status, 0, res.stderr);
+  assert.ok(!existsSync(join(base, '0')));
+});
+
+test('worktree_add_warns_when_the_fetch_fails', (t) => {
+  const { root, base } = repo(t);
+  const old = git(root, 'rev-parse', 'origin/main');
+  git(root, 'remote', 'set-url', 'origin', join(root, 'nonexistent.git'));
+  const res = baton(root, 'worktree', 'add', 'offline2');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stderr, /could not fetch/);
+  assert.equal(git(join(base, 'offline2'), 'rev-parse', 'HEAD'), old);
+});
+
 test('init_labels_use_the_config_just_written', (t) => {
   const { dir, root, base } = repo(t, { tasks: { repo: 'org/old' } });
   const path = join(base, 'adopt');
