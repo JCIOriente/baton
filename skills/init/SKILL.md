@@ -175,8 +175,11 @@ disable-model-invocation: true
       `gh api repos/{owner}/{repo}/environments/publish/deployment-branch-policies --jq '.branch_policies[].name'`.
       **If it exists, show its reviewers, `prevent_self_review` and branch policy, and propose
       only what is missing. Never remove a reviewer, turn a protection off or widen the branch
-      policy.** Otherwise offer to create it with the user as required reviewer and deployments
-      limited to the base branch. Run each write only after the user confirms:
+      policy.** A PUT replaces the whole protection, so a PUT to an existing `publish` sends
+      its current reviewers, `prevent_self_review` and `wait_timer` together with the addition,
+      never the new piece alone. Otherwise offer to create it with the user as required
+      reviewer and deployments limited to the base branch. Run each write only after the user
+      confirms:
       ```bash
       id=$(gh api user --jq .id) || exit 1
       gh api -X PUT repos/{owner}/{repo}/environments/publish --input - <<JSON
@@ -218,7 +221,12 @@ disable-model-invocation: true
    8. Suggest, and run only after the user confirms, protecting tags and releases. The ruleset
       blocks updating and deleting `v*` tags, and may also restrict creating them. With the
       `creation` rule, the owner of `RELEASE_PLEASE_TOKEN` must be a bypass actor, or
-      release-please can't tag; that owner may not be the person running `gh`:
+      release-please can't tag. That owner may not be the person running `gh`: ask the user
+      which account created `RELEASE_PLEASE_TOKEN`. If
+      `gh api repos/{owner}/{repo}/rulesets --jq '.[] | select(.name=="release tags") | .id'`
+      prints an id, don't POST: show `gh api repos/{owner}/{repo}/rulesets/<id>` and, for a
+      change the user confirms, `gh api -X PUT repos/{owner}/{repo}/rulesets/<id> --input -`
+      with its current rules and bypass actors plus the addition. Otherwise:
       ```bash
       owner_id=$(gh api users/<token owner login> --jq .id) || exit 1
       gh api -X POST repos/{owner}/{repo}/rulesets --input - <<JSON
@@ -231,11 +239,7 @@ disable-model-invocation: true
       JSON
       gh api -X PUT repos/{owner}/{repo}/immutable-releases
       ```
-      Without `creation`, drop that rule and `bypass_actors`. If
-      `gh api repos/{owner}/{repo}/rulesets --jq '.[] | select(.name=="release tags") | .id'`
-      prints an id, don't POST: show `gh api repos/{owner}/{repo}/rulesets/<id>` and, for a
-      change the user confirms, `gh api -X PUT repos/{owner}/{repo}/rulesets/<id> --input -`
-      with its current rules and bypass actors plus the addition.
+      Without `creation`, drop that rule and `bypass_actors`.
    9. Run `baton doctor`; it must report no release mismatch.
 
    To turn releases on later, or after a config change, run step 1 (preconditions) and then
