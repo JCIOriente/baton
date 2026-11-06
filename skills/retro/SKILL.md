@@ -47,6 +47,7 @@ Write each lesson as a rule an agent can apply, with the reason behind it.
 ## 4. Propose, don't impose
 
 Put convention, ADR and glossary edits in a small separate PR (or in the current task's PR,
-if it isn't merged yet), titled `docs: lessons from #<n>`. The user or a reviewer approves it
-like any other change. For baton-level lessons, draft the issue text and ask the user before
-filing it on the baton repo.
+if it isn't merged yet), titled `docs: lessons from #<n>`. Commit them in the task's worktree or
+in one from `baton worktree add lessons-<n>`, never in the main checkout. The user or a reviewer
+approves it like any other change. For baton-level lessons, draft the issue text and ask the
+user before filing it on the baton repo.

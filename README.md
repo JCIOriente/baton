@@ -47,7 +47,7 @@ Claude to load it, along with the repo's phases, gates, guide paths and validati
 | Concern | Where it lives |
 |---|---|
 | Shared task state (ownership, status, deps, history) | GitHub Issues: labels, assignees, `Depends on: #N`, claim marker comments |
-| Local execution | One git worktree + branch per task (`../<repo>-worktrees/task-<n>-<slug>`), `setup` and a baseline run on start. No shared mutable local files |
+| Local execution | Every change happens in a linked worktree. One per task from `baton start <n>` (`../<repo>-worktrees/task-<n>-<slug>`), `setup` and a baseline run on start; one per spec, plan or other non-task change from `baton worktree add <name>`. The main checkout stays on the base branch and only fast-forwards. No shared mutable local files |
 | Integration | `baton verify` (project-defined commands) -> review (spec compliance, then quality angles) -> `baton done` (PR `Closes #N`) -> merge policy |
 | Learning | `baton:retro` turns review and verification evidence into convention/ADR changes, reviewed like code. Nothing is learned privately |
 | Workflow definition | `.baton/config.json` in each project, falling back to defaults |
@@ -63,6 +63,17 @@ back automatically. Markers count only when the comment author matches the claim
 **Fact gate (opt-in):** with `hooks.factGate`, the first edit of each file per session is
 refused once, until the agent states facts about it: importers, affected API, data, and the
 user's instruction. It's adapted from ECC's gateguard.
+
+**Worktree guard (on by default):** with `hooks.worktreeOnly`, nothing is edited or committed in
+the main checkout. A Claude Code hook denies edits to tracked and new files there (gitignored
+files are allowed) and names the way out: `baton start <n>` for a task, `baton worktree add <name>`
+for anything else. `baton hooks install` adds a git `pre-commit` guard per clone that refuses
+commits there from anyone. It never changes an existing hook, a hook manager's setup or a hooks
+directory in the working tree (`.husky/`, `.githooks/`); it prints the line to add instead.
+`baton doctor` and the session start report a clone without it. Both guards read the switch from
+the main checkout's committed `HEAD`, allow the action on any internal error, and stand down when
+`CI` or `CLAUDE_CODE_REMOTE` is `true`. A repo turns them off by merging
+`"hooks": { "worktreeOnly": false }` into `.baton/config.json`.
 
 **Cross-tool:** all state and logic live in the CLI and in plain markdown, so a
 Codex/other-agent adapter only has to generate an `AGENTS.md` that points to the same skills and
@@ -98,6 +109,8 @@ See [`templates/config.example.json`](templates/config.example.json). Key fields
 - `review.scopeToDiff`: off by default (every stack reviewer runs); on, a stack reviewer is
   skipped only when the diff provably doesn't touch its stack
 - `hooks.factGate`: opt-in investigate-before-edit gate
+- `hooks.worktreeOnly`: on by default; every change happens in a linked worktree (see
+  "Worktree guard" above). `false` turns both guards off
 - `conventions`: project rule files that override the stack guides
 
 ## CLI
