@@ -13,6 +13,7 @@ specs and issues. When a term is ambiguous or keeps needing explanation, add it 
 | Claim | The marker comment that wins the race for a task. The assignee is set only after a claim wins | Assigning someone by hand |
 | Release | In repos with `release.enabled`: a version with its tag (`v<version>`, no package name), GitHub Release, generated `CHANGELOG.md` section and, when `release.publish` is set, the same version on each registry. Created only by merging the release PR | A merged task PR, or releasing a claim (`baton release <n>`) |
 | Release PR | The one open PR that release-please maintains (label `autorelease: pending`), holding the next version and its notes | A task PR |
+| Accepted advisory | A security advisory ID in the project's committed ignore list (`deny.toml`, `.cargo/audit.toml`, the package manager's config), with a reason it isn't reachable and a condition for dropping it. The only kind of advisory an audit may skip | An `--ignore` flag on a command line, or a lowered audit threshold |
 
 ## Relationships
 A spec has one plan doc. A plan doc becomes one plan issue with tasks as its sub-issues. A task has
