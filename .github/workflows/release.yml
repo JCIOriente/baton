@@ -6,6 +6,12 @@ on:
   push:
     branches: ["main"] # baton:init sets git.baseBranch
   workflow_dispatch:
+    inputs:
+      # gh workflow run release.yml -f dry_run=true
+      dry_run:
+        description: "Build and check every package and run the registries' dry-run publish; release and publish nothing"
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -15,6 +21,7 @@ concurrency:
 
 jobs:
   release-please:
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     # The token is an environment secret: only runs on the base branch can read it.
