@@ -36,6 +36,7 @@ Requirements: Node >= 20, `git`, and `gh` (authenticated) for backlog commands. 
 /baton:integrate            # rebase, re-verify, PR, merge per policy, unblock, retro
 /baton:parallel             # controller for several tasks at once (implementer subagents)
 /baton:debug                # root cause before fixes
+/baton:deps <package>       # vet a dependency add/upgrade: registry version, audit, lockfile
 /baton:retro                # lessons -> conventions/ADRs via reviewed PRs
 ```
 
