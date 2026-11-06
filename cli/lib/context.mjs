@@ -11,6 +11,7 @@ export const ALWAYS_RULES = [
   'Every changed line traces back to the task: no drive-by refactors or reformatting; mention unrelated problems instead of fixing them.',
   'If a requirement is ambiguous or a simpler approach exists, say so and ask before building.',
   'Never say done, fixed or passing without fresh `baton verify` output from after your last change.',
+  'Before adding, upgrading or replacing a dependency, load baton:deps. Never take a version from memory.',
 ];
 
 // Replaces the task-only first rule while hooks.worktreeOnly is on.
