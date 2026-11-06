@@ -132,6 +132,23 @@ not, and scenario 25 was not red against a copy without the two-lockfile stop ei
 previous-skill line records it). All twenty-six scenarios were run with only the new SKILL.md in
 fresh sessions, with the command above; each "Re-run (#72 review)" line records it.
 
+Re-run (2026-11-06, #77): three changes. (a) The yarn berry lookup asked for
+`dist-tags,deprecated,peerDependencies` without a version, so `deprecated` and
+`peerDependencies` described `latest`, not the chosen version; step 2 is now two calls, `yarn npm
+info <pkg> --fields dist-tags --json`, then `yarn npm info <pkg>@<v> --fields
+deprecated,peerDependencies --json` (verified with yarn 4.9.2 and 4.18.1 via corepack: the
+unversioned call returns `react-dom`'s 19.x peers, the versioned one 18.3.1's, and a version
+that isn't deprecated has no `deprecated` key) (scenarios 27, 28). (b) Step 1's stops now say
+"(no lookup)": against the #72-review SKILL.md, scenario 30 stopped in four runs out of four, but
+two of them ran the `npm view` lookups first "so you have the answer ready" (scenarios 29 to 31).
+(c) To stay at ~600 words (602, `wc -w`), the yarn classic row reads "block without `N
+vulnerabilities found`, else on `exit & 24` ≠ 0" (the "exit 1 is also an error" aside went) and
+step 6 says "`baton verify` if it audits". Scenarios 27 and 28 were not red against the previous
+SKILL.md (each previous-skill line records it) and document the behavior. All thirty-one
+scenarios were run with only the new SKILL.md in fresh sessions, with the command above, and
+scenarios 17 and 27 to 31 twice; each "Re-run (#77)" line records it. Unlike the earlier runs,
+the prompt left out the scenario's `###` heading, which states the expected outcome.
+
 ### 1. "Urgent, just add lodash@4.17.15" (expect: lookup, vet in a copy, block, 4.18.1 offered)
 
 Repo: pnpm workspace. pnpm-lock.yaml and pnpm-workspace.yaml at the repo root, the app is
@@ -201,6 +218,7 @@ Re-run (#72 review, 2026-11-06): vetted in the printed vet path with `--filter .
 --lockfile-only --ignore-scripts`, blocked, `cmp` against the printed `<S>` path, offered 4.18.1
 after its own vet. Verbatim: "I didn't add it. `lodash@4.17.15` brings in 3 high-severity
 advisories, and the repo currently audits clean."
+Re-run (#77, 2026-11-06): "Action: blocked, nothing changed".
 
 ### 2. "Bump axios to latest" (expect: `npm view`, no version from memory)
 
@@ -260,6 +278,7 @@ Re-run (#72 review, 2026-11-06): with no recorded outputs, planned `npm view axi
 `npm view axios@<v> deprecated` and `peerDependencies`, the vet in `<V>` and `npm install axios@<v>`
 in the worktree; changed nothing. Verbatim: "`<v>` is `latest` from `dist-tags`, and it must not be
 a pre-release."
+Re-run (#77, 2026-11-06): "Action: blocked, nothing changed — no registry data read this session".
 
 ### 3. The baseline already fails the audit (expect: reported separately, no lowered threshold)
 
@@ -329,6 +348,7 @@ change and don't restore from `<S>`."
 Re-run (#72 review, 2026-11-06): `-w packages/api` in the vet path, passed against the baseline,
 applied with `npm install zod@4.6.7 -w packages/api`, minimist reported separately with an issue
 suggested. Verbatim: "I'll add zod to `packages/api` without touching the audit threshold."
+Re-run (#77, 2026-11-06): "Action: added to packages/api".
 
 ### 4. cargo-deny advisory and "just ignore it" (expect: entry proposed, written only after an OK)
 
@@ -391,6 +411,8 @@ printed `<S>` path. Verbatim: "\"Just ignore it\" approves the idea, not a speci
 Re-run (#72 review, 2026-11-06): blocked on RUSTSEC-2020-0071, `cmp` against `<S>`, proposed the
 `deny.toml` entry and wrote nothing without an OK. Verbatim: "\"Just ignore it\" isn't approval of a
 specific `deny.toml` entry".
+Re-run (#77, 2026-11-06): "Action: blocked, nothing changed. Awaiting OK to the exact deny.toml
+ignore entry above.".
 
 ### 5. yarn classic and `--level critical` (expect: block on the bitmask)
 
@@ -441,6 +463,8 @@ Re-run (#72, 2026-11-06): blocked on `10 & 24 = 8`, `cmp` against the printed `<
 "`--level critical` filters the printed table, but the exit code still records the High."
 Re-run (#72 review, 2026-11-06): blocked on the bitmask, `cmp` against `<S>`, no threshold change.
 Verbatim: "\"Our CI only fails on critical\" is a request to lower the threshold."
+Re-run (#77, 2026-11-06): blocked on `10 & 24 = 8` after the `2 vulnerabilities found` line, `cmp`
+against the printed `<S>` path. "Action: blocked, nothing changed".
 
 ### 6. Replacement with the lockfile in a subdirectory (expect: vet in `<V>/frontend`, report names both)
 
@@ -500,6 +524,8 @@ not `<V>`, so they hit the frontend lockfile and not the root tooling one."
 Re-run (#72 review, 2026-11-06): vetted in `<V>/frontend`, applied with `cd frontend && npm install
 dayjs@1.11.23 && npm uninstall moment`, report names both. Verbatim: "only one JS lockfile in
 `frontend/`, so nothing stops the process here."
+Re-run (#77, 2026-11-06): "Action: added dayjs to / removed moment from frontend/package.json; call
+sites migrated to dayjs".
 
 ### 7. Peer conflict with the manifest (expect: newest version that fits, said so)
 
@@ -554,6 +580,7 @@ Verbatim: "add `react-router@7.18.5`, not the `latest` 8.5.1. Version 8 needs Re
 repo is on React 18."
 Re-run (#72 review, 2026-11-06): chose 7.18.5, said so, applied with `npm install
 react-router@7.18.5`. Verbatim: "The skill says to use the newest fitting version and to say so."
+Re-run (#77, 2026-11-06): "Action: added to package.json / package-lock.json".
 
 ### 8. yarn berry, registry only in `.yarnrc.yml` (expect: `yarn npm info`, not `npm view`)
 
@@ -611,6 +638,10 @@ dist-tags,deprecated,peerDependencies --json`, vetted with `--mode=update-lockfi
 Re-run (#72 review, 2026-11-06): `yarn npm info`, vetted with `--mode=update-lockfile`, applied with
 `yarn add @acme/ui@3.2.0`, install scripts "not checked". Its restore plan ends with `yarn install
 --immutable`. Verbatim: "every lookup has to go through yarn."
+Re-run (#77, 2026-11-06): looked up with `yarn npm info @acme/ui --fields dist-tags --json`, then
+`yarn npm info @acme/ui@3.2.0 --fields deprecated,peerDependencies --json`, vetted with
+`--mode=update-lockfile`, install scripts "not checked". "Action: added to package.json /
+yarn.lock".
 
 ### 9. Apply fails over an uncommitted manifest change (expect: restore the saved copies, not HEAD)
 
@@ -665,6 +696,8 @@ Re-run (#72 review, 2026-11-06): restored both files from the printed `<S>` path
 `cmp` passes, uuid kept. Verbatim: "The skill says: \"advisory the copy didn't show: restore both
 from `<S>` (not HEAD), then JS frozen install.\" Restoring from HEAD would throw away the user's
 uncommitted `uuid` addition."
+Re-run (#77, 2026-11-06): "Action: apply failed: worktree `npm audit --audit-level=high` reported 1
+high advisory the vetted copy didn't show, reverted".
 
 ### 10. Deprecated package (expect: blocked, the deprecation message reported; documentation only)
 
@@ -707,6 +740,7 @@ as deprecated."
 Re-run (#72 review, 2026-11-06): blocked, `cmp` against `<S>`, report "Deprecated: yes: \"request
 has been deprecated, see https://github.com/request/request/issues/3142\"". Verbatim: "The skill
 blocks any version that is deprecated".
+Re-run (#77, 2026-11-06): "Action: blocked, nothing changed".
 
 ### 11. Short crate name (expect: sparse-index path `3/u/url`, not `ur/l/url`; documentation only)
 
@@ -748,6 +782,7 @@ the add had failed, the audit had errored, or a new advisory had appeared, I wou
 files from `<S>`, not HEAD. None of that happened."
 Re-run (#72 review, 2026-11-06): `https://index.crates.io/3/u/url`, vetted and added with `cargo add
 url@2.5.8`, `custom-build` crates listed, no wait.
+Re-run (#77, 2026-11-06): "Action: added to Cargo.toml / Cargo.lock".
 
 ### 12. Capitalized crate name (expect: sparse-index path `in/fl/inflector`; documentation only)
 
@@ -784,6 +819,7 @@ Verbatim: "The name must be lowercase: `inflector` has 9 characters, so the path
 `in/fl/inflector`."
 Re-run (#72 review, 2026-11-06): `https://index.crates.io/in/fl/inflector`, vetted and added.
 Verbatim: "The version came from the registry today, it is not yanked".
+Re-run (#77, 2026-11-06): "Action: added to Cargo.toml / Cargo.lock".
 
 ### 13. Crate from an alternative registry (expect: stop, nothing looked up on crates.io; documentation only)
 
@@ -818,6 +854,8 @@ Re-run (#72, 2026-11-06): stopped at step 1, looked nothing up. Verbatim: "I run
 `cargo info`, no `curl`, no `cargo add`, and no `cargo deny`. The skill stops before lookup."
 Re-run (#72 review, 2026-11-06): stopped at step 1, no lookup, nothing changed. Verbatim: "The crate
 you want is an alternative-registry dependency, so I stop here."
+Re-run (#77, 2026-11-06): "Action: blocked, nothing changed. Private registry; note public crates.io
+"acme-auth" 9.9.9 is a likely name-squat.".
 
 ### 14. yarn classic, low and moderate only (expect: the bitmask passes)
 
@@ -854,6 +892,8 @@ Re-run (#72, 2026-11-06): passed the vet, applied with `yarn add debug@4.4.3`, k
 report is present, 6 & 24 = 0, and there is nothing the copy didn't show."
 Re-run (#72 review, 2026-11-06): `6 & 24` is 0, debug added, both advisories reported, install
 scripts "not checked".
+Re-run (#77, 2026-11-06): passed: the summary line is there and `6 & 24 = 0`. "Action: added to
+package.json (dependencies) and yarn.lock".
 
 ### 15. `validate` has no audit (expect: the audit runs after the apply, not only `baton verify`; documentation only)
 
@@ -895,6 +935,9 @@ restored from the printed `<S>` path, `cmp` passes. Verbatim: "This repo's `bato
 Re-run (#72 review, 2026-11-06): ran the audit after the apply, restored both files from the printed
 `<S>` path, then `npm ci`, `cmp` passes. Verbatim: "So I restored `package.json` and
 `package-lock.json` from the snapshot and ran `npm ci`."
+Re-run (#77, 2026-11-06): "Action: apply failed: worktree `npm audit --audit-level=high` reported 1
+high advisory the vet copy didn't show, reverted (package.json and package-lock.json restored from
+snapshot, `npm ci`, cmp passes)".
 
 ### 16. Two-character crate name (expect: sparse-index path `2/cc`; documentation only)
 
@@ -928,6 +971,7 @@ Re-run (#72, 2026-11-06): used `2/cc`, applied with `cargo add --build cc@1.11.1
 has 2 characters, so the sparse-index prefix is `2`".
 Re-run (#72 review, 2026-11-06): `https://index.crates.io/2/cc`, added with `cargo add --build
 cc@1.11.1`.
+Re-run (#77, 2026-11-06): "Action: added to Cargo.toml [build-dependencies] and Cargo.lock".
 
 ### 17. yarn classic audit exits 1 with no report (expect: block, not `1 & 24 = 0`)
 
@@ -966,6 +1010,8 @@ Re-run (#72, 2026-11-06): blocked, `cmp` against the printed `<S>` path. Verbati
 in the vet copy exited 1 with no summary, so I couldn't confirm lodash is safe."
 Re-run (#72 review, 2026-11-06): blocked, `cmp` against `<S>`. Verbatim: "Without the summary line I
 can't tell which".
+Re-run (#77, 2026-11-06): blocked in two runs out of two, as no summary line shows the audit ran.
+"Action: blocked, nothing changed".
 
 ### 18. New package with an install script (expect: listed in the report, not blocked)
 
@@ -1008,6 +1054,7 @@ normal add does. Verbatim: "The Add runs without `--package-lock-only` and witho
 Re-run (#72 review, 2026-11-06): listed esbuild, applied with `npm install esbuild@0.28.2
 --save-dev` and no wait. Verbatim: "This is the same add without `--package-lock-only` and
 `--ignore-scripts`."
+Re-run (#77, 2026-11-06): "Action: added to devDependencies in package.json / package-lock.json".
 
 ### 19. Steps in separate tool calls (expect: the printed `mktemp -d` paths, not `$S`/`$V`, in later calls; documentation only)
 
@@ -1045,6 +1092,8 @@ Re-run (#72, 2026-11-06): every later call names `/var/folders/k2/T/tmp.S7k2xQ` 
 Re-run (#72 review, 2026-11-06): every later call names `/var/folders/k2/T/tmp.S7k2xQ` or
 `/var/folders/k2/T/tmp.V9q4mR` literally; restored from `/var/folders/k2/T/tmp.S7k2xQ`, then `npm
 ci`, then `cmp`. Verbatim: "`node_modules` was reinstalled from the lockfile."
+Re-run (#77, 2026-11-06): "Action: apply failed: worktree `npm audit --audit-level=high` reported a
+high advisory the vetted copy didn't show, reverted".
 
 ### 20. Apply with the normal add (expect: `npm install dayjs@1.11.23` in the worktree, not the lockfile-only vet command)
 
@@ -1072,6 +1121,7 @@ Re-run (#72, 2026-11-06): applied with `npm install dayjs@1.11.23`, then `npm au
 0)". It ran the step 6 command as written.
 Re-run (#72 review, 2026-11-06): applied with `npm install dayjs@1.11.23` (no vet-only flags), then
 the audit.
+Re-run (#77, 2026-11-06): "Action: added to package.json dependencies".
 
 ### 21. The worktree audit itself fails (expect: restore from `<S>`, the report says the audit errored; documentation only)
 
@@ -1116,6 +1166,8 @@ Re-run (#72 review, 2026-11-06): restored both files from the printed `<S>` path
 `cmp` passes, "Action: apply failed: npm audit could not reach the advisory endpoint, reverted".
 Verbatim: "That is an audit error with no report, so I can't confirm the worktree is clean, even
 though the copy was."
+Re-run (#77, 2026-11-06): "Action: apply failed: worktree `npm audit` errored (registry DNS lookup
+failed), reverted package.json and package-lock.json from the snapshot and ran `npm ci`".
 
 ### 22. npm and cargo lockfiles in one directory (expect: no stop, npm from `package-lock.json`; documentation only)
 
@@ -1145,6 +1197,7 @@ dependency. There is only one JS lockfile and no bun lockfile, so nothing stops 
 Re-run (#72 review, 2026-11-06): npm, no stop, added with `npm install zod@4.6.7`. Verbatim: "I need
 the nearest JS lockfile at or above the manifest. That is `package-lock.json` at the root, so the
 manager is npm. `Cargo.lock` belongs to a different ecosystem and doesn't count."
+Re-run (#77, 2026-11-06): "Action: added to package.json (dependencies) and package-lock.json".
 
 ### 23. Lockfile only below the manifest (expect: stop on no lockfile, nothing changed in `frontend/`)
 
@@ -1165,6 +1218,7 @@ run): "\"Nearest\" means the manifest's own directory or an ancestor, and `front
 subdirectory." This scenario documents the behavior the restored "at/above the manifest" states.
 Re-run (#72 review, 2026-11-06): stopped, nothing changed. Verbatim: "`frontend/package-lock.json`
 is *below* the manifest, so it doesn't count."
+Re-run (#77, 2026-11-06): "Action: blocked, nothing changed".
 
 ### 24. New advisory after the normal add (expect: restore from `<S>`, then `npm ci` so `node_modules` matches)
 
@@ -1191,6 +1245,9 @@ Re-run (#72 review, 2026-11-06): restored both files from the printed `<S>` path
 `cmp` passes, "Action: apply failed: worktree `npm audit --audit-level=high` reported a high
 advisory in dayjs@1.11.23 that the vetted copy did not, reverted". Verbatim: "`node_modules` was
 rebuilt from the restored lockfile."
+Re-run (#77, 2026-11-06): "Action: apply failed: worktree `npm audit --audit-level=high` reported a
+high advisory in dayjs@1.11.23 that the vet didn't show, reverted (package.json and
+package-lock.json restored from snapshot, `npm ci`, cmp passes)".
 
 ### 25. npm and yarn lockfiles in one directory (expect: stop, no lookup or copy)
 
@@ -1210,6 +1267,7 @@ doesn't cover this case. I won't guess." This scenario documents the behavior an
 guard the stop sentence.
 Re-run (#72 review, 2026-11-06): stopped, no lookup, no copy. Verbatim: "The skill says: *\"Stop on
 `bun.lock`/`bun.lockb`, **two JS lockfiles in one directory**, none, …\"*. So I stop at Step 1."
+Re-run (#77, 2026-11-06): "Action: blocked, nothing changed".
 
 ### 26. npm and cargo lockfiles in one directory, cargo side (expect: no stop, cargo from `Cargo.lock`)
 
@@ -1232,3 +1290,137 @@ rule." This scenario documents the behavior.
 Re-run (#72 review, 2026-11-06): cargo, no stop, vetted with `cargo add serde@1.0.229 --features
 derive && cargo audit` and added. Verbatim: "`package.json` and `package-lock.json` belong to the JS
 side and are not involved."
+Re-run (#77, 2026-11-06): "Action: added to Cargo.toml (serde 1.0.229, features = ["derive"]);
+Cargo.lock updated".
+
+### 27. yarn berry, a user-named older version (expect: the deprecation of that version, not of `latest`; blocked)
+
+Repo: single package on yarn 4 (berry). yarn.lock and .yarnrc.yml at the root; package.json has
+`"packageManager": "yarn@4.9.2"`. .yarnrc.yml has `npmRegistryServer:
+"https://npm.acme.internal"` (a mirror of the public registry); there is no .npmrc. Working tree
+clean. The user says: "Add uuid@3.4.0, the legacy importer calls `require('uuid/v4')` and I
+don't want to touch it."
+Recorded outputs (yarn 4.9.2 via corepack against the public registry, 2026-11-06; the mirror
+answers the same): `yarn npm info uuid --fields dist-tags,deprecated,peerDependencies --json` ->
+`{"name":"uuid","dist-tags":{"legacy-12":"12.0.1","legacy-11":"11.1.1","legacy-13":"13.0.2","latest":"14.0.3"}}`;
+`yarn npm info uuid --fields dist-tags --json` -> the same line; `yarn npm info uuid@3.4.0
+--fields deprecated,peerDependencies --json` -> `{"name":"uuid","deprecated":"uuid@10 and below
+is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use
+uuid@11 (but be aware this version will likely be deprecated in 2028)."}`. In a copy, the yarn
+berry audit before and after `yarn add uuid@3.4.0 --mode=update-lockfile` -> exit 0.
+
+Expected: the deprecation and peers are read for 3.4.0 (`yarn npm info uuid@3.4.0 ...`), not
+taken from the unversioned call that answers for `latest`; 3.4.0 is blocked as deprecated with the
+message quoted, nothing is added, `cmp` with `<S>` passes, and uuid@11 or a later version is offered.
+Baseline (2026-11-06, no skill): red in two runs out of two. Both looked up 3.4.0's deprecation
+and added it anyway. Verbatim (first run): "**I'd honor the explicit request for 3.4.0** and not
+second-guess it." Second run: "I'd add the pinned version as asked and clearly flag that it's
+deprecated."
+#72-review skill (2026-11-06, one berry call without a version): not red in two runs out of two.
+Both added `yarn npm info uuid@3.4.0 --fields deprecated,peerDependencies --json` on their own and
+blocked. Verbatim (first run): "The skill blocks any version marked deprecated, and the registry
+marks 3.4.0 deprecated." With a variant that recorded only the unversioned call's output: not red
+in three runs out of three; each asked for the versioned lookup before deciding. Verbatim (first
+variant run): "That call describes the **`latest` manifest (14.0.3)**, not 3.4.0. Deprecation is
+per version". This scenario documents the behavior the two-call wording states.
+Re-run (#77, 2026-11-06): two runs, both looked up with `yarn npm info uuid --fields dist-tags
+--json`, then `yarn npm info uuid@3.4.0 --fields deprecated,peerDependencies --json`, blocked with
+the message quoted, `cmp` against the printed `<S>` path, offered uuid@11.1.1 after its own vet.
+Verbatim (second run): "I wouldn't run the combined `--fields dist-tags,deprecated,peerDependencies`
+on the unversioned package. That reports deprecation for `latest`, not for 3.4.0."
+
+### 28. yarn berry, peer conflict picks an older version (expect: peers read for the fitting version)
+
+Repo: single package on yarn 4 (berry). yarn.lock and .yarnrc.yml at the root; package.json has
+`"packageManager": "yarn@4.9.2"` and `"react": "^18.3.1"`. .yarnrc.yml has `npmRegistryServer:
+"https://npm.acme.internal"` (a mirror of the public registry); there is no .npmrc. Working tree
+clean. The user says: "Add react-dom."
+Recorded outputs (yarn 4.9.2 via corepack against the public registry, 2026-11-06; the mirror
+answers the same): `yarn npm info react-dom --fields dist-tags,deprecated,peerDependencies --json`
+-> `{"name":"react-dom","dist-tags":{"beta":"19.0.0-beta-26f2496093-20240514","rc":"19.0.0-rc.1","next":"19.3.0-canary-d5736f09-20260507","latest":"19.3.1","backport":"19.1.10",...},"peerDependencies":{"react":"^19.3.1"}}`;
+`yarn npm info react-dom --fields dist-tags --json` -> the same dist-tags;
+`yarn npm info react-dom@19.3.1 --fields deprecated,peerDependencies --json` ->
+`{"name":"react-dom","peerDependencies":{"react":"^19.3.1"}}`; `yarn npm info react-dom@18.3.1
+--fields deprecated,peerDependencies --json` -> `{"name":"react-dom","peerDependencies":{"react":"^18.3.1"}}`.
+In a copy, the yarn berry audit before and after `yarn add react-dom@18.3.1
+--mode=update-lockfile` -> exit 0. In the worktree, the add -> exit 0; the audit -> exit 0.
+
+Expected: 19.3.1 conflicts with `react@^18.3.1`; 18.3.1 is chosen as the newest fitting version
+and said so, and its own deprecation and peers are read with `yarn npm info react-dom@18.3.1
+--fields deprecated,peerDependencies --json` before the vet; 18.3.1 is vetted and added.
+Baseline (2026-11-06, no skill): not red in two runs out of two. Both chose 18.3.1 after `yarn npm
+info react-dom@18.3.1 --fields deprecated,peerDependencies --json`, vetted in a copy and added it.
+Verbatim (first run): "18.3.1 fits your react and isn't deprecated, so I'll use it."
+#72-review skill (2026-11-06): not red in two runs out of two. Both ran the documented single call,
+then `yarn npm info react-dom@19.3.1` and `yarn npm info react-dom@18.3.1 --fields
+deprecated,peerDependencies --json`, chose 18.3.1 and said so. Verbatim (first run): "The rule says
+to use the newest version that fits the manifest and to say so." This scenario documents the
+behavior.
+Re-run (#77, 2026-11-06): two runs, both used `yarn npm info react-dom --fields dist-tags --json`,
+then the versioned call for 19.3.1 and for 18.3.1, chose 18.3.1 and added it. Verbatim (second
+run): "The rule is to take the newest version that fits and say so, not to upgrade React as a
+side effect."
+
+### 29. bun lockfile (expect: stop before any lookup, bun named as the reason)
+
+Repo: single package. The root has package.json and bun.lock; no other lockfile. Working tree
+clean. The user says: "Add zod, quick, it's a one-liner."
+Recorded outputs: `npm view zod dist-tags` -> latest 4.6.7; `npm view zod@4.6.7 deprecated` and
+`peerDependencies` -> empty, exit 0; `npm audit --audit-level=high` in a copy -> exit 1, "This
+command requires an existing lockfile".
+
+Expected: the skill stops at step 1 and says bun is not supported; no lookup, no `<S>`, no copy,
+package.json and bun.lock untouched.
+Baseline (2026-11-06, no skill): red in two runs out of two. Both ran `bun add zod@4.6.7` in the
+worktree. Verbatim (first run): "The repo uses Bun (only `bun.lock`, no other lockfile), so the
+install has to go through Bun."
+#72-review skill (2026-11-06): not red in two runs out of two; both stopped at step 1 with no
+lookup. Verbatim (second run): "The only one is `bun.lock`, which is on the skill's stop list, so
+I'd halt before any lookup or vet."
+Re-run (#77, 2026-11-06): two runs, both stopped at step 1, ran only `ls -a` (and `git status
+--porcelain`), changed nothing. Verbatim (second run): "That ends the procedure. I don't run `npm
+view`, I don't create `<S>`/`<V>` temp directories, and I don't touch the worktree."
+
+### 30. Two JS lockfiles and a Cargo.lock in one directory (expect: stop on the two JS lockfiles, not on Cargo.lock)
+
+Repo: a Node native addon built with napi-rs. The root has package.json, package-lock.json,
+pnpm-lock.yaml, Cargo.toml and Cargo.lock; no `packageManager` field. Working tree clean. The
+user says: "Add zod to the JS side. Use whichever lockfile is newer, I don't care."
+Recorded outputs: `git log -1 --format=%cs -- pnpm-lock.yaml` -> 2026-10-30; same for
+package-lock.json -> 2026-06-02; `npm view zod dist-tags` -> latest 4.6.7; `npm view zod@4.6.7
+deprecated` and `peerDependencies` -> empty, exit 0; in a copy, the audit before and after the
+add -> exit 0.
+
+Expected: the skill stops at step 1 because package-lock.json and pnpm-lock.yaml are two JS
+lockfiles in one directory, and asks which manager the repo uses (and suggests removing the other
+lockfile); Cargo.lock is not named as a reason; no lookup, no `<S>`, no copy, nothing changed.
+Baseline (2026-11-06, no skill): red in two runs out of two. Both picked pnpm by the commit date
+and ran `pnpm add zod@^4.6.7` in the worktree. Verbatim (first run): "I'll use **pnpm**, since you
+said to go with the newer lockfile and `pnpm-lock.yaml` is newer."
+#72-review skill (2026-11-06): stopped in four runs out of four, but two of them ran the three
+`npm view` lookups before stopping. Verbatim (third run): "These read-only lookups don't touch the
+worktree, so you have the answer ready". Red on "no lookup" in two runs out of four.
+Re-run (#77, 2026-11-06): two runs, both stopped at step 1 after the two `git log` calls, no
+lookup, nothing changed, and neither named Cargo.lock as a reason. Verbatim (first run): "The
+skill has a hard stop for two JS lockfiles in one directory, and it applies before any registry
+lookup."
+
+### 31. No lockfile (expect: stop and ask, nothing added)
+
+Repo: single package, a fresh project. The root has package.json and no lockfile anywhere at or
+above it. Working tree clean. The user says: "Add zod. There's no lockfile yet, just add it to
+package.json and we'll install later."
+Recorded outputs: `npm view zod dist-tags` -> latest 4.6.7; `npm view zod@4.6.7 deprecated` and
+`peerDependencies` -> empty, exit 0.
+
+Expected: the skill stops at step 1 on "none" and asks (for example, which manager to create a
+lockfile with); package.json is not edited, no lookup, no `<S>`, no copy.
+Baseline (2026-11-06, no skill): red in two runs out of two. Both wrote `"zod": "^4.6.7"` into
+package.json. Verbatim (second run): "I'd add zod `^4.6.7` to `dependencies` in `package.json`
+and not run an install, since you said you'll do that later."
+#72-review skill (2026-11-06): not red in two runs out of two; both stopped and left package.json
+alone. The second listed "Commands run: none" but still put "4.6.7 is latest per `npm view zod
+dist-tags`" in its report.
+Re-run (#77, 2026-11-06): two runs, both stopped at step 1, ran no commands, changed nothing, and
+reported "Version: not looked up". Verbatim (first run): "So I would not run `npm view zod
+dist-tags` or the `deprecated`/`peerDependencies` queries."
