@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-06-release-hardening.md](../specs/2026-11-06-release-hardening.md)
 - Date: 2026-11-06
-- Status: in backlog
+- Status: done
 
 ## Overview
 Four tasks along file boundaries. T1 rewrites the release workflow template (one `publish` job,

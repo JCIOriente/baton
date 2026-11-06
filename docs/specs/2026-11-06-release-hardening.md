@@ -280,4 +280,5 @@ None. Resolved before approval:
 
 ## Implementation status
 - [x] Plan: [docs/plans/2026-11-06-release-hardening.md](../plans/2026-11-06-release-hardening.md) (T1-T4: #60, #63, #61, #62)
-- [ ] T1-T4 merged
+- [x] T1-T4 merged: #68 (T1), #73 (T2), #66 (T3), #69 (T4)
+- [ ] Live: the next minuta release through the new template
