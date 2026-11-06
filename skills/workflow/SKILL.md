@@ -47,7 +47,7 @@ gets a three-sentence spec section inside the issue, not a design document. If t
 explicitly says to skip a phase, do so and say which gate was skipped.
 
 Supporting skills: `baton:parallel` (several tasks at once), `baton:debug` (unknown cause),
-`baton:retro` (turn lessons into conventions).
+`baton:retro` (turn lessons into conventions), `baton:deps` (adding, upgrading or replacing a dependency).
 
 On demand, outside the per-task phases: `baton:release`. "Cut a release" routes there; it stops
 by itself when releases aren't enabled.

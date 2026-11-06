@@ -73,6 +73,18 @@ test('context: always-on rules, undetected stacks and common issues', async () =
   assert.match(text, /- common: \/p\/stacks\/common\.md/);
 });
 
+test('context_always_rules_include_deps', async (t) => {
+  const { buildContext, ALWAYS_RULES } = await import('../lib/context.mjs');
+  const { rmSync } = await import('node:fs');
+  const root = mkdtempSync(join(tmpdir(), 'baton-ctx-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const deps = ALWAYS_RULES.filter((r) => r.includes('baton:deps'));
+  assert.deepEqual(deps, ['Before adding, upgrading or replacing a dependency, load baton:deps. Never take a version from memory.']);
+  const text = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
+  const always = text.split('Always, even without loading a skill:\n')[1]?.split('\n\n')[0] ?? '';
+  assert.ok(always.split('\n').includes(`- ${deps[0]}`), text);
+});
+
 test('reviewersFor: skips stack reviewers the diff does not touch, fails open on unknown files', () => {
   const config = deepMerge(DEFAULT_CONFIG, { stacks: ['react', 'typescript', 'rust-tokio-postgres', 'postgres'] });
   const frontOnly = reviewersFor(config, ['apps/web/src/OrgList.tsx', 'README.md']);

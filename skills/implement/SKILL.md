@@ -62,6 +62,7 @@ If you notice you did it, delete that code and redo the step properly.
 - Found a bug or a missing piece outside the task? Create an issue (`baton:backlog`) and
   mention it. Don't fix it here.
 - Task turns out much bigger than planned? Stop, explain, and propose a split.
+- Adding or upgrading a dependency: `baton:deps` first.
 
 ## 5. Finish
 
