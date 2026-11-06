@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-06-worktree-only.md](../specs/2026-11-06-worktree-only.md)
 - Date: 2026-11-06
-- Status: draft
+- Status: approved
 
 ## Overview
 Four tasks, cut by file ownership. T1 is the foundation: the config key and
