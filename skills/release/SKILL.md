@@ -46,14 +46,14 @@ PR's head SHA (`gh pr view <pr> --json headRefOid`). Flag each entry that doesn'
 user-facing change ("fix test", "wip"), and each commit whose type doesn't match its effect: a
 `docs` or `chore` that changed behavior, or a `fix` that is really a feature.
 
-Then list the PRs merged since the last release:
+Then list the PRs merged since the previous release PR:
 
 ```bash
-gh release list -L 1 --json tagName,publishedAt
-gh pr list --state merged --base <baseBranch> --search "merged:>=<publishedAt>" -L 200 --json number,title
+gh pr list --label "autorelease: tagged" --state merged -L 1 --json mergedAt
+gh pr list --state merged --base <baseBranch> --search "merged:><mergedAt>" -L 200 --json number,title
 ```
 
-Report each `feat`, `fix`, `perf` or `!` PR whose title is missing from the notes. First check
+If the list has 200 entries, say it may be cut off. Report each `feat`, `fix`, `perf` or `!` PR whose title is missing from the notes. First check
 its body for the commit override marker in prose: release-please reads everything after it as
 the commit. Fix it in step 3.
 
