@@ -19,12 +19,12 @@ saved to a file), linked spec and plan, guide paths from `<baton>`, and briefs f
 ## 2. Stage one: spec compliance (gate)
 
 Dispatch **only** the `spec-compliance` brief first, every placeholder filled, its content
-pasted as the prompt. `CHANGES_REQUIRED` goes to the fix loop (step 4) before stage two: quality
-review of code that does the wrong thing is wasted. `APPROVE`: continue.
+pasted as the prompt. `CHANGES_REQUIRED` goes to the fix loop (step 4) before stage two.
+`APPROVE`: continue.
 
-Findings labelled `plan-mandated` stay out of the loop: rule on each against the spec (spec
-beats plan), ask the user before the PR if the spec doesn't settle it, and record the ruling in
-the PR body.
+Findings labelled `plan-mandated` wait outside the loop: rule on each against the spec (spec
+beats plan), asking the user if the spec doesn't settle it. A ruling for the spec makes it an
+open finding.
 
 ## 3. Stage two: quality angles, in parallel
 
@@ -52,14 +52,14 @@ A round is one fix plus one scoped re-review. Stages one and two share **5 round
   `{{FIX_BASE}}` = the HEAD the previous review saw. NOT ADDRESSED findings and new blocker or
   major breakage stay open; out-of-scope observations are deferred.
 - **Round 5 ends `ROUND: OPEN`: stop.** No sixth round, no `baton done`, no PR. Give the user
-  the open findings and the fix history; record their ruling per finding (fix, defer, drop with
-  reason) in the PR body.
+  the open findings and the fix history and ask for a ruling per finding (fix, defer, drop with
+  reason). A ruling of fix re-enters the loop at round 4.
 
-A task is reviewed when every angle approved some commit and every later commit was covered by
-a re-review ending `ROUND: CLEAN`. Record angles run, findings fixed and deferred items
-in the PR body's second paragraph (`baton:integrate`), then
-`Reviewed-at: <HEAD after the last clean re-review>`. `baton done` refuses a ready PR without
-it or with commits after it.
+A `ROUND: OPEN` whose open findings the user all ruled defer or drop counts as `ROUND: CLEAN`.
+The task is reviewed at the HEAD every angle approved or, with later commits, the HEAD after the
+last clean re-review. Record angles run, findings fixed, deferred items and rulings in the PR
+body's second paragraph (`baton:integrate`), then `Reviewed-at: <that HEAD>`. `baton done`
+refuses a ready PR without it or with commits after it.
 
 ## Receiving human review on a PR
 
@@ -67,4 +67,4 @@ it or with commits after it.
   technical reason. Don't comply just to be agreeable.
 - Fix confirmed issues one at a time (with a test for behavior bugs), run `baton verify`, push,
   and reply describing what changed.
-- Recurring comments are a signal for `baton:retro`: the convention may need to be written down.
+- Recurring comments are a signal for `baton:retro`.

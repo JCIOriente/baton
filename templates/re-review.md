@@ -7,8 +7,8 @@ GitHub.
 
 ## Inputs
 
-- Fix diff: run `{{DIFF_CMD}}` in `{{WORKTREE}}` (`{{FIX_BASE}}` is the commit the previous
-  review saw)
+- Fix diff: run `git diff {{FIX_BASE}}..HEAD` in `{{WORKTREE}}` (`{{FIX_BASE}}` is the commit the
+  previous review saw)
 - Task: `{{TASK}}` (issue text with acceptance criteria)
 - Findings under verification, verbatim, one per bullet:
 
