@@ -11,10 +11,10 @@ Claude Code hook) and T3 (the git guard, `baton hooks install`, doctor and conte
 parallel. T4 (skills and docs) starts after T3, because it documents `baton hooks install` and
 the new init step.
 
-- T1: `hooks.worktreeOnly`, `baton worktree add`, `worktree remove <name>`, init in the current checkout
-- T2: the Claude Code `PreToolUse` guard. **The only breaking PR** (`feat(hooks)!`)
-- T3: the git guard, `baton hooks install`, `baton doctor` and the session context
-- T4: the skills, README and CONTRIBUTING
+- T1 (#50): `hooks.worktreeOnly`, `baton worktree add`, `worktree remove <name>`, init in the current checkout
+- T2 (#51): the Claude Code `PreToolUse` guard. **The only breaking PR** (`feat(hooks)!`)
+- T3 (#52): the git guard, `baton hooks install`, `baton doctor` and the session context
+- T4 (#53): the skills, README and CONTRIBUTING
 
 T2 turns the guard on for every repo that already uses baton, so it alone carries the `!` and
 the `BREAKING CHANGE:` line. T1, T3 and T4 are plain `feat` (or `docs` for prose that changes no
@@ -81,6 +81,7 @@ Can start immediately: T1. After T1 merges, T2 and T3 in parallel. T4 after T3.
 ## Tasks
 
 ### T1: `hooks.worktreeOnly` and `baton worktree add`
+- Issue: #50
 - Priority: 1
 - Depends on: none
 - Owns: `cli/lib/config.mjs`, `templates/config.example.json`, `cli/baton.mjs` (only `USAGE`,
@@ -116,6 +117,7 @@ Can start immediately: T1. After T1 merges, T2 and T3 in parallel. T4 after T3.
   Commit type `feat(cli)`. Tick the spec's Implementation status only for what this PR delivers.
 
 ### T2: the Claude Code worktree guard
+- Issue: #51
 - Priority: 1
 - Depends on: T1
 - Owns: `hooks/worktree-guard.mjs` (new), `hooks/hooks.json`, `cli/test/worktree-guard.test.mjs`
@@ -155,6 +157,7 @@ Can start immediately: T1. After T1 merges, T2 and T3 in parallel. T4 after T3.
   `baton hooks install` adds the commit guard.
 
 ### T3: the git guard, `baton hooks install`, doctor and context
+- Issue: #52
 - Priority: 1
 - Depends on: T1
 - Owns: `templates/git-hooks/worktree-guard.sh` (new), `cli/lib/git-guard.mjs` (new),
@@ -202,6 +205,7 @@ Can start immediately: T1. After T1 merges, T2 and T3 in parallel. T4 after T3.
   `ALWAYS_RULES` entries (see Cross-plan overlap). Commit type `feat(cli)`.
 
 ### T4: skills, README and CONTRIBUTING
+- Issue: #53
 - Priority: 2
 - Depends on: T3 (and T1 through it)
 - Owns: `skills/spec/SKILL.md`, `skills/plan/SKILL.md`, `skills/backlog/SKILL.md`,
