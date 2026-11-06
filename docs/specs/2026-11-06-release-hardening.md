@@ -65,8 +65,8 @@ after publishing.
 - `baton:init` lists every trusted-publisher field per registry and package, with exact values.
 - `baton:release` recognises each catalogued failure by its symptom and gives the action.
 - After a release, `baton:release` confirms each registry has the version (waiting up to 10
-  minutes), each npm package has a provenance attestation, and each npm package with a `bin`
-  runs `--version` from a clean install.
+  minutes), each npm package from a public repo has a provenance attestation, and each npm
+  package with a `bin` runs `--version` from a clean install.
 
 ## Non-goals
 - Platform binary packages, build matrices, static-link checks and multi-arch install tests
@@ -103,10 +103,15 @@ n/a
 - `build-npm`, `verify-crates`: run when a release was created, or on a dry run. On a dry run
   they check out the dispatched commit and check the package version against the manifest
   version (no tag exists); otherwise unchanged (release `sha`, version equals tag).
-  `verify-crates` also runs `cargo publish --dry-run --locked` on a dry run.
+  On a dry run `verify-crates` runs `cargo publish --dry-run` instead of `cargo package`. When
+  `Cargo.lock` is tracked, every cargo command in the workflow uses `--locked`.
 - `dry-run-npm` (only when npm is configured): on a dry run only, `permissions: { contents:
   read }`, no environment, no id-token; downloads the tarball, runs the same tarball checks as
-  the publish job, then `npm publish <file>.tgz --dry-run --ignore-scripts`.
+  the publish job, then `npm publish <file>.tgz --dry-run --ignore-scripts`. npm refuses even a
+  dry-run publish of a version it already has, so when the registry has the version the job
+  skips that step with a notice; the tarball checks still run.
+- The npm tarball artifact is kept 30 days, so it outlives a slow approval of `publish`.
+- Dry runs never share a concurrency group with release runs, so neither cancels the other.
 - `publish` (replaces `publish-npm` and `publish-crates`): `needs` every build and verify job,
   runs only when a release was created and every one of them succeeded, `permissions:
   { contents: read, id-token: write }`, `environment: publish`. Steps, each marked for
@@ -145,9 +150,13 @@ n/a
   bypass actor, or release-please can't tag.
 
 **`baton:release`**
-- Step 2 adds: if `git diff v<last>..origin/<base> -- .github/workflows/release.yml` is non-empty
-  and `release.publish` is set, dispatch `gh workflow run release.yml -f dry_run=true`, wait for
-  the run created after the dispatch, and report it; a failed dry run blocks the merge.
+- Step 2 adds: when `release.publish` has at least one target and
+  `git diff v<last>..origin/<release PR branch> -- .github/workflows/release.yml` is non-empty
+  (`v<last>` is the latest non-draft Release; with none, always), dispatch
+  `gh workflow run release.yml --ref <release PR branch> -f dry_run=true`. The release PR's
+  branch carries the new version, so npm's dry-run publish actually runs. Only a confirmed dry
+  run (created after the dispatch, `release-please` skipped) that succeeded allows the merge; a
+  dispatch error, a cancelled or missing run, or a failure blocks it.
 - Step 2 adds: if the release PR's version is `1.0.0` or a new major version, ask whether a
   versioning and stability policy is written down (an ADR, or the file the maintainer names).
   If not, offer to draft one from the code for the maintainer to decide on, and don't merge
@@ -155,9 +164,10 @@ n/a
 - Step 5 adds: if the `publish` job is waiting for approval, tell the user to approve it in
   the run page and keep watching; never try to approve or bypass it. Registry checks poll every
   30 seconds for up to 10 minutes before reporting a version missing. For npm:
-  `npm view <pkg>@<v> dist.attestations --json` must be non-empty, and for a package with
-  `bin`, `npm exec --yes --package=<pkg>@<v> -- <bin> --version` in an empty temp directory
-  must print `<v>`.
+  `npm view <pkg>@<v> dist.attestations --json` must be non-empty for a public repo (npm adds
+  provenance only for public repos), and for each bin from `npm view <pkg>@<v> bin --json`,
+  `npm exec --yes --package=<pkg>@<v> -- <bin> --version` in an empty temp directory (a
+  sandbox when available, since it runs the published code) must print output containing `<v>`.
 - A failure catalogue in `skills/release/failures.md`, read when a run or check fails:
 
   | Symptom | Cause | Action |
@@ -190,10 +200,11 @@ release step of baton:init".
 - **Approval rejected:** the `publish` job fails. To publish later, re-run it and approve.
 - **npm fails, crate not yet published:** re-run failed jobs; npm is skipped if it got through,
   then the crate publishes.
-- **Dry run on a commit whose manifest version is already released:** fine; it checks contents,
-  not registry state.
-- **Dry run while a release PR merge is in flight:** the shared `release` concurrency group
-  queues it, as today.
+- **Dry run on a commit whose manifest version is already released** (the base branch between
+  releases): the build checks and cargo's dry run run (cargo only warns); npm's dry-run publish
+  is skipped with a notice, because npm refuses it for a published version.
+- **Dry run while a release run is in flight:** it runs in its own concurrency group and
+  doesn't wait for or cancel the release run.
 - **Existing adopters on the old layout:** keep working until they re-run the init release step.
   Re-running it rewrites `release.yml`; the maintainer must then create `publish` and change the
   environment on each trusted publisher from `release` to `publish`, or the next publish fails
@@ -252,6 +263,12 @@ it stops before the permanent one.
 ### Why does the agent never run `npm deprecate` or `cargo yank`?
 They need the maintainer's registry credentials, which agents don't hold, and they are visible to
 every user of the package. The agent gives the exact command for the maintainer to run.
+
+## Amendments
+- 2026-11-06, from implementation (#60, #61) and live registry checks: dry runs dispatch on the
+  release PR branch; npm's dry-run publish is skipped for a published version; the npm artifact
+  is kept 30 days; dry runs get their own concurrency group; `--locked` on every cargo command
+  when `Cargo.lock` is tracked; the provenance check applies to public repos only.
 
 ## Open questions
 None. Resolved before approval:
