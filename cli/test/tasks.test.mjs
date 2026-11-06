@@ -7,6 +7,7 @@ import {
   activeClaim,
   changelogGuard,
   claimComment,
+  overrideFindings,
   parseDependencies,
   priorityOf,
   rankClaimable,
@@ -157,6 +158,98 @@ test('changelogGuard: allows a CHANGELOG.md edit when the base branch has releas
   for (const baseConfig of [JSON.stringify({ release: { enabled: false, publish: [] } }), JSON.stringify({ stacks: [] }), '', '{ not json']) {
     assert.ok(changelogGuard({ files, releaseEnabled: releaseEnabledIn(baseConfig) }).ok, baseConfig);
   }
+});
+
+// release-please reads everything after the first BEGIN marker of a merged PR body, up to the
+// next END marker or the end of the body, as that commit's message.
+const BEGIN = 'BEGIN_COMMIT_OVERRIDE';
+const END = 'END_COMMIT_OVERRIDE';
+
+test('overrideFindings_none_without_marker', () => {
+  assert.deepEqual(overrideFindings(''), []);
+  assert.deepEqual(overrideFindings('Closes #1\n\nAdds a commit override block check.\n\nValidated: make ci\n'), []);
+});
+
+test('overrideFindings_accepts_well_formed_block', () => {
+  const body = ['Closes #1', '', 'Two changes in one PR.', '', BEGIN, 'feat(cli): add x', '', 'fix!: drop y', 'BREAKING CHANGE: y is gone', 'Release-As: 1.0.0', 'docs: note z', END, '', 'Validated: make ci'].join('\n');
+  assert.deepEqual(overrideFindings(body), []);
+  assert.deepEqual(overrideFindings(`  ${BEGIN}  \nperf(a-b): faster\n${END}`), [], 'surrounding spaces on the marker lines are fine');
+});
+
+test('overrideFindings_rejects_marker_in_prose', () => {
+  for (const body of [`This PR documents the ${BEGIN} block.`, `Use \`${BEGIN}\` to override.`, `Mentions ${END} only.`]) {
+    const findings = overrideFindings(body);
+    assert.equal(findings.length, 1, body);
+    assert.match(findings[0], /in a line of text instead of on its own line/);
+  }
+  const proseThenBlock = `See the ${BEGIN} rule.\n\n${BEGIN}\nfeat: x\n${END}`;
+  assert.equal(overrideFindings(proseThenBlock).length, 1, 'a mention before a real block is still read as the start');
+});
+
+test('overrideFindings_rejects_unterminated_block', () => {
+  assert.deepEqual(overrideFindings(`${BEGIN}\nfeat: x\n`), [`the commit override block has no ${END} line, so release-please would read the rest of the body as commits.`]);
+  assert.deepEqual(overrideFindings(`feat: x\n${END}`), [`a ${END} line has no block to close.`]);
+  assert.deepEqual(overrideFindings(`${BEGIN}\nfeat: x\n${END}\n${BEGIN}\nfix: y\n${END}`), ['a second commit override block is ignored by release-please: put every entry in the first block.']);
+});
+
+test('overrideFindings_rejects_non_conventional_line', () => {
+  const findings = overrideFindings(`${BEGIN}\nfeat: x\nThis adds x, which we wanted.\nFeat x\nRelease-As: next\n${END}`);
+  assert.deepEqual(findings, [
+    'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "This adds x, which we wanted."',
+    'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "Feat x"',
+    'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "Release-As: next"',
+  ]);
+});
+
+test('baton done refuses a PR body that misuses the commit override marker when releases are enabled, offline', async (t) => {
+  const { spawnSync } = await import('node:child_process');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const refusal = 'The PR body would drop changelog entries';
+  // No remote is configured, so nothing can reach the network: a run past the check fails at push.
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', GH_TOKEN: '' };
+  const sh = (root, ...args) => {
+    const res = spawnSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: root, env, encoding: 'utf8' });
+    assert.equal(res.status, 0, res.stderr);
+  };
+  const repo = (enabled) => {
+    const root = mkdtempSync(join(tmpdir(), 'baton-done-'));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    sh(root, 'init', '-q', '-b', 'main');
+    mkdirSync(join(root, '.baton'));
+    writeFileSync(join(root, '.baton/config.json'), JSON.stringify({ release: { enabled }, workflow: { requireReview: true } }));
+    sh(root, 'add', '-A');
+    sh(root, 'commit', '-qm', 'init');
+    sh(root, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    sh(root, 'checkout', '-qb', `${DEFAULT_CONFIG.git.branchPrefix}/1-x`);
+    writeFileSync(join(root, 'x.txt'), 'x\n');
+    sh(root, 'add', '-A');
+    sh(root, 'commit', '-qm', 'x');
+    return root;
+  };
+  const bodyFile = (root, text) => {
+    const path = join(root, '.git', 'pr-body.md');
+    writeFileSync(path, text);
+    return path;
+  };
+  const done = (root, ...args) => spawnSync(process.execPath, [cli, 'done', ...args], { cwd: root, env, encoding: 'utf8' });
+
+  const enabled = repo(true);
+  const prose = done(enabled, '--draft', '--body-file', bodyFile(enabled, `Explains the ${BEGIN} rule.\n`));
+  assert.notEqual(prose.status, 0);
+  assert.ok(prose.stderr.includes(refusal), prose.stderr);
+  assert.match(prose.stderr, /commit override block/, 'says how to refer to it in prose');
+  const skipReason = done(enabled, '--skip-review', `see ${BEGIN}`);
+  assert.ok(skipReason.stderr.includes(refusal), 'the generated parts of the body are checked too');
+
+  const wellFormed = done(enabled, '--draft', '--body-file', bodyFile(enabled, `${BEGIN}\nfeat: x\n${END}\n`));
+  assert.ok(!wellFormed.stderr.includes(refusal), wellFormed.stderr);
+  assert.match(wellFormed.stderr, /push/);
+
+  const disabled = repo(false);
+  const allowed = done(disabled, '--draft', '--body-file', bodyFile(disabled, `Explains the ${BEGIN} rule.\n`));
+  assert.notEqual(allowed.status, 0, 'fails later, at push: there is no remote');
+  assert.ok(!allowed.stderr.includes(refusal), allowed.stderr);
+  assert.match(allowed.stderr, /push/);
 });
 
 test('validateConfig: release.enabled requires the squash merge strategy', () => {
