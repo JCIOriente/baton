@@ -171,7 +171,7 @@ test('overrideFindings_none_without_marker', () => {
 });
 
 test('overrideFindings_accepts_well_formed_block', () => {
-  const body = ['Closes #1', '', 'Two changes in one PR.', '', BEGIN, 'feat(cli): add x', '', 'fix!: drop y', 'BREAKING CHANGE: y is gone', 'Release-As: 1.0.0', 'docs: note z', END, '', 'Validated: make ci'].join('\n');
+  const body = ['Closes #1', '', 'Two changes in one PR.', '', BEGIN, 'feat(cli): add x', '', 'fix!: drop y', 'BREAKING CHANGE: y is gone', 'Release-As: 1.0.0', 'docs: note z', 'deps: bump w', END, '', 'Validated: make ci'].join('\n');
   assert.deepEqual(overrideFindings(body), []);
   assert.deepEqual(overrideFindings(`  ${BEGIN}  \nperf(a-b): faster\n${END}`), [], 'surrounding spaces on the marker lines are fine');
   assert.deepEqual(overrideFindings(`Closes #1\r\n\r\n${BEGIN}\r\nfeat: x\r\nRelease-As: 1.2.3\r\n${END}\r\n`), [], 'CRLF line endings');

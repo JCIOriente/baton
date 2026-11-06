@@ -49,13 +49,14 @@ user-facing change ("fix test", "wip"), and each commit whose type doesn't match
 Then list the PRs merged since the previous release PR:
 
 ```bash
-gh pr list --label "autorelease: tagged" --state merged -L 1 --json mergedAt
+gh pr list --label "autorelease: tagged" --state merged --base <baseBranch> -L 1 --json mergedAt
 gh pr list --state merged --base <baseBranch> --search "merged:><mergedAt>" -L 200 --json number,title
 ```
 
-If the list has 200 entries, say it may be cut off. Report each `feat`, `fix`, `perf` or `!` PR whose title is missing from the notes. First check
-its body for the commit override marker in prose: release-please reads everything after it as
-the commit. Fix it in step 3.
+If there is no previous release PR, list from the start of the base branch. If the list has 200
+entries, say it may be cut off. Report each `feat`, `fix`, `perf` or `!` PR whose title is
+missing from the notes. First check its body for the commit override marker in prose:
+release-please reads everything after it as the commit. Fix it in step 3.
 
 ## 3. Fix entries at their source
 

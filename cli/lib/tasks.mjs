@@ -115,7 +115,7 @@ export function changelogGuard({ files, releaseEnabled }) {
 
 const OVERRIDE_BEGIN = 'BEGIN_COMMIT_OVERRIDE';
 const OVERRIDE_END = 'END_COMMIT_OVERRIDE';
-const CONVENTIONAL_HEADER = /^(feat|fix|perf|revert|docs|chore|refactor|test|build|ci|style)(\([^()]+\))?!?: \S/;
+const CONVENTIONAL_HEADER = /^(feat|fix|perf|revert|docs|chore|refactor|test|build|ci|style|deps)(\([^()]+\))?!?: \S/;
 const OVERRIDE_FOOTER = /^(Release-As: \d+\.\d+\.\d+$|BREAKING CHANGE: \S)/;
 
 /**
