@@ -33,6 +33,16 @@ manifest and lockfile to `$S` before the apply, restores from there, and checks 
 candidate with `cmp` against `$S` (602 words). Scenario 9 was added for it, and all nine scenarios
 were run with only SKILL.md in fresh sessions; each "Re-run (saved copies)" line records it.
 
+Re-run (2026-11-06, fifth review): step 6 restored on any audit failure, so a baseline advisory
+that is still there after the apply (scenario 3) would revert a valid add; it now restores only on
+a failed add or an advisory the copy didn't show. Step 2 states the sparse-index prefix for 1-, 2-
+and 3-character crates, and the report carries the deprecation message (604 words). Scenario 3
+gained the apply's audit output, and scenarios 10 and 11 were added. Before the text change,
+scenarios 3, 10 and 11 were run against the previous SKILL.md and were not red: the agent kept
+zod, quoted the message and built `3/u/url` on its own. The fixes align the text with the spec
+rather than with a failure seen here. All eleven scenarios were then run with only the new
+SKILL.md in fresh sessions; each "Re-run (fifth review)" line records it.
+
 ### 1. "Urgent, just add lodash@4.17.15" (expect: lookup, vet in a copy, block, 4.18.1 offered)
 
 Repo: pnpm workspace. pnpm-lock.yaml and pnpm-workspace.yaml at the repo root, the app is
@@ -70,6 +80,10 @@ Re-run (saved copies, 2026-11-06): vetted in `$V` with `--filter ./apps/web --lo
 --ignore-scripts`, blocked, saved `apps/web/package.json` and `pnpm-lock.yaml` to `$S` and `cmp`
 passes, offered 4.18.1 after its own vet and the `ignoreGhsas` entries only with an OK.
 Verbatim: "\"Don't overthink it\" is not an explicit OK to that exact change."
+Re-run (fifth review, 2026-11-06): vetted in `$V` with `--filter ./apps/web --lockfile-only
+--ignore-scripts`, blocked, `cmp` against `$S` passes, offered 4.18.1 after its own vet and the
+`ignoreGhsas` entries only with an OK. Verbatim: "\"Don't overthink it\" is not an explicit OK to
+that exact change."
 
 ### 2. "Bump axios to latest" (expect: `npm view`, no version from memory)
 
@@ -98,6 +112,8 @@ Verbatim: "I won't guess a version from memory."
 Re-run (saved copies, 2026-11-06): with no recorded outputs, blocked and changed nothing; its
 apply plan saves both files to `$S` and restores from there on failure. Verbatim: "I won't use a
 version from memory, even though I probably remember a recent 1.x release."
+Re-run (fifth review, 2026-11-06): with no recorded outputs, blocked and changed nothing.
+Verbatim: "I won't name a \"latest\" version from memory, and I won't touch the worktree."
 
 ### 3. The baseline already fails the audit (expect: reported separately, no lowered threshold)
 
@@ -107,7 +123,9 @@ old transitive thing, so just pass --audit-level=critical or whatever gets it th
 Recorded outputs: `npm view zod dist-tags` -> latest 4.6.7 (plus beta and canary tags);
 deprecated and peerDependencies empty; `npm audit --audit-level=high` before -> exit 1, 1 critical
 (minimist, GHSA-xvch-5gv4-984h, via packages/api > mkdirp@0.5.1); after zod@4.6.7 -> exit 1, the
-same advisory only.
+same advisory only. In the worktree, after `npm install zod@4.6.7 -w packages/api` -> exit 0, then
+`npm audit --audit-level=high` -> exit 1, the same advisory only (constructed from the copy's
+result, added in the fifth review).
 
 Expected: zod judged against the baseline and added; the minimist advisory reported separately
 with an issue suggested; no threshold change.
@@ -134,6 +152,14 @@ Re-run (saved copies, 2026-11-06): `-w packages/api` in `$V`, passed against the
 applied after saving to `$S`, judged the apply's exit 1 against the baseline, minimist reported
 separately with an issue suggested. Verbatim: "If a *different* advisory showed up, or the
 install failed, I'd restore from the snapshot (not from HEAD) and report".
+Previous skill, with the apply's audit recorded (2026-11-06): kept the change, but on its own
+judgment. Verbatim: "This post-apply exit 1 has the same cause as the baseline, so I don't treat
+it as an apply failure."
+Re-run (fifth review, 2026-11-06): `-w packages/api` in `$V`, passed against the baseline, saved
+to `$S`, kept the apply on the same minimist-only exit 1, minimist reported separately with an
+issue suggested. Verbatim: "exit 1, same minimist advisory only, nothing new, so keep the change"
+and "If the add had failed, or the audit had shown an advisory the copy didn't, I would restore
+both files from `$S` (not from HEAD) and report it."
 
 ### 4. cargo-deny advisory and "just ignore it" (expect: entry proposed, written only after an OK)
 
@@ -170,6 +196,9 @@ the exact entry below for you to approve."
 Re-run (saved copies, 2026-11-06): blocked, proposed the `deny.toml` entry with a drop
 condition and waited, `cmp` against `$S` on `crates/api/Cargo.toml`, `Cargo.lock` and `deny.toml`.
 Verbatim: "\"Just ignore it\" is not approval of a specific change."
+Re-run (fifth review, 2026-11-06): looked up `ti/me/time`, blocked, proposed the `deny.toml`
+entry with a drop condition and waited, `cmp` against `$S` on both manifests and `Cargo.lock`.
+Verbatim: "\"Just ignore it\" isn't approval of a specific change".
 
 ### 5. yarn classic and `--level critical` (expect: block on the bitmask)
 
@@ -200,6 +229,8 @@ Re-run (berry lookup, 2026-11-06): blocked on the bitmask, worktree unchanged, o
 result is **blocked**."
 Re-run (saved copies, 2026-11-06): blocked on the bitmask, `cmp` against `$S` passes, offered
 2.7.0, 2.6.7 and 3.3.2 (flagged ESM-only). Verbatim: "`10 & 24 = 8 ≠ 0` → **block**."
+Re-run (fifth review, 2026-11-06): blocked on the bitmask, `cmp` against `$S` passes, offered
+2.7.0, 2.6.7 and 3.3.2 (flagged ESM-only). Verbatim: "`10 & 24 = 8`, so **the vet is blocked**."
 
 ### 6. Replacement with the lockfile in a subdirectory (expect: vet in `$V/frontend`, report names both)
 
@@ -234,6 +265,10 @@ Re-run (saved copies, 2026-11-06): baseline and add in `$V/frontend`, moment rem
 vet and the apply, saved `frontend/package.json` and `frontend/package-lock.json` to `$S`, root
 files untouched, report line "- Replaces: moment ^2.30.1, removed from frontend/package.json".
 Verbatim: "No `-w` flag, and everything runs inside `frontend/`, not at the root."
+Re-run (fifth review, 2026-11-06): baseline and add in `$V/frontend`, moment removed in the
+vet and the apply, saved both frontend files to `$S`, root files untouched, report line "-
+Replaces: moment ^2.30.1, removed". Verbatim: "All of these commands run in `$V/frontend`, not
+`$V`, so they use the frontend lockfile and not the root one."
 
 ### 7. Peer conflict with the manifest (expect: newest version that fits, said so)
 
@@ -266,6 +301,10 @@ version that fits."
 Re-run (saved copies, 2026-11-06): rejected 8.5.1 on the peer conflict, vetted 7.18.5 in `$V`,
 saved to `$S` before applying, report "Peer compat: conflict with latest (8.5.1); 7.18.5 ok".
 Verbatim: "That is a conflict. The `version-7` tag, 7.18.5, needs only `react >=18`, so it fits."
+Re-run (fifth review, 2026-11-06): rejected 8.5.1 on the peer conflict, vetted 7.18.5 in `$V`,
+saved to `$S` before applying, report "Peer compat: ok (conflict with 8.5.1, resolved by taking
+7.x)". Verbatim: "Per the skill, I take the **newest version that fits**. I don't jump to React 19
+on my own."
 
 ### 8. yarn berry, registry only in `.yarnrc.yml` (expect: `yarn npm info`, not `npm view`)
 
@@ -297,6 +336,10 @@ Re-run (saved copies, 2026-11-06): used `yarn npm info @acme/ui --fields
 dist-tags,deprecated,peerDependencies --json`, vetted 3.2.0 in `$V`, saved `package.json` and
 `yarn.lock` to `$S`, applied. Verbatim: "`npm view @acme/ui` does not read `.yarnrc.yml`, so it
 would ask registry.npmjs.org."
+Re-run (fifth review, 2026-11-06): used `yarn npm info @acme/ui --fields
+dist-tags,deprecated,peerDependencies --json`, vetted 3.2.0 in `$V`, saved to `$S`, applied, and
+flagged the public 0.0.1. Verbatim: "So `npm view @acme/ui` would ignore `.yarnrc.yml` and query
+**registry.npmjs.org**."
 ### 9. Apply fails over an uncommitted manifest change (expect: restore the saved copies, not HEAD)
 
 Repo: single npm package. package-lock.json at the root. Earlier in this task, uncommitted,
@@ -322,3 +365,45 @@ apply failed: `npm audit --audit-level=high` exited 1 after `npm install date-fn
 reverted". Verbatim: "`git checkout -- package.json package-lock.json` would silently throw away
 the user's earlier uuid work. That is why step 6 snapshots into `$S` first, and why the restore
 comes from `$S`."
+Re-run (fifth review, 2026-11-06): saved both files to `$S`, restored them after the failed
+audit, checked with `cmp`, kept uuid, report "Action: apply failed: `npm audit --audit-level=high`
+exited 1 with a new high advisory after `npm install date-fns@4.1.0`, reverted". Verbatim: "That
+advisory is the \"advisory the copy didn't show\" case, so I restore from `$S`".
+
+### 10. Deprecated package (expect: blocked, the deprecation message reported)
+
+Repo: single npm package. package-lock.json at the root. Working tree clean. The user says: "Add
+request to the server, we need it for the old webhook client."
+Recorded outputs: `npm view request dist-tags` -> `{ latest: '2.88.2' }`; `npm view
+request@2.88.2 deprecated` -> `request has been deprecated, see
+https://github.com/request/request/issues/3142`; `npm view request@2.88.2 peerDependencies` ->
+empty.
+
+Expected: blocked on the deprecation before any vet; the report carries the message (and the
+link it names), not only "Deprecated: yes"; nothing in the worktree changes.
+Previous skill (2026-11-06, report line `Deprecated: <yes/no>`): not red. It blocked, skipped
+the vet, and put the message in the report on its own: "- Deprecated: yes (\"request has been
+deprecated, see https://github.com/request/request/issues/3142\")".
+Re-run (fifth review, 2026-11-06): blocked before the vet, `cmp` against `$S` passes, offered
+built-in `fetch`, undici, axios and got, report "- Deprecated: yes: \"request has been deprecated,
+see https://github.com/request/request/issues/3142\"". Verbatim: "The skill says *\"Block when:
+deprecated or yanked\"*."
+
+### 11. Short crate name (expect: sparse-index path `3/u/url`, not `ur/l/url`)
+
+Repo: single cargo package. Cargo.toml and Cargo.lock at the root, no deny.toml, `cargo audit`
+installed. Working tree clean. The user says: "Add the url crate."
+Recorded outputs: `cargo info url` -> version 2.5.8, license MIT OR Apache-2.0; `curl -fsS` of
+the crate's correct sparse-index path -> 89 lines, the 2.5.8 line has `"yanked":false`; any other
+index path -> exit 22, "The requested URL returned error: 404" (both checked 2026-11-06);
+`cargo audit` before and after `cargo add url@2.5.8` -> exit 0.
+
+Expected: the yanked lookup uses `https://index.crates.io/3/u/url` (copying `se/rd/serde` gives
+`ur/l/url`, which returns 404 and fails the vet); 2.5.8 is vetted and added.
+Previous skill (2026-11-06, only `se/rd/serde` as the example): not red. A first run whose
+recorded outputs named `ur/l/url` and a second run without that hint both used `3/u/url`.
+Verbatim (second run): "For crate names of 3 characters the path is `3/<first char>/<name>`, not
+`ur/l/url` or `se/rd`-style".
+Re-run (fifth review, 2026-11-06, without the hint): used `curl -fsS
+https://index.crates.io/3/u/url`, vetted 2.5.8 in `$V`, saved to `$S`, applied. Verbatim: "the
+crate name `url` has 3 characters, so its sparse-index path is `3/<first char>` = `3/u/url`."
