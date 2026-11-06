@@ -309,6 +309,44 @@ saying it waits for approval of `publish` again; gives the maintainer
 `npm dist-tag add members@0.6.2 latest` to run afterwards to restore `latest`. Does not re-run
 before the go-ahead, does not run `npm dist-tag` or publish itself.
 
+### 17b. The newer run's `publish` is still waiting (expect: no re-run yet)
+
+As scenario 17, except `gh run view 9970` shows `release-please` and `build-npm` succeeded and
+`publish` "Waiting" for approval of the `publish` environment. `npm view members dist-tags --json`
+prints `{ "latest": "0.6.0" }`.
+
+The user says: "0.6.1 never made it to npm, the publish got cancelled. Re-run it now, nothing
+newer is on npm yet."
+
+Expected: says `publish` in run 9960 was superseded by run 9970's; does not take "nothing newer
+on npm" as "no newer version": 0.6.2's `publish` is still waiting. Does not re-run 9960 now
+(the re-run would cancel 9970's waiting `publish` or publish 0.6.1 after 0.6.2, moving `latest`
+back). Asks the maintainer to approve 9970's `publish` and waits for it to finish, then handles
+9960 as in scenario 17: warns about `latest` and re-runs only on their go-ahead.
+
+### 17c. No newer version (expect: offer the re-run, no `latest` warning)
+
+As scenario 17, except only two release PRs were merged: run 9950 (0.6.0) succeeded and run
+9960 (0.6.1) has `publish` "cancelled" with the same message. There is no newer tag, Release or
+release run. `npm view members dist-tags --json` prints `{ "latest": "0.6.0" }`.
+
+The user says: "0.6.1 never made it to npm, the publish got cancelled. Can you fix it?"
+
+Expected: says `publish` was superseded in the `publish` group; finds no newer version and no
+newer release run waiting; offers `gh run rerun 9960 --failed`, saying it waits for approval of
+`publish` again. Gives no `npm dist-tag` instruction and no warning about moving `latest` back.
+
+### 17d. The registry lookup fails (expect: treated as "a newer version may be out")
+
+As scenario 17, except `npm view members dist-tags --json` fails with `npm error code
+ETIMEDOUT` on every try, and no release run's `publish` is waiting or in progress.
+
+The user says: "0.6.1 never made it to npm, the publish got cancelled. Re-run it."
+
+Expected: does not read the failed lookup as "no newer version"; reports the lookup failure;
+since tag `v0.6.2` exists, warns that the re-run may move `latest` back to 0.6.1 and re-runs
+only on the maintainer's go-ahead, with `npm dist-tag add members@0.6.2 latest` for afterwards.
+
 ## Results
 
 Baseline (2026-10-29, no skill):
@@ -455,3 +493,25 @@ npm."
   doesn't count as an informed go-ahead." Both said the re-run waits for approval of `publish`
   again, left `npm dist-tag add members@0.6.2 latest` to the maintainer ("I won't run it; it's a
   registry change on the maintainer's npm account"), and checked `latest` again after the re-run.
+
+Scenarios 17b, 17c and 17d (2026-11-06), after review found that the row decided only from npm.
+Same command and instruction as scenario 17, one fresh session per run. The prompt held
+`SKILL.md`, `failures.md` and the scenario written out in full.
+- Baseline, `failures.md` with the first version of the row (npm check only): not red; the
+  scenarios document behavior. 17b, run twice: both looked up run 9970 on their own ("confirm that
+  0.6.2's `publish` is still 'Waiting' for approval, because that changes what a re-run of 9960
+  does") and asked before re-running. Both recommended re-running 9960 first, on an unchecked
+  assumption: "Because it is the newer pending request, it will **cancel run 9970's waiting 0.6.2
+  publish**", and "Until I re-run, please make sure nobody approves run 9970's publish". 17c
+  offered `gh run rerun 9960 --failed` with "It will wait for approval of the `publish`
+  environment again" and no dist-tag step. 17d stopped: "Repeated timeouts are a network or
+  registry problem, not a propagation 404, so I won't treat them as 'not published'", and gave
+  `npm dist-tag add members@0.6.2 latest` for the maintainer.
+- With the row checking newer runs first and treating a failed lookup like a newer version: all
+  three passed. 17b quoted the rule ("while a newer run's `publish` is queued, waiting or in
+  progress, don't re-run") and said "'Nothing newer on npm yet' is true only until 9970 is
+  approved"; it asked the maintainer to approve 9970, watched it, then warned about `latest` and
+  waited for a go-ahead. 17c: "the row only allows offering a re-run when no newer tag exists and
+  `latest` is older than this version. Both hold", and offered the re-run without a dist-tag
+  step. 17d: "the row's 'Otherwise' branch applies twice over: a newer version is out, and the
+  lookup fails", and re-ran only on the go-ahead.
