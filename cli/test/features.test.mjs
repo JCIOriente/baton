@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_CONFIG, reviewersFor } from '../lib/config.mjs';
@@ -510,4 +510,17 @@ test('baton doctor reports missing release files, offline', async (t) => {
   const release = JSON.parse(res.stdout).filter((f) => f.kind === 'release');
   assert.equal(release.length, 1);
   for (const file of ['release-please-config.json', '.release-please-manifest.json', '.github/workflows/release.yml']) assert.ok(release[0].message.includes(file), file);
+});
+
+test('every reviewer brief ends its report with the same Declined to judge block', () => {
+  const dir = new URL('../../reviewers/', import.meta.url).pathname;
+  const tails = readdirSync(dir).filter((f) => f.endsWith('.md')).map((f) => {
+    const text = readFileSync(join(dir, f), 'utf8');
+    assert.match(text, /^## Declined to judge$/m, f);
+    const start = text.lastIndexOf('\nLast, after the findings');
+    assert.ok(start >= 0, f);
+    return text.slice(start);
+  });
+  assert.ok(tails.length > 0);
+  for (const tail of tails) assert.equal(tail, tails[0]);
 });

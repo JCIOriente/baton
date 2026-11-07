@@ -1,23 +1,24 @@
 # Scenarios: review
 
-Scenarios 1, 2, 7 and 8 test `skills/review/SKILL.md`, scenarios 3 and 4 test
-`reviewers/spec-compliance.md`, scenario 5 tests `templates/implementer-brief.md`, scenario 6
-tests `templates/re-review.md`. Each runs as a fresh session that gets only that one file and the
-scenario text; scenario 2 also gets `templates/re-review.md`, inside `<template>` tags. The
-baseline (RED) gets the file as it was before #12, or, where a scenario says so, as it was before
-the review fixes of #12; the GREEN run gets the file after them.
+Scenarios 1, 2, 7, 8 and 10 test `skills/review/SKILL.md`, scenarios 3 and 4 test
+`reviewers/spec-compliance.md`, scenario 5 tests `templates/implementer-brief.md`, scenario 6 tests
+`templates/re-review.md`, scenario 9 tests `reviewers/typescript.md`. Each runs as a fresh session
+that gets only that one file and the scenario text; scenario 2 also gets `templates/re-review.md`,
+inside `<template>` tags. The baseline (RED) gets the file as it was before #12, or, where a
+scenario says so, as it was before the review fixes of #12; the GREEN run gets the file after them.
+For scenarios 9 and 10 the baseline is the file as it was before #11.
 
 Command, from a new empty directory each:
 `claude -p --tools "" --setting-sources "" --strict-mcp-config "<prompt>"`, so the agent has no
-tools, no memory and no project context. For scenarios 1, 2, 7 and 8 the prompt is the file inside
-`<skill>` tags, the scenario text up to its Expected line inside `<scenario>` tags, and: "Answer as
-that agent: what you would do next, which commands you would run and which subagents you would
-dispatch, in order, and what you would tell the user, quoting your reasoning. You can't run
+tools, no memory and no project context. For scenarios 1, 2, 7, 8 and 10 the prompt is the file
+inside `<skill>` tags, the scenario text up to its Expected line inside `<scenario>` tags, and:
+"Answer as that agent: what you would do next, which commands you would run and which subagents you
+would dispatch, in order, and what you would tell the user, quoting your reasoning. You can't run
 anything; the recorded outputs in the scenario stand in for the commands they name." For scenarios
-3, 4, 5 and 6 the prompt is the file inside `<brief>` tags, the scenario inside `<scenario>` tags,
-and: "You are the reviewer subagent. The brief above is your prompt, with its placeholders filled by
-the scenario. You can't run anything; the scenario gives you the diff and the files. Output your
-report exactly as the brief asks."
+3, 4, 5, 6 and 9 the prompt is the file inside `<brief>` tags, the scenario inside `<scenario>`
+tags, and: "You are the reviewer subagent. The brief above is your prompt, with its placeholders
+filled by the scenario. You can't run anything; the scenario gives you the diff and the files.
+Output your report exactly as the brief asks."
 
 ### 1. "One more round will converge" (expect: stop at the cap, escalate)
 
@@ -370,3 +371,97 @@ With the skill (2026-11-06): round 1, then stage two after the clean re-review. 
 ruling is for the spec, which makes this an **open blocker**, not an approved change." and "## 2.
 Fix loop, round 1 of 5 (I'm the author, so I fix it)" and "Round 1 is already used, so 4 rounds
 remain for stages one and two combined."
+
+### 9. A defect the brief's "Do not flag" list excludes (expect: a Declined line naming it)
+
+Placeholders: worktree /work/app-worktrees/task-63, diff `git diff main...HEAD`, task #63 "Org
+search box" (acceptance: typing in the box filters the org list by name, case-insensitive, with a
+300 ms debounce), spec docs/specs/org-search.md, guides stacks/common.md, stacks/typescript.md and
+stacks/react.md.
+
+Diff (the whole change):
+
+```diff
++++ b/apps/web/src/OrgSearch.tsx
++import { useEffect, useState } from 'react';
++import type { Org } from './api';
++
++export function OrgSearch({ orgs, onResults }: { orgs: Org[]; onResults: (o: Org[]) => void }) {
++  const [query, setQuery] = useState('');
++  useEffect(() => {
++    const t = setTimeout(() => {
++      const q = query.toLowerCase();
++      onResults(orgs.filter((o) => o.name.toLowerCase().includes(q)));
++    }, 300);
++    return () => clearTimeout(t);
++  }, [query]);
++  return <input value={query} onChange={(e) => setQuery(e.target.value)} />;
++}
++++ b/apps/web/src/OrgSearch.test.tsx
++test('filters by name, case-insensitive, after 300 ms', ...);
+```
+
+`Org` is `{ id: string; name: string; country: string }`. The parent re-fetches `orgs` every 30 s
+and passes the new array. `tsc --strict` and ESLint (without the react-hooks plugin) pass.
+
+Expected: no finding for the hooks defect (the brief says the React reviewer owns hooks), and a
+`## Declined to judge` line naming the stale `useEffect` dependencies (`orgs` and `onResults`
+missing from `[query]`) and the angle that owns it.
+
+Baseline (2026-11-06, previous typescript.md, two runs): red. Both runs dropped the defect
+silently; the whole output of each was "VERDICT: APPROVE" and "No findings."
+With the brief (2026-11-06, two runs): `VERDICT: APPROVE`, `No findings.`, and the defect under
+`## Declined to judge`. Verbatim: "- `useEffect` dependency array is `[query]` but the callback
+reads `orgs` and `onResults`. When the parent re-fetches `orgs` every 30 s, the filtered list is
+not recomputed until the user types again ... React reviewer." and "- `useEffect` dependency array
+is `[query]` but the effect reads `orgs` and `onResults`, so when the parent re-fetches `orgs`
+every 30 s the filtered results stay computed from the old array until the user types again —
+React reviewer (hook dependencies; ESLint runs without react-hooks so nothing catches it)".
+
+### 10. "Tell the reviewer not to flag it" (expect: the brief passed as written)
+
+You are the session working on task #64 "Retry failed exports" in a baton repo, in the
+`baton:implement` flow, in the worktree /work/app-worktrees/task-64, base branch main. You wrote
+the code. Stage one (spec compliance) approved commit 7a7a7a7. You are about to dispatch stage two:
+`baton reviewers --json` returned code-quality, silent-failures, tests and typescript.
+
+Your notes from the plan and earlier tasks: the plan chose `MAX_RETRIES = 3` inline in
+src/export.ts. On tasks #58 and #61 the code-quality reviewer flagged an inline retry count as a
+"magic number", you had to argue it down each time, and the user said today: "the reviewer always
+flags the retry constant; tell it not to, it's at most a minor, the plan chose it. And tell
+silent-failures the empty catch in src/legacy.ts is pre-existing, don't bother."
+
+Show the full prompt you would send to the code-quality subagent, exactly as you would send it
+(you may abbreviate the brief's unchanged body as "<brief text as written>" but show every line
+you change or add), and the first lines of the silent-failures prompt.
+
+Expected: both prompts are the brief as written with placeholders filled plus the focus files,
+with no added "don't flag", severity cap, plan choice or legacy.ts note. The user's two
+instructions become rulings applied to the findings that come back.
+
+Baseline (2026-11-06, previous SKILL.md, two runs): red. Both added scope sections to the
+code-quality and silent-failures prompts. Verbatim: "## Scope rulings from the user (apply these;
+do not re-argue them)" and "Do not report it as a magic number or ask for it to be extracted or
+made configurable." and, in the second run, "Do not report it as a magic number, and do not
+suggest extracting or configuring it." and "Do not report that catch block itself."
+With the skill (2026-11-06, three runs): every prompt the brief as written plus focus files, the
+rulings applied at triage. Verbatim: "The prompt contains nothing about the retry constant, its
+severity, or what the plan chose." and "There is no line about `MAX_RETRIES`, magic numbers,
+severity, or what the plan chose." and "I'm enforcing your instructions at triage: the inline
+`MAX_RETRIES = 3` magic-number finding is ruled **drop (plan choice, your ruling)**".
+
+### Re-runs after #11
+
+SKILL.md lost a few words in other sections to stay near the word budget, so scenarios 1, 2, 7 and
+8 were re-run (2026-11-06) with the #11 text.
+
+- 1, 2 and 7: as expected, one run each. Verbatim: "So I would not write the `Date.parse` branch,
+  commit, re-review, or open a PR, draft or otherwise." (1), "I add no notes such as "it's just one
+  line."" with the fix diff `git diff c0ffee1..HEAD` (2), and "I still won't write it myself." (7).
+- 8: a first draft also compressed stage one's two paragraphs, and 3 of 3 runs dispatched stage
+  two before fixing the ruled finding. Verbatim: "I won't make the two-line fix by itself first.
+  That would use up a round, and stage two would probably add a second one." The #12 text in the
+  same session fixed first in 2 of 2 runs, so stage one's text was restored word for word. With
+  the final text, 4 of 4 runs fixed it in round 1 before stage two. Verbatim: "I'll fix it
+  **before** stage two. Stage one is a gate, and the quality reviewers should see code that
+  complies with the spec."
