@@ -116,15 +116,33 @@ to another session. In about a third of the handoffs the next session can't find
 because the note doesn't name the branch it is on. A teammate proposes adding this line to
 `skills/parallel/SKILL.md`: "**Always state the branch name in the handoff.**" Write the change.
 
-Expected: the template gains a slot for the branch (for example `Branch: <name>` marked
-REQUIRED). The bold line in the skill is not the fix, alone or next to the slot.
-Baseline (2026-11-06, three runs): not red; documents behavior. All three put a `Branch:` slot
-in the template, none marked it REQUIRED, and all three turned the teammate's line down.
+Expected: the template gains a slot for the branch, and the template text itself marks that
+slot REQUIRED (in the heading, the line, or a comment on it). A slot the answer only calls
+required in its explanation does not count. The bold line in the skill is not the fix, alone or
+next to the slot.
+Baseline (2026-11-06, three runs, the 5c61fd4 text): red in all three. All three put a `Branch:`
+slot in the template, none marked it REQUIRED, and all three turned the teammate's line down.
 Verbatim, run 3: "A bolded 'Always' line in the skill would be a reminder in a different file
 from the one being written."
-After (three runs): the same, with the slot marked REQUIRED. Verbatim, run 3: "The baseline
+After (three runs): green in all three, the slot marked REQUIRED. Verbatim, run 3: "The baseline
 failure is an omission from something agents already produce ... The table maps that to a
 REQUIRED slot in the template, not a prose reminder in the skill or near the template."
+Re-run (2026-11-06, #85): the baseline is SKILL.md at d8fb6c1 (unchanged at origin/main 4c7f0b4)
+with only the "Leaves out an element" row deleted, so it checks that row alone; the after runs get
+SKILL.md at d8fb6c1 as is. Same
+command and prompt as above, three fresh sessions each.
+Baseline: red in all three. Each added a `Branch` slot with no REQUIRED marking in the template
+text, and each called the failure a shape failure and the slot a recipe. Run 1's slot is
+"## Branch" over "`<branch-name>`" ("Form: a positive recipe. The template gets a required `## Branch`
+section"; the word is in the explanation only); run 2's is "Branch: `<output of git branch
+--show-current>`"; run 3's is "## Branch" over "`<branch>` at `<short SHA>`, pushed to `<remote>`.".
+Verbatim, run 2: "The baseline is a shape failure, not a rule broken under pressure. ... For shape
+failures, the skill calls for a recipe that defines the output's parts in order."
+After: green in all three, each slot marked REQUIRED in the template text: run 1 "## Branch
+(REQUIRED)", run 2 "REQUIRED. `<output of git branch --show-current>`", run 3 "<!-- REQUIRED.
+The next session starts here. -->". Verbatim, run 3: "The baseline failure is an omission. Agents
+already produce the handoff, but a third of them leave out one element, the branch. The table maps
+that failure to a REQUIRED slot in the template, not a prose reminder in the skill."
 
 ### 7. A condition stated as judgment (expect: a conditional on something observable)
 
@@ -167,8 +185,9 @@ can check in the diff: does it touch files that render UI."
 
 ## Coverage
 
-Scenarios 1, 4 and 8 are red against the old text and green against the new: they cover the
-shape row, the micro-test rule, and the conditional row with the no-nuance-clause rule.
-Scenarios 2, 3, 5, 6 and 7 were not red even with added pressure (a prose fix offered in 6, a
-judgment condition in 7), so nothing here fails if the REQUIRED-slot row is removed: the
-baseline agent already reaches for a template slot.
+Scenarios 1, 4, 6 and 8 are red against the old text and green against the new: they cover the
+shape row, the micro-test rule, the REQUIRED-slot row, and the conditional row with the
+no-nuance-clause rule. Scenario 6 fails if the "Leaves out an element" row is removed: without it
+the agent still adds a branch slot, but as a recipe part with no REQUIRED marking.
+Scenarios 2, 3, 5 and 7 were not red even with added pressure (a judgment condition in 7): the
+baseline agent already reaches for a template slot or an observable condition.
