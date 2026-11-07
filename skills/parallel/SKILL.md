@@ -40,7 +40,7 @@ into the brief. Don't send the implementer to go and read the plan.
 **Model choice:** use the cheapest model that can do the job.
 - Mechanical tasks (1-2 files, complete spec): a fast model.
 - Tasks that integrate across several files: a standard model.
-- Design judgment, debugging, and all reviewers: the most capable model.
+- Design judgment, debugging, all reviewers, fix rounds 4-5: the most capable model.
 
 ## 4. Handle implementer status
 
@@ -61,9 +61,8 @@ Never relay an implementer's "tests pass" as a fact.
 1. In its worktree, run `baton verify` yourself and read the diff. Check that
    `git -C <worktree> status --porcelain` is empty and that `git -C <worktree> log <base>..HEAD --oneline`
    matches the commits the implementer reported.
-2. Run `baton:review`: spec compliance first, then the quality angles in parallel. Findings
-   go back to the **same implementer** to fix, followed by a re-review. Don't fix it yourself
-   in the controller context.
+2. Run `baton:review`. Its fix loop sets the rounds, who fixes each and the cap. **Never fix
+   in the controller context.**
 
 ## 6. Integrate one at a time
 
