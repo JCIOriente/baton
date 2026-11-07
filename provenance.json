@@ -5,7 +5,7 @@
       "id": "superpowers",
       "repo": "obra/superpowers",
       "license": "MIT",
-      "baseline": { "sha": "2ce8aa15d05bd57213e6f746f953aafb7ded7a8b", "date": "2026-10-21", "how": "repository HEAD at the 2026-10-28 triage; adopted ideas tracked in #9-#14" },
+      "baseline": { "sha": "22f0b463e7a5e579904dd6211a520321035526f7", "date": "2026-11-03", "how": "v7.0.2, repository HEAD at the 2026-11-06 triage (#97); adopted ideas tracked in #111" },
       "files": [
         { "upstream": "skills/brainstorming/SKILL.md", "local": "skills/spec/SKILL.md" },
         { "upstream": "skills/brainstorming/builder-check-prompt.md", "local": "templates/builder-check.md" },
@@ -30,7 +30,7 @@
       "id": "ecc",
       "repo": "affaan-m/ECC",
       "license": "MIT",
-      "baseline": { "sha": "90606c8315ee09cafc303515c5f33024db6b9882", "date": "2026-10-20", "how": "repository HEAD when the files were fetched (2026-10-22)" },
+      "baseline": { "sha": "d2ef2680594f9a17526a6e1a2e18b3d242c5d17b", "date": "2026-11-06", "how": "repository HEAD at the 2026-11-06 triage (#6); only agents/typescript-reviewer.md had changed since 90606c83, skipped" },
       "files": [
         { "upstream": "skills/coding-standards/", "local": "stacks/common.md" },
         { "upstream": "rules/common/", "local": "stacks/common.md" },
