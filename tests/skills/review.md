@@ -1,6 +1,6 @@
 # Scenarios: review
 
-Scenarios 1, 2, 7, 8, 10, 11, 12 and 13 test `skills/review/SKILL.md`, scenarios 3 and 4 test
+Scenarios 1, 2, 7, 8, 10, 11, 12, 12b and 13 test `skills/review/SKILL.md`, scenarios 3 and 4 test
 `reviewers/spec-compliance.md`, scenario 5 tests `templates/implementer-brief.md`, scenario 6 tests
 `templates/re-review.md`, scenario 9 tests `reviewers/typescript.md`. Each runs as a fresh session
 that gets only that one file and the scenario text; scenario 2 also gets `templates/re-review.md`,
@@ -11,7 +11,7 @@ For scenarios 9 and 10 the baseline is the file as it was before #11; scenario 1
 
 Command, from a new empty directory each:
 `claude -p --tools "" --setting-sources "" --strict-mcp-config "<prompt>"`, so the agent has no
-tools, no memory and no project context. For scenarios 1, 2, 7, 8, 10, 11, 12 and 13 the prompt
+tools, no memory and no project context. For scenarios 1, 2, 7, 8, 10, 11, 12, 12b and 13 the prompt
 is the file inside `<skill>` tags, the scenario text up to its Expected line inside `<scenario>`
 tags, and:
 "Answer as that agent: what you would do next, which commands you would run and which subagents you
@@ -559,8 +559,7 @@ recorded HEAD 5e6f7a8 and dispatched spec compliance. It returned:
 
 ```
 VERDICT: APPROVE
-[major] plan-mandated src/routes/orgs.ts:9 — getOrg returns 410 Gone for a soft-deleted org as
-  the plan's step 3 requires; 410 tells any caller the org existed
+[major] plan-mandated src/routes/orgs.ts:9 — getOrg returns 410 Gone for a soft-deleted org as the plan's step 3 requires; 410 tells any caller the org existed
 Failure: an outsider probing ids can tell deleted orgs from ids that never existed
 Fix: return 404 for a deleted org and update the test
 ```
@@ -577,18 +576,17 @@ Expected: the spec rules for the plan without asking the user; no round, no fix;
 recorded in the PR body's second paragraph, then `Reviewed-at: 5e6f7a8`.
 
 Written for #106 to make the agent rule for the plan itself, where the ruling looks like a reviewer
-error rather than a user ruling. The runs had the finding on one line. Baseline (2026-11-06,
-SKILL.md after #107 with "Ruled for the plan: record it in the PR body." removed, three runs): not
-red; documents behavior. 3 of 3 dropped the finding without asking and recorded it in the PR body.
-Verbatim: "**Ruling:** dropped, because the spec requires 410." with "One plan-mandated finding (410
-reveals an org existed; suggested 404) was dropped: the spec's "Deleting an org" section requires
-410 so clients can tell deleted from missing." and "Dropped: 410-vs-404 (enumeration) finding, since
-the spec requires 410 so clients can tell deleted from missing."
-With the skill (2026-11-06, current text, one run): as expected. Verbatim: "That means the
-finding is **ruled for the plan**: "Ruled for the plan: record it in the PR body." It never
-enters the fix loop." and "Ruling: spec-compliance flagged (major, plan-mandated) that 410 lets
-outsiders tell deleted ids from never-existing ones; kept 410 because docs/specs/orgs.md
-"Deleting an org" requires it" with `Reviewed-at: 5e6f7a8`.
+error rather than a user ruling. Baseline (2026-11-06, SKILL.md after #107 with "Ruled for the plan:
+record it in the PR body." removed, three runs): not red; documents behavior. 3 of 3 dropped the
+finding without asking and recorded it in the PR body. Verbatim: "**Ruling:** dropped, because the
+spec requires 410." with "One plan-mandated finding (410 reveals an org existed; suggested 404) was
+dropped: the spec's "Deleting an org" section requires 410 so clients can tell deleted from
+missing." and "Dropped: 410-vs-404 (enumeration) finding, since the spec requires 410 so clients can
+tell deleted from missing." With the skill (2026-11-06, current text, one run): as expected.
+Verbatim: "That means the finding is **ruled for the plan**: "Ruled for the plan: record it in the
+PR body." It never enters the fix loop." and "Ruling: spec-compliance flagged (major, plan-mandated)
+that 410 lets outsiders tell deleted ids from never-existing ones; kept 410 because
+docs/specs/orgs.md "Deleting an org" requires it" with `Reviewed-at: 5e6f7a8`.
 
 ### 13. The user defers or drops every finding at the cap (expect: counts as clean, no round)
 
