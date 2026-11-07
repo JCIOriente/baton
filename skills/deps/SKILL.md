@@ -23,10 +23,10 @@ outputs, **typed literally: tool calls share no variables**. `cp <manifest> <loc
 JS: `npm view <pkg> dist-tags` (`latest`, not pre-release), then `npm view <pkg>@<v>
 deprecated`, `peerDependencies`, one field per call. Berry, registry only in `.yarnrc.yml`:
 `yarn npm info <pkg> --fields dist-tags --json`, then
-`yarn npm info <pkg>@<v> --fields deprecated,peerDependencies --json`. cargo: `cargo info
+`yarn npm info <pkg>@<v> --fields version,deprecated,peerDependencies --json`. cargo: `cargo info
 <crate>`; yanked: the `<v>` line of `curl -fsS https://index.crates.io/<prefix>/<crate>`, all
 lowercase, prefix `1`, `2`, `3/<first char>` by length, else `se/rd/serde`; not the crates.io
-API. Non-zero exit, timeout or no `<v>` line:
+API. Non-zero exit, timeout, no `<v>` line or berry `version` ≠ `<v>`:
 vet fails; empty with exit 0: unset.
 
 ## 3. Peers (JS)

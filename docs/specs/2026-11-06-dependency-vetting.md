@@ -135,8 +135,10 @@ Steps (the skill body, under ~600 words; per-manager commands in a table):
      Several fields in one call, or `--json`, are ambiguous: npm 12 prints a bare value when only
      one field is set, and `--json` returns a list that omits unset fields. In a berry repo with a
      registry set only in `.yarnrc.yml`: `yarn npm info <pkg> --fields dist-tags --json`, then
-     `yarn npm info <pkg>@<v> --fields deprecated,peerDependencies --json`. Without a version,
-     the fields describe `latest`, not the chosen version.
+     `yarn npm info <pkg>@<v> --fields version,deprecated,peerDependencies --json`. Without a
+     version, the fields describe `latest`, not the chosen version, and yarn 4 answers a version
+     that does not exist with `latest`'s manifest and exit 0, so a `version` other than `<v>`
+     fails the lookup.
      Use the `latest` dist-tag, not the newest pre-release. A non-empty `deprecated` stops the
      vet: report the message, which often names the successor.
    - cargo: `cargo info <crate>` for the latest version and license. Yanked status comes from

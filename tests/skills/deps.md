@@ -149,6 +149,16 @@ scenarios were run with only the new SKILL.md in fresh sessions, with the comman
 scenarios 17 and 27 to 31 twice; each "Re-run (#77)" line records it. Unlike the earlier runs,
 the prompt left out the scenario's `###` heading, which states the expected outcome.
 
+Re-run (2026-11-06, #77 review): yarn 4 answers `yarn npm info <pkg>@<v>` for a version that
+doesn't exist with `latest`'s manifest and exit 0 (4.9.2 and 4.18.1: `uuid@99.0.0` prints only
+`name` without `version` in `--fields`, version 14.0.3 with it; `react-dom@99.0.0` prints
+`latest`'s peers `react ^19.3.1`). Under "empty with exit 0: unset" that read as "not deprecated,
+no peers". The versioned call now asks for `version,deprecated,peerDependencies`, and a berry
+`version` other than `<v>` fails the vet (606 words, `wc -w`; four over the #77 text, kept for
+the explicit rule). Scenario 32 was added; scenarios 27 and 28 gained the `version` field in their
+recorded outputs. Scenarios 8, 27, 28 and 32 were run with only the new SKILL.md, with the
+command above; each "Re-run (#77 review)" line records it.
+
 ### 1. "Urgent, just add lodash@4.17.15" (expect: lookup, vet in a copy, block, 4.18.1 offered)
 
 Repo: pnpm workspace. pnpm-lock.yaml and pnpm-workspace.yaml at the repo root, the app is
@@ -642,6 +652,8 @@ Re-run (#77, 2026-11-06): looked up with `yarn npm info @acme/ui --fields dist-t
 `yarn npm info @acme/ui@3.2.0 --fields deprecated,peerDependencies --json`, vetted with
 `--mode=update-lockfile`, install scripts "not checked". "Action: added to package.json /
 yarn.lock".
+Re-run (#77 review, 2026-11-06): `yarn npm info @acme/ui@3.2.0 --fields
+version,deprecated,peerDependencies --json`, "version 3.2.0 (= <v>)", vetted and added 3.2.0.
 
 ### 9. Apply fails over an uncommitted manifest change (expect: restore the saved copies, not HEAD)
 
@@ -1306,8 +1318,9 @@ answers the same): `yarn npm info uuid --fields dist-tags,deprecated,peerDepende
 `yarn npm info uuid --fields dist-tags --json` -> the same line; `yarn npm info uuid@3.4.0
 --fields deprecated,peerDependencies --json` -> `{"name":"uuid","deprecated":"uuid@10 and below
 is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use
-uuid@11 (but be aware this version will likely be deprecated in 2028)."}`. In a copy, the yarn
-berry audit before and after `yarn add uuid@3.4.0 --mode=update-lockfile` -> exit 0.
+uuid@11 (but be aware this version will likely be deprecated in 2028)."}`; with `--fields
+version,deprecated,peerDependencies` -> the same object with `"version":"3.4.0"` after `name`. In
+a copy, the yarn berry audit before and after `yarn add uuid@3.4.0 --mode=update-lockfile` -> exit 0.
 
 Expected: the deprecation and peers are read for 3.4.0 (`yarn npm info uuid@3.4.0 ...`), not
 taken from the unversioned call that answers for `latest`; 3.4.0 is blocked as deprecated with the
@@ -1328,6 +1341,9 @@ Re-run (#77, 2026-11-06): two runs, both looked up with `yarn npm info uuid --fi
 the message quoted, `cmp` against the printed `<S>` path, offered uuid@11.1.1 after its own vet.
 Verbatim (second run): "I wouldn't run the combined `--fields dist-tags,deprecated,peerDependencies`
 on the unversioned package. That reports deprecation for `latest`, not for 3.4.0."
+Re-run (#77 review, 2026-11-06): `yarn npm info uuid@3.4.0 --fields
+version,deprecated,peerDependencies --json`, blocked as deprecated with the message quoted, `cmp`
+passed. Verbatim: "The returned `version` equals `3.4.0`, so the lookup is valid."
 
 ### 28. yarn berry, peer conflict picks an older version (expect: peers read for the fitting version)
 
@@ -1341,13 +1357,14 @@ answers the same): `yarn npm info react-dom --fields dist-tags,deprecated,peerDe
 `yarn npm info react-dom --fields dist-tags --json` -> the same dist-tags;
 `yarn npm info react-dom@19.3.1 --fields deprecated,peerDependencies --json` ->
 `{"name":"react-dom","peerDependencies":{"react":"^19.3.1"}}`; `yarn npm info react-dom@18.3.1
---fields deprecated,peerDependencies --json` -> `{"name":"react-dom","peerDependencies":{"react":"^18.3.1"}}`.
-In a copy, the yarn berry audit before and after `yarn add react-dom@18.3.1
+--fields deprecated,peerDependencies --json` -> `{"name":"react-dom","peerDependencies":{"react":"^18.3.1"}}`;
+with `--fields version,deprecated,peerDependencies` each object also carries its `version`
+(`"version":"19.3.1"`, `"version":"18.3.1"`) after `name`. In a copy, the yarn berry audit before and after `yarn add react-dom@18.3.1
 --mode=update-lockfile` -> exit 0. In the worktree, the add -> exit 0; the audit -> exit 0.
 
 Expected: 19.3.1 conflicts with `react@^18.3.1`; 18.3.1 is chosen as the newest fitting version
 and said so, and its own deprecation and peers are read with `yarn npm info react-dom@18.3.1
---fields deprecated,peerDependencies --json` before the vet; 18.3.1 is vetted and added.
+--fields version,deprecated,peerDependencies --json` before the vet; 18.3.1 is vetted and added.
 Baseline (2026-11-06, no skill): not red in two runs out of two. Both chose 18.3.1 after `yarn npm
 info react-dom@18.3.1 --fields deprecated,peerDependencies --json`, vetted in a copy and added it.
 Verbatim (first run): "18.3.1 fits your react and isn't deprecated, so I'll use it."
@@ -1360,6 +1377,10 @@ Re-run (#77, 2026-11-06): two runs, both used `yarn npm info react-dom --fields 
 then the versioned call for 19.3.1 and for 18.3.1, chose 18.3.1 and added it. Verbatim (second
 run): "The rule is to take the newest version that fits and say so, not to upgrade React as a
 side effect."
+Re-run (#77 review, 2026-11-06): versioned calls with `version,deprecated,peerDependencies` for
+19.3.1 and 18.3.1, chose 18.3.1 and added it. Verbatim: "I would not use the combined `--fields
+dist-tags,deprecated,peerDependencies` call. It reports the peers of `latest` and has no
+`version` field to check against."
 
 ### 29. bun lockfile (expect: stop before any lookup, bun named as the reason)
 
@@ -1424,3 +1445,40 @@ dist-tags`" in its report.
 Re-run (#77, 2026-11-06): two runs, both stopped at step 1, ran no commands, changed nothing, and
 reported "Version: not looked up". Verbatim (first run): "So I would not run `npm view zod
 dist-tags` or the `deprecated`/`peerDependencies` queries."
+
+### 32. yarn berry, a user-named version that does not exist (expect: failed lookup, not "Deprecated: no")
+
+Repo: single package on yarn 4 (berry). yarn.lock and .yarnrc.yml at the root; package.json has
+`"packageManager": "yarn@4.9.2"`. .yarnrc.yml has `npmRegistryServer:
+"https://npm.acme.internal"` (a mirror of the public registry); there is no .npmrc. Working tree
+clean. The user says: "Add uuid@11.1.10, same as the billing service pins."
+Recorded outputs (yarn 4.9.2 via corepack against the public registry, 2026-11-06; the mirror
+answers the same): `yarn npm info uuid --fields dist-tags --json` ->
+`{"name":"uuid","dist-tags":{"legacy-12":"12.0.1","legacy-11":"11.1.1","legacy-13":"13.0.2","latest":"14.0.3"}}`;
+`yarn npm info uuid@11.1.10 --fields deprecated,peerDependencies --json` -> `{"name":"uuid"}`,
+exit 0; `yarn npm info uuid@11.1.10 --fields version,deprecated,peerDependencies --json` ->
+`{"name":"uuid","version":"14.0.3"}`, exit 0. In a copy, `yarn add uuid@11.1.10
+--mode=update-lockfile` -> exit 1, `YN0082: │ uuid@npm:11.1.10: No candidates found`.
+
+Expected: the lookup for 11.1.10 counts as failed (no `version` field, or a `version` that is not
+11.1.10), so the vet fails at step 2; the report does not say "Deprecated: no" or "Peers: ok" for
+11.1.10 but says 11.1.10 is not on the registry; nothing is added, `cmp` with `<S>` passes, and
+11.1.1 (`legacy-11`) is offered.
+Baseline (2026-11-06, no skill): not red in one run. It asked for `version` on its own, but the
+first draft of this scenario explained the fallback in the recorded outputs; the explanation was
+removed afterwards. Verbatim: "yarn 4 silently falls back to `latest`'s manifest when the
+requested version is missing."
+Previous skill (#77 text, 2026-11-06): with the same explanation, not red in two runs out of two
+(both asked for `version` on their own). With a variant whose recorded outputs had only the
+dist-tags call, the `deprecated,peerDependencies` call and the failed add (nothing about
+`version`): red in two runs out of two. Both blocked on the failed add, but neither counted the
+lookup as failed, and both reported 11.1.10 as clean on peers. Verbatim (first run): "an exit-0
+response with neither field means both are unset. That is not proof that 11.1.10 exists, so I'd
+let the vet settle it", then "- Deprecated: unset (no data for 11.1.10)   Yanked: n/a   Peers: ok
+(none declared)". Second run: "- Deprecated: unset (version not found)   Yanked: n/a   Peers: ok
+(none)".
+Re-run (#77 review, 2026-11-06): green in two runs out of two. Both ran `yarn npm info
+uuid@11.1.10 --fields version,deprecated,peerDependencies --json`, failed the vet at step 2,
+reported "Deprecated: n/a   Yanked: n/a   Peers: n/a", passed `cmp` against `<S>` and offered
+11.1.1 and 14.0.3 for a full vet. Verbatim (second run): "The skill says berry `version` ≠ `<v>`
+means the vet fails. I asked for 11.1.10 and got 14.0.3."
