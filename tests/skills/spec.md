@@ -204,8 +204,8 @@ order?** My call: chapter, then name") and quoted "A default you picked is the a
 never something the user agreed to." The message lists them: "**Calls I made; tell me if any is
 wrong:**".
 
-Which step raised the gap: the id-space question appears only under "## Step 9: Builder check"
-(item 3 above), not in step 7's table of ten self-review findings (scope, status filter, columns,
+Which step raised the gap: the id-space question ("Are Nation and Chapter the same table", quoted
+above) appears only under "## Step 9: Builder check", not in step 7's table of ten self-review findings (scope, status filter, columns,
 delimiter, phones, formula injection, date display, tests, citations, date). This run still read
 as the builder in its own context, so it shows the step runs, not that a fresh reader is needed;
 scenario 8 is the run where the question comes back from a dispatched builder.
