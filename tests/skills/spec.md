@@ -467,3 +467,149 @@ fresh agent that only read the spec) turned up two things only you can decide an
 couldn't verify". The builder also caught that the spec claims `CONTEXT.md` entries that do not
 exist: "it found a gap of mine: **`CONTEXT.md` doesn't exist**, even though the spec's Decisions
 section says the five terms were added to it."
+
+## Asking
+
+Run 2026-11-06 with `claude -p --tools "" --setting-sources "" --strict-mcp-config` from a new
+empty directory per run, the prompt on stdin: "You follow this skill:", the skill text, `---`,
+then the scenario. Red: `skills/spec/SKILL.md` at origin/main (`a0f7a79`). Green: this change's
+text. Two runs of each, read in full; scenario B got two more red runs.
+
+The issue's replacement text for steps 3-4 put the skill at 872 words (`wc -w`), over the 800
+budget, so it was cut inside steps 3-4 only, to 798: "Never reopen a decision the user already
+made" is carried by "isn't settled by the request, code or earlier answers", and "Later questions
+may offer choices, each with its trade-off and your pick" was dropped. The green runs below are
+against the cut text.
+
+### 9. No purpose given, the code answers the rest (expect: an open "why" first, no options)
+
+> You are working in a baton repo for a membership app (Next.js + Postgres). The user's whole
+> message: "Can you add a CSV export of the members list?"
+>
+> In step 1 you read the code. What you found:
+> - `app/members/page.tsx:12` calls `requireRole("admin")`: only admins can open the Members page.
+> - `src/db/schema.ts:41` defines the `members` table with `name`, `email`, `phone`, `joined_on`
+>   and a `status` column (`active`, `alumni`, `suspended`).
+> - No existing spec in `docs/specs` covers exports.
+>
+> Step 2: this is one subsystem, no split needed.
+>
+> You have no tools in this session. Answer in text: write the exact message you send the user
+> next, then in two or three sentences say why, quoting the skill text that drives it.
+
+Expected: the first question is open, about why they want it, with no options; nothing the code
+answers is asked.
+
+Red (both runs): a menu that guesses the purpose. Run 1: "First question: **what will the
+exported CSV mainly be used for?** 1. **Contact/mailing** [...] 2. **Records/reporting** [...]
+3. **Migration/backup** [...] 4. Something else (please describe)." Rationale: "Step 3 says to
+\"ask clarifying questions one at a time\" and to \"prefer multiple choice,\" with purpose listed
+first. So I ask one multiple-choice question about purpose". Run 2 the same shape: "**A)**
+Contacting members [...] **B)** Reporting or analysis [...] **C)** A full backup [...] **D)**
+Something else."
+
+Green (both runs): "Before I get into details: what do you need the CSV export for?" and "First:
+what do you need the CSV export for?", no options, nothing about roles. Rationale: "The request
+doesn't say why, and the skill says \"If they haven't said why, ask that first: open, no
+options.\"" Run 2 also: "\"Process steps (write-up, file paths, more reading) are yours: do them,
+say so\" are why I only report what I found and say I'll write the spec, instead of asking the
+user about either."
+
+### 10. A decision already made (expect: not reopened)
+
+> You are working in a baton repo for a membership app (Next.js + Postgres). The conversation so far:
+>
+> User: "Can you add a CSV export of the members list?"
+> You: "What do you need the export for?"
+> User: "The national board calls every member before the convention, and they work from a
+> spreadsheet. Only active members, no filters."
+>
+> In step 1 you read the code:
+> - `app/members/page.tsx:12` calls `requireRole("admin")`: only admins can open the Members page.
+> - `src/db/schema.ts:41` defines the `members` table with `name`, `email`, `phone`, `joined_on`,
+>   `chapter_id` and a `status` column (`active`, `alumni`, `suspended`).
+>
+> Step 2: one subsystem, no split needed. You are now at step 3.
+>
+> You have no tools in this session. Answer in text: write the exact message you send the user
+> next, then in two or three sentences say why, quoting the skill text that drives it.
+
+Expected: alumni and filters are not asked again; the next question changes the build.
+
+Not red (four runs at origin/main): documents behavior. Every run asked who may download, a
+question that changes the build, and none reopened the status filter: "The purpose is settled
+(the board phones members before the convention), and so is the scope (\"only active members, no
+filters\")." The shape was the old step 3's menu: "**A)** Admins only, same as the Members page.
+[...] **B)** National board members as well, through a new role or permission. [...] **C)**
+Something else."
+
+Green (both runs): the same question, not reopened. Run 1: "Got it: a CSV of every active member,
+across all chapters, for the national board's call list. / Who should be able to download it?",
+with "**A. Admins only (my pick).**" and a B. Rationale: "The skill's rule is to ask \"only what
+changes the build and isn't settled by the request, code or earlier answers, one per message.\""
+Run 2 asked it without options: "Are the board members who make the calls already admins, or
+does the export need its own permission for them?"
+
+### 11. The code leaves one sensible approach (expect: say so, no padded list)
+
+> You are working in a baton repo for a membership app (Next.js + Postgres). You are writing a
+> spec for a CSV export of the members list. Step 3 is done; the user told you:
+> - "The national board calls every member before the convention; they work from a spreadsheet."
+> - "Only active members, no filters. Columns: name, email, phone, chapter. Only admins."
+>
+> In step 1 you read the code:
+> - `src/exports/csv.ts:8` exports `exportCsv(res, rows, columns)`: streams rows as UTF-8 with
+>   BOM, RFC 4180 quoting and formula-injection escaping. It is used by
+>   `app/api/events/export.csv/route.ts:5` and `app/api/payments/export.csv/route.ts:5`, each a
+>   GET route that calls `requireRole("admin")`, runs one query and passes the rows to
+>   `exportCsv`. Each has an integration test in `tests/exports/`.
+> - `app/members/page.tsx:12` calls `requireRole("admin")`.
+> - The largest nation has about 4,000 active members; the events export already streams 20,000 rows.
+>
+> You are now at step 4. You have no tools in this session. Answer in text: write the exact
+> message you send the user for step 4, then in two or three sentences say why, quoting the skill
+> text that drives it.
+
+Expected: says there is one sensible way, why the others don't fit, and moves on.
+
+Red (both runs): three options, two of them straw men. Run 1: "Three ways to build the members
+CSV export. I recommend **A**." with "**B. Generate the CSV in the browser from the members
+page.**" and "**C. Background job that emails or stores the file.** [...] I'd treat it as out of
+scope (YAGNI)." Rationale: "Step 4 says \"Propose 2-3 approaches with trade-offs. Lead with your
+recommendation and why.\" So the message gives three options". Run 2: "Here are the approaches I
+considered. I recommend A." with the same B and C.
+
+Green (both runs): "Only one approach makes sense here: follow the existing export pattern." and
+"Only one approach makes sense here.", with the browser and background-job ideas given one line
+each as "Alternatives I ruled out:" / "I considered two alternatives:", then "If you agree, I'll
+present the design section by section". Rationale: "So I state the single approach and give each
+alternative a concrete reason to drop it".
+
+### 12. Process steps (expect: done and stated, not asked)
+
+> You are working in a baton repo for a membership app (Next.js + Postgres) whose
+> `.baton/config.json` sets `docs.specs` to `docs/specs`. The user's whole message: "Let's think
+> through a CSV export of the members list so the national board can phone members before the
+> convention. Not sure how formal you want to be about this."
+>
+> So far in step 1 you read `app/members/page.tsx` (line 12 calls `requireRole("admin")`) and
+> `src/db/schema.ts:41` (the `members` table, with a `status` column: `active`, `alumni`,
+> `suspended`). You have not yet opened `src/exports/`, a directory whose name you saw in the file
+> tree. No spec in `docs/specs` covers exports.
+>
+> You have no tools in this session. Answer in text: say what you do next, then write the exact
+> message you send the user next. In two or three sentences say why, quoting the skill text that
+> drives it.
+
+Expected: does not ask whether to write the spec, where to put it or whether to read more code.
+
+Not red (both runs at origin/main): documents behavior. Both read `src/exports/` first ("finish
+step 1 by reading `src/exports/` before asking anything") and answered the formality question
+themselves: "On formality: light, but not skipped. This gets a short spec, maybe a page, that you
+approve before any code." Their one question was a menu about who may download.
+
+Green (both runs): the same, no process question. Run 1: "I'm reading `src/exports/` now to see
+whether there's an existing export pattern to reuse." Rationale: "The skill makes extra reading my
+job: \"Process steps (write-up, file paths, more reading) are yours: do them, say so.\"" Run 2
+skipped the why question because "The user already gave the reason (phoning members before the
+convention)".
