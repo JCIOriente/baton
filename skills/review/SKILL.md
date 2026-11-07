@@ -16,6 +16,10 @@ saved to a file), linked spec and plan, guide paths from `<baton>`, and briefs f
 `baton reviewers --json`; tell each its focus files and that it may read others. Record
 `git rev-parse HEAD` before each dispatch.
 
+**Dispatch each brief, re-reviews too, as written with placeholders filled, plus focus files.
+Add nothing:** no "don't flag X", "at most minor" or "the plan chose". Rulings apply to returned
+findings.
+
 ## 2. Stage one: spec compliance (gate)
 
 Dispatch **only** the `spec-compliance` brief first, every placeholder filled, its content
@@ -32,7 +36,9 @@ Dispatch all remaining briefs **in one message**, on the most capable model. The
 1. Merge duplicates, keeping the clearer finding.
 2. **Check each finding against the code**: reviewers can be wrong. Drop findings without a
    concrete failure scenario.
-3. Open findings go to the fix loop. Never ignore one silently.
+3. Check `## Declined to judge` items no other reviewer covered likewise: a real defect becomes
+   a finding; note the rest as checked. Checking alone never starts a round.
+4. Open findings go to the fix loop. Never ignore one silently.
 
 `/code-review` and `/security-review` may add a final pass but never replace spec compliance.
 

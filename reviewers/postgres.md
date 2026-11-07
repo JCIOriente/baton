@@ -63,7 +63,8 @@ application code, migrations and schema. Project conventions override the guides
 
 ## Report
 
-Output only the following. First line:
+Output only the following, in this order, ending with the `## Declined to judge` block. First
+line:
 
 ```
 VERDICT: APPROVE
@@ -88,3 +89,18 @@ Fix: <specific change>
 - The verdict is `CHANGES_REQUIRED` if there is any blocker or major finding. `minor` never
   blocks approval.
 - If nothing qualifies, output `VERDICT: APPROVE` and then `No findings.`
+
+Last, after the findings (or `No findings.`), always:
+
+```
+## Declined to judge
+```
+
+One line per behavior in the diff you considered and set aside as outside this brief (its "Do
+not flag" list or another reviewer's angle), with the reason or the angle that owns it:
+
+```
+- <behavior considered> — <reason / which angle owns it>
+```
+
+`None.` when you set nothing aside.
