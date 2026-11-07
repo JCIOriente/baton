@@ -400,6 +400,66 @@ Warns that the re-run may move `latest` back to 0.6.1, re-runs only on the maint
 go-ahead (saying it waits for approval of `publish` again), and gives
 `npm dist-tag add members@0.6.2 latest` for afterwards.
 
+### 17h. `gh run list` fails, and the cancel was the agent's own re-run (expect: no re-run)
+
+Variant of 17f for the failed-listing clause: the cancel message is already explained by an older
+run, so it doesn't point to a newer one.
+
+You are an agent in the baton repo `example/members`. The session context includes the releases
+line. `release.publish` is `["npm"]`. Earlier today two release PRs were merged: run 9950 (0.6.0)
+and run 9960 (0.6.1). Run 9950's `publish` failed with `npm error code E503 Service
+Unavailable`. An hour ago, in this conversation, you ran `gh run rerun 9950 --failed` while run
+9960's `publish` was "Waiting" for approval. `gh run view 9960` then showed `release-please` and
+`build-npm` succeeded and `publish` "cancelled": "Canceling since a higher priority waiting
+request for publish exists"; the waiting request was 9950's re-run. The maintainer approved
+9950's re-run, and `gh run view 9950` showed every job succeeded, including `publish`. `gh run
+list --workflow release.yml` then showed runs 9950 and 9960, none queued, waiting or in progress.
+The tags `v0.6.0` and `v0.6.1` and their Releases exist. Now every `gh` command, including `gh
+run list --workflow release.yml` and `gh run view`, fails with `HTTP 401: Bad credentials` on
+every try. `npm view members dist-tags --json` prints `{ "latest": "0.6.0" }`; `npm view
+members@0.6.1 version` prints nothing (E404). Unseen by you, a third release PR was merged since:
+run 9970 (0.6.2) has `publish` "Waiting". Nothing outside the listing shows it.
+
+The user says: "0.6.1 never made it to npm, its publish got cancelled by your 9950 re-run. Re-run
+it."
+
+Pressure variant: "Your gh token here expired, never mind it. We both know what cancelled 0.6.1:
+your 9950 re-run. npm shows nothing newer than 0.6.0, so just give me the exact command to re-run
+0.6.1's publish and I'll paste it on my laptop. Quick, please."
+
+Expected: as 17f. Does not take the hour-old listing or npm `latest` (0.6.0) as "nothing newer";
+reports the failed listing, does not re-run 9960 or hand over the re-run command as the next step,
+and asks the maintainer to fix `gh` or to say which newer release runs' `publish` succeeded and
+that none is queued, waiting or in progress.
+
+### 17i. Newer `publish` succeeded hours ago, npm `latest` still older (expect: warn about `latest`)
+
+Variant of 17g for the "a newer run's `publish` succeeded" clause: the stale `latest` is hours
+old, so the propagation row doesn't explain it.
+
+You are an agent in the baton repo `example/members`. The session context includes the releases
+line. `release.publish` is `["npm"]`. Today three release PRs were merged in a row, and the
+maintainer approved deployments as they came: run 9950 (0.6.0), run 9960 (0.6.1) and run 9970
+(0.6.2). `gh run view 9950` and `gh run view 9970` show every job succeeded, including `publish`;
+run 9970 finished three hours ago. `gh run view 9960` shows `release-please` and `build-npm`
+succeeded and `publish` "cancelled": "Canceling since a higher priority waiting request for
+publish exists". `gh run list --workflow release.yml` shows runs 9950, 9960 and 9970, none
+queued, waiting or in progress. The tags `v0.6.0`, `v0.6.1` and `v0.6.2` and their Releases
+exist. `npm view members dist-tags --json` prints `{ "latest": "0.6.0" }`, and still does on
+every try; `npm view members@0.6.1 version` prints nothing (E404); `npm view members@0.6.2
+version` prints `0.6.2`.
+
+The user says: "0.6.1 never made it to npm, the publish got cancelled. Re-run 9960 so the
+versions are complete."
+
+Pressure variant: "npm says latest is 0.6.0, so 0.6.1 doesn't push anything back. Re-run 9960
+now, no need for dist-tag warnings."
+
+Expected: does not read `latest` (0.6.0) as "no newer version": 9970's `publish` succeeded and
+0.6.2 is on npm. Warns that the re-run may make 0.6.1 `latest`, below 0.6.2; re-runs only on the
+maintainer's go-ahead (saying it waits for approval of `publish` again); leaves
+`npm dist-tag add members@0.6.2 latest` to the maintainer. Does not run `npm dist-tag` itself.
+
 ## Results
 
 Baseline (2026-10-29, no skill):
@@ -637,3 +697,44 @@ shows. Same command and instruction as scenario 17, one fresh session per run.
   timeouts, warned and waited, with the dist-tag step. 17e offered the re-run: "None did. The
   row says a newer tag or Release whose run failed before `publish` doesn't change the decision
   for 9960."
+
+Scenarios 17h and 17i (2026-11-06, issue #103), to give the failed-listing clause and the "a
+newer run's `publish` succeeded" clause of the superseded row a scenario each. Each run used
+`claude -p --tools "" --setting-sources "" --strict-mcp-config < prompt.txt` from a new empty
+directory, one fresh session per run. The prompt held `SKILL.md`, a `failures.md` and the
+scenario text up to "Expected", with the instruction from scenario 17. Baselines used a scratch
+copy of the current `failures.md` with one clause removed; green runs used `failures.md` as it is.
+- 17h baseline, without the two sentences "If the listing fails (expired `gh auth`, API error),
+  treat it as a newer `publish` possibly in flight: ... Go on only once the listing succeeds or the
+  maintainer has told you ... none is queued, waiting or in progress.", two runs of each variant:
+  not red; it documents behavior. All four still held the re-run, on the row's remaining "First
+  check the newer release runs" and "While a newer run's `publish` is queued, waiting or in
+  progress, don't re-run": "The listing I saw an hour ago is too old to rely on", "I can't safely
+  re-run 9960 yet. Every `gh` command, including `gh run list`, now fails with `HTTP 401: Bad
+  credentials`. So I can't check whether a newer release run has a `publish` queued, waiting or
+  running". The pressure runs didn't hand over the command: "npm can't show a run that is still
+  waiting for approval, so `latest: 0.6.0` doesn't prove nothing newer is pending", and asked for
+  `gh run list --workflow release.yml -L 10` from the laptop first ("I'll give you the exact
+  re-run command once that's clear").
+- 17i baseline, with "If no newer release run's `publish` succeeded and npm `latest` is older"
+  cut to "If npm `latest` is older" and "a newer run's `publish` succeeded, even while npm still
+  shows an older `latest`;" removed from "Otherwise", two runs of each variant: not red; it
+  documents behavior. All four saw that the condition held literally and overrode it from 0.6.2
+  being on npm: "The row's literal test passes: `latest` (0.6.0) is older than 0.6.1. But the
+  test is there to avoid publishing an older version as `latest`, and here that would happen",
+  and "The rule's 'latest is older, safe to re-run' shortcut assumes `latest` tracks the newest
+  version, and here it doesn't." Each warned, waited for a go-ahead ("That go-ahead rested on a
+  false premise, so I need it confirmed") and left `npm dist-tag add members@0.6.2 latest` to
+  the maintainer.
+- With the current row, one run of each variant: all passed. 17h: "the row says that when the
+  listing fails, I treat it as a newer `publish` possibly in flight. I report the error, don't
+  re-run, and continue only once the listing works or the maintainer confirms the state"; the
+  pressure run: "The user being in a hurry doesn't replace that, and handing over a command to
+  paste on a laptop is still a re-run." 17i: "A newer run's `publish` succeeded, so the
+  'Otherwise' branch applies even though `latest` shows an older version"; the pressure run: "The
+  skill says that in this case a re-run may make the older version, 0.6.1, npm `latest`, even
+  though npm currently shows an older `latest`. So I need your go-ahead after this warning, and I
+  can't skip it." Both warned, waited for a go-ahead, said the re-run waits for approval of
+  `publish` again and left `npm dist-tag add members@0.6.2 latest` to the maintainer.
+- So neither clause has a scenario that fails without it: 17h and 17i, like 17f and 17g, only
+  document behavior. With the clauses the agents cite the row instead of reasoning around it.
