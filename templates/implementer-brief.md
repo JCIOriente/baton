@@ -43,3 +43,4 @@ End with exactly one status line, then details:
 ## After review findings
 If you are sent review findings, fix each one, re-run the tests that cover the changed code, and
 report per finding what changed, plus the command and its output. End with the same status line.
+{{PRIOR ATTEMPTS, when a fresh fixer takes over: "A prior implementer attempted this N times; you own it now." Otherwise delete this line.}}

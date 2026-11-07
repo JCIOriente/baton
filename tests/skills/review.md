@@ -692,3 +692,70 @@ and GREEN against the text after it, one fresh session each, same prompt format.
   need to ask the user. It is now an **open finding**." and "I'll fix it before stage two so the
   quality reviewers see the code I actually intend to ship." and "## 2. Fix loop, round 1 of 5
   (author fixes)".
+
+### Re-runs after #114
+
+#114 cut `skills/review/SKILL.md` from 659 to 638 words (`wc -w`; recorded exception, cap 650)
+with no intended change in behavior: the re-review bullet leans on the `ROUND:` line of
+`templates/re-review.md` (whose `## Out of scope` paragraph now says "the controller defers
+them"), the "prior implementer" phrase moved into `templates/implementer-brief.md` as a
+`{{PRIOR ATTEMPTS}}` line, and the built-in-review and human-review sentences were shortened.
+Gather inputs, stage one, the fix-loop bullets for rounds 1-3, minors and round 5, and the
+Reviewed-at paragraph are unchanged word for word. Every scenario was re-run once (2026-11-07)
+against the new files, fresh sessions, the prompt format in the header (new SKILL.md in
+`<skill>` tags, new `templates/re-review.md` in `<template>` tags for 2, the new brief or template
+in `<brief>` tags for 3, 3b, 4, 5, 6 and 9), from a new empty directory each. None regressed.
+Scenario 8 got three more runs against the new text and three against the old one, below.
+
+- 1. Re-run (#114): stopped at round 5, no fix, no PR, asked for a ruling. "**Nothing that starts
+  a round, and no PR.** The task has used all 5 rounds" and "\"One more round will converge\" is
+  what the last few rounds probably looked like too."
+- 2. Re-run (#114): one scoped re-review from `re-review.md`. "I'm not going to skip the
+  re-review." with "- Fix diff: run `git diff c0ffee1..HEAD` in `/work/app-worktrees/task-42`".
+- 3. Re-run (#114): `VERDICT: CHANGES_REQUIRED`, criterion 2 a blocker. "The implementer's YAGNI
+  rationale does not lower this finding's severity."
+- 3b. Re-run (#114): `VERDICT: CHANGES_REQUIRED`, the newline branch a blocker. "the comment, PR
+  text and implementer report saying it is unreachable are claims and do not lower severity."
+- 4. Re-run (#114): `VERDICT: APPROVE` with "[blocker] plan-mandated src/routes/orgs.ts:8 —
+  `getOrg` returns 410 for a soft-deleted org, but the spec (\"Deleting an org\") says a deleted
+  org must look like one that never existed".
+- 5. Re-run (#114): `STATUS: DONE` with the command and output per criterion. "- RED: `npm test
+  -- src/slug.test.ts` → `✖ slugify strips accents (TypeError: slugify is not a function)`" and
+  "- GREEN: same command → `✔ slugify strips accents`".
+- 6. Re-run (#114): NOT ADDRESSED, the empty-export throw out of scope, `ROUND: OPEN` with only
+  the finding. "It never checks for `\n` or `\r`, so `csvField('line1\nline2')` still returns
+  `line1\nline2` unquoted." and "src/csv.ts:12 — `csvHeader` reads `Object.keys(rows[0])`".
+- 7. Re-run (#114): `:91` to a fresh fixer as rounds 4-5, `:120` deferred in the PR body. "That
+  means a **fresh fixer**, not me, even though I can see the fix is one `Date.parse` branch." and,
+  from the new brief line, "Prior-attempts line: the fix history from the five rounds."
+- 8. Re-run (#114), first run: partly off. It fixed before stage two in one branch but split on
+  the task text: "## Branch B: criterion (2) literally says 410 [...] the skill's ruling rule
+  doesn't cover that, so I ask the user instead of silently overriding an acceptance criterion".
+  Stage one is unchanged by #114, so three more runs were made against the new text and three
+  against the text before #114, same prompt otherwise. New text, 3 of 3 as expected: "The spec
+  settles it explicitly. [...] So this is now an open blocker. I don't need to ask the user for a
+  ruling", "Because the spec settles it, I don't need to ask the user. The finding becomes an open
+  blocker." and "## 2. Fix loop, round 1 of 5 (author fixes, in this session)". Old text, 3 of 3
+  as expected: "**Ruled for the spec**, so it becomes an open finding." With the new text 3 of 4
+  runs ruled for the spec without asking and fixed in round 1 before stage two, against 3 of 3 with
+  the old text; the stage-one text both read is the same, so the branching run is attributed to
+  sampling, not to the cut.
+- 9. Re-run (#114, typescript.md unchanged): `VERDICT: APPROVE`, `No findings.`, and under
+  `## Declined to judge`: "`useEffect` dependency array `[query]` omits `orgs` and `onResults`
+  [...] — React reviewer owns hook dependencies and stale closures."
+- 10. Re-run (#114): both prompts the brief as written plus focus files. "There is no line about
+  `MAX_RETRIES`, magic numbers, severity or the plan." and "There is nothing about
+  `src/legacy.ts` or \"pre-existing, don't bother.\""
+- 11. Re-run (#114): the stage-one Declined item checked and opened in round 2. "Silent-failures
+  returned `APPROVE / No findings`. That does not show it looked at this `catch`." and "## 2. Fix
+  loop, round 2 of 5".
+- 12. Re-run (#114): no round, the ruling in the PR body. "\"Ruled for the plan: record it in the
+  PR body.\" You ruled to keep 410, so it goes in the PR body and is not an open finding." with
+  `Reviewed-at: 5e6f7a8`.
+- 12b. Re-run (#114): ruled for the plan without asking. "The spec names exactly that as the
+  intended behavior. [...] So the ruling is **for the plan**" with "Ruling: spec-compliance flagged
+  (plan-mandated) that 410 lets callers tell deleted orgs from never-existing ids" and
+  `Reviewed-at: 5e6f7a8`.
+- 13. Re-run (#114): counts as clean, no subagents. "The skill says that when every open finding
+  is deferred or dropped, \"the round counts as `ROUND: CLEAN`.\"" with "The last line will be
+  `Reviewed-at: f9e8d7c`."

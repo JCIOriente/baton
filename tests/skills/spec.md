@@ -63,6 +63,11 @@ only), then the scenario. Baseline: `skills/spec/SKILL.md` at origin/main (`git 
 HEAD:skills/spec/SKILL.md` before the change). The builder itself was run the same way, given
 only the filled brief and the spec, with the domain "full-stack web engineer".
 
+Since #114, steps 7 and 9 point into `templates/spec.md` (the self-review checklist comment) and
+`templates/builder-check.md` (the no-subagent fallback and the question sorting), so the re-runs of
+scenarios 4-8 after #114 also carry `templates/spec.md`: in `<template>` tags next to
+`templates/builder-check.md` for 4-7, and as a file in the directory for 8.
+
 ### 4. Self-review passes, the user wants to approve today (expect: builder check before review)
 
 You are working in a baton repo for a multi-nation membership app. You followed this skill for
@@ -382,7 +387,10 @@ to.\" This is why my calls are listed separately from the questions."
 
 Scenario 4's prompt and setup, run the same way. Red: `skills/spec/SKILL.md` at the commit that
 added the builder check (no fallback notice). Green: with "and tell the user in the review
-message that the check ran in your own context, not a fresh one".
+message that the check ran in your own context, not a fresh one". Since #114 that sentence lives
+in `templates/builder-check.md` ("No subagent tool: read the spec as that builder yourself, and
+tell the user in the review message that the check ran in your own context, not a fresh one."),
+which the prompt already carries; step 9 points there.
 
 Expected: the review message tells the user the builder check did not run in a fresh subagent.
 
@@ -768,3 +776,75 @@ Green (both runs): not reopened. Run 1 asked who downloads: "the skill says \"Ne
 decisions\". So I'm not asking again about including suspended members, even though
 `docs/convention.md:14` raises the question." Run 2 asked which columns: "So I don't reopen that,
 even though `docs/convention.md:14` mentions suspended members: \"Never reopen their decisions.\""
+
+## Re-runs after #114
+
+#114 cut `skills/spec/SKILL.md` from 800 to 576 words (`wc -w`) with no intended change in
+behavior: step 5's section list now points at `templates/spec.md`, step 7's checklist moved into
+a trailing comment in that template, the Design principles section was folded into steps 5 and 7,
+and step 9's no-subagent fallback and question sorting moved into `templates/builder-check.md`.
+Every scenario was re-run once (2026-11-07) against the new text with `claude -p --tools ""
+--setting-sources "" --strict-mcp-config` from a new empty directory, the prompt on stdin: "You
+follow this skill:", the new SKILL.md, `---`, the scenario text (the quoted prompt for 7 and
+9-14). Scenarios 1-2 ended with "List the files you would create in step 8 (ADRs, `CONTEXT.md`)
+and why", scenario 3 with a request for the exact commands for steps 6-10 and the directory each
+runs in. For 4-7 the new `templates/builder-check.md` and `templates/spec.md` (with the checklist
+comment) were added in `<template>` tags after the skill. Scenario 6 used scenario 4's prompt.
+Scenario 8 ran as before (`--tools "Agent,Read"`, stream-json) in a directory holding both new
+templates and scenario 5's spec. None regressed.
+
+- 1. Re-run (#114): no ADR. "You said **no other planned spec depends on how status is
+  stored**, so this choice fails that test." and "Being hard to reverse is not enough: if only
+  this spec depends on the choice, its reasoning goes in the spec's FAQ, not an ADR."
+- 2. Re-run (#114): an ADR, `docs/adr/0001-tenant-isolation-via-postgres-rls.md`. "Every later
+  spec (events, certificates, reports) stores nation-scoped data, so each of them must follow the
+  decision".
+- 3. Re-run (#114): `baton worktree add members-csv-export`, written and committed there, then
+  `git push -u origin "$(git branch --show-current)"` and `gh pr create` after approval. "The
+  skill says it applies however small the spec is: \"the main checkout is never edited or
+  committed in.\"" Step 7 now reads: "I check it against the checklist comment at the end of the
+  template, fix issues inline, then delete the checklist comment."
+- 4. Re-run (#114): self-review, then the builder check before review; the questions sorted into
+  "**Your call**" and "My call" rows, the message with "**My calls.** I picked these; you haven't
+  agreed to them, so please check them:". With no subagent tool: "per the template I \"read the
+  spec as that builder yourself, and tell the user in the review message that the check ran in
+  your own context, not a fresh one.\"" The message: "**Builder check:** I had no subagent, so it
+  ran in my own context, not a fresh one. A fresh reader might find more."
+- 5. Re-run (#114): sorted by the template's list, which it quoted ("Answered by the conversation
+  or the code: write the answer into the spec."). Question 1 answered from `src/db/schema.ts:41`
+  and written in; question 2 marked "(Author's call: one button for the organization in view, no
+  picker. [...])"; phones and audit logging asked in one message, which lists "**My calls**,
+  marked in the spec as author's calls. Change any of them if you disagree:" apart from them.
+- 6. Re-run (#114): quoted the fallback from the template ("No subagent tool: read the spec as
+  that builder yourself, and tell the user in the review message that the check ran in your own
+  context, not a fresh one.") and the message says: "The builder check ran in my own context, not
+  a fresh subagent, because no subagent tool was available. It has the blind spots that come with
+  that."
+- 7. Re-run (#114): the `Agent` prompt is the brief with "full-stack engineer (Next.js + Postgres)"
+  and the spec's path, and "The prompt contains nothing about our conversation or the code
+  findings." To the user: "Anything we already decided goes straight into the spec as a fix, and
+  you won't see it as a question."
+- 8. Re-run (#114): the author read `templates/builder-check.md` and the spec, then made one
+  `Agent` call whose prompt is the brief with "full-stack web engineer" and the spec's absolute
+  path, plus the line "Do not edit any files." and nothing from the conversation. The subagent's
+  second question: "**Do nations and chapters share one id space?** [...] If they are separate
+  tables whose ids can collide, the endpoint can't tell which one is meant". The author sorted it
+  as "Answered by the code, but I can't confirm it from here", phones and audit log as "Your
+  call", the button as "My call", and told the user: "A fresh reviewer read the spec cold".
+- 9. Re-run (#114): "First question: what do you need the CSV export for?", no options.
+  Rationale: "the skill's rule applies: \"Unless they said why, ask that first: open, no
+  options.\""
+- 10. Re-run (#114): not reopened; asked which columns. "The reason and the row set are already
+  settled [...] and the skill says \"Never reopen their decisions.\""
+- 11. Re-run (#114): "Only one approach makes sense here, so I'm proposing it directly rather than
+  inventing alternatives." with "**Why not the alternatives:**" for the browser and background-job
+  ideas.
+- 12. Re-run (#114): no process question. "Right now I'm checking `src/exports/` for an existing
+  export pattern to reuse." Rationale: "\"process steps (write-up, file paths, more reading) are
+  yours: do them, say so.\""
+- 13. Re-run (#114): no approaches yet; one tenancy question: "Should an admin's export contain
+  **only their own nation's** active members, or every active member across all nations?"
+  Rationale: "it comes before step 4's \"Propose 2-3 approaches.\""
+- 14. Re-run (#114): not reopened; asked who downloads. "\"Never reopen their decisions\" means I
+  don't second-guess excluding suspended members, even though `docs/convention.md:14` lets them
+  attend."
