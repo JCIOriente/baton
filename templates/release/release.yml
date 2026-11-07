@@ -46,9 +46,10 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # Publishing: trusted publishing (OIDC), so no registry token is stored. The jobs before
-  # publish run dependency and build code with no credentials; publish, the only job with
-  # id-token, publishes what they built and runs no dependency code. publish waits for approval
+  # Publishing: trusted publishing (OIDC), so no registry token is stored. The jobs that run
+  # dependency and build code hold no credentials; release-please holds RELEASE_PLEASE_TOKEN but
+  # runs no dependency code. publish, the only job with id-token, publishes what the build jobs
+  # built and runs no dependency code. publish waits for approval
   # in the publish environment, so one approval publishes every package. It publishes the tag
   # release-please just created, checks every package before publishing any, refuses a package
   # version that differs from the tag, and skips a version the registry already has, so
