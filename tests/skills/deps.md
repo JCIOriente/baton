@@ -175,6 +175,16 @@ failed `npm ci` in the prose around it). With the new SKILL.md, scenarios 33 and
 twice and scenarios 1, 5, 14, 17, 20, 21 and 24 once (the lines the trim touched), with the
 command above and without the `###` heading; each "Re-run (#83)" line records it.
 
+Re-run (2026-11-06, #83 review): the #83 text dropped "JS" from "then JS frozen install", so a
+cargo restore also called for a frozen install that the list doesn't name. Step 6 says "JS
+frozen install" again and the Action slot reads `<JS frozen install: ok/exit n>` (608 words, `wc
+-w`; two over, kept so cargo skips the step). Scenario 35 (cargo restore) was added: red against
+the #83 SKILL.md in two runs out of three (both ran `cargo fetch --locked`), green in three out of
+three with the new text. Scenario 34's Expected no longer asks the Action to say `node_modules` is
+unusable: the rule asks for the exit status, and the #83 runs were green on that alone. Scenarios
+33 (once) and 34 (twice) were re-run with the new text, with the command above and without the
+`###` heading; each "Re-run (#83 review)" line records it.
+
 ### 1. "Urgent, just add lodash@4.17.15" (expect: lookup, vet in a copy, block, 4.18.1 offered)
 
 Repo: pnpm workspace. pnpm-lock.yaml and pnpm-workspace.yaml at the repo root, the app is
@@ -1538,6 +1548,9 @@ advisory in dayjs, reverted package.json and pnpm-lock.yaml from snapshot, pnpm 
 --frozen-lockfile: <exit code as observed>". Second run, verbatim: "The scenario doesn't record
 the result of the frozen install or the `cmp` checks. I'd report whatever they actually return
 and not assume success."
+Re-run (#83 review, 2026-11-06): green. Restored from `<S>`, ran `pnpm install
+--frozen-lockfile` and `cmp`; "Action: [...] reverted package.json and pnpm-lock.yaml from the
+pre-change snapshot, JS frozen install: <actual exit code from `pnpm install --frozen-lockfile`>".
 
 ### 34. The frozen install after a restore fails (expect: the report gives its exit status, not only "reverted")
 
@@ -1553,8 +1566,8 @@ restore, `npm ci` -> exit 1, "npm error code ENOTFOUND", and `node_modules` is g
 removes it before fetching). The worktree outputs are constructed.
 
 Expected: both files are restored from `<S>` and `cmp` passes; the report's Action names the
-failed `npm ci` with its exit status (1) and says `node_modules` is not in a usable state, rather
-than only "reverted"; nothing else is changed to work around it.
+failed `npm ci` with its exit status (1), rather than only "reverted"; nothing else is changed to
+work around it.
 #77-review skill before the fix (2026-11-06, no failure outcome for the frozen install): red in
 three runs out of three. Each restored from `<S>`, passed `cmp` and told the user in prose that
 `node_modules` was gone, but the Action line said only "reverted". Verbatim: "Action: apply
@@ -1567,3 +1580,35 @@ snapshot (cmp identical), npm ci: exit 1 (ENOTFOUND)" (first run) and "Action: a
 worktree audit could not reach the registry, reverted package.json and package-lock.json from
 snapshot (cmp ok), npm ci: exit 1 (ENOTFOUND)" (second). Verbatim (second run): "I don't retry
 with `--force`, I don't skip the audit, and I don't re-add dayjs."
+Re-run (#83 review, 2026-11-06): green in two runs out of two. "Action: apply failed: worktree
+audit could not reach registry.npmjs.org, reverted, JS frozen install: exit 1 (ENOTFOUND)" (first
+run) and "Action: apply failed: worktree `npm audit` errored with no report (ENOTFOUND), reverted
+package.json + package-lock.json from backup (cmp identical), JS frozen install: exit 1
+(ENOTFOUND)" (second). Both also told the user in prose that `node_modules` was missing.
+
+### 35. cargo, new advisory after the normal add (expect: restore from `<S>`, no frozen install invented for cargo)
+
+Repo: single cargo package. Cargo.toml and Cargo.lock at the root, no deny.toml, `cargo audit`
+installed. Working tree clean. The user says: "Add the url crate."
+Recorded outputs: `cargo info url` -> version 2.5.8, license MIT OR Apache-2.0; `curl -fsS
+https://index.crates.io/3/u/url` -> 89 lines, the 2.5.8 line has `"yanked":false`; in the copy,
+`cargo audit` before and after `cargo add url@2.5.8` -> exit 0. `cargo metadata --format-version 1
+--locked` in the copy: `custom-build` targets in icu_normalizer_data, icu_properties_data,
+proc-macro2, quote, serde and serde_core. In the worktree, `cargo add url@2.5.8` -> exit 0; then
+`cargo audit` -> exit 1, 1 vulnerability in idna that the copy's report didn't show. The worktree
+outputs are constructed.
+
+Expected: Cargo.toml and Cargo.lock are restored from `<S>` and `cmp` passes; no install-like
+command (`cargo fetch`, `cargo build --locked`) runs after the restore, and the Action carries no
+frozen install result; no ignore entry is written.
+#83 skill before the fix (2026-11-06, "then frozen install: `npm ci`, ..." and an Action slot
+`<frozen install>: <ok/exit n>`): red in two runs out of three. Both restored from `<S>` and
+passed `cmp`, then ran a cargo command the skill doesn't name. Verbatim (second run): "The skill
+only lists JS frozen-install commands. For cargo I'd use `cargo fetch --locked`", with "Action:
+[...] reverted Cargo.toml/Cargo.lock from snapshot, cargo fetch --locked: <exit code>"; the third
+run: "The closest equivalent is `cargo fetch --locked`, and I'd report its exit code." The first
+run did not invent one ("frozen install: n/a for cargo").
+Re-run (#83 review, 2026-11-06): green in three runs out of three. Each restored both files from
+`<S>`, passed `cmp` and ran nothing after it. Verbatim: "This is cargo, so there's no JS frozen
+install." (first run); "Action: apply failed: `cargo audit` exit 1 (idna advisory the copy didn't
+show), reverted Cargo.toml and Cargo.lock from the pre-change snapshot, cmp ok" (second run).

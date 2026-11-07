@@ -69,7 +69,7 @@ yarn classic: none.
 Passed: in `<dir>`, Add without
 `--package-lock-only`/`--lockfile-only`/`--mode`/`--ignore-scripts` (replacing: remove old),
 then audit (or `baton verify` if it audits). Failed add, audit error/no report, or advisory
-the copy didn't show: restore both from `<S>` (not HEAD), then frozen install: `npm ci`,
+the copy didn't show: restore both from `<S>` (not HEAD), then JS frozen install: `npm ci`,
 `pnpm install --frozen-lockfile`, `yarn install --immutable` (classic `--frozen-lockfile`).
 Blocked: `cmp` with `<S>` passes.
 
@@ -83,5 +83,5 @@ Blocked: `cmp` with `<S>` passes.
 - Deprecated: <no/yes: message>   Yanked: <yes/no/n/a>   Peers: <ok/conflict>
 - Audit: <result> (baseline <result>; worktree <result/error>)
 - Install scripts: <new packages/none/not checked>
-Action: <added/upgraded/blocked, nothing changed/apply failed: <error>, reverted, <frozen install>: <ok/exit n>>
+Action: <added/upgraded/blocked, nothing changed/apply failed: <error>, reverted, <JS frozen install: ok/exit n>>
 ```
