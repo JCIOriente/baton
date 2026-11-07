@@ -127,8 +127,9 @@ from the one being written."
 After (three runs): green in all three, the slot marked REQUIRED. Verbatim, run 3: "The baseline
 failure is an omission from something agents already produce ... The table maps that to a
 REQUIRED slot in the template, not a prose reminder in the skill or near the template."
-Re-run (2026-11-06, #85): the baseline is the current SKILL.md with only the "Leaves out an
-element" row deleted, so it checks that row alone; the after runs get the current SKILL.md. Same
+Re-run (2026-11-06, #85): the baseline is SKILL.md at d8fb6c1 (unchanged at origin/main 4c7f0b4)
+with only the "Leaves out an element" row deleted, so it checks that row alone; the after runs get
+SKILL.md at d8fb6c1 as is. Same
 command and prompt as above, three fresh sessions each.
 Baseline: red in all three. Each added a `Branch` slot with no REQUIRED marking in the template
 text, and each called the failure a shape failure and the slot a recipe. Run 1's slot is
