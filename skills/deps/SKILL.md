@@ -6,7 +6,7 @@ argument-hint: "<package>[@version]"
 
 # Dependencies
 
-**Never write a version you didn't read from the registry in this session, or add it to the
+**Never write a version not read from the registry this session, or add it to the
 worktree before it passed the vet**, however urgent or user-named.
 
 ## 1. Identify
@@ -36,7 +36,7 @@ Manifest conflict: newest fitting version, say so.
 ## 4. Vet in a copy
 
 `cd "$(git rev-parse --show-toplevel)" && git archive HEAD | tar -x -C <V>`; copy in
-uncommitted manifests, lockfile, manager config. **`cd <V>/<dir> &&`, not `<V>`:** baseline
+uncommitted manifests/lockfile/manager config. **`cd <V>/<dir> &&`, not `<V>`:** baseline
 audit, `<add> && <audit>`; `rm -rf <V>`. Member: npm `-w <member>`, pnpm `--filter ./<member>`,
 `yarn workspace <name> add`, cargo `-p <crate>`.
 
@@ -45,7 +45,7 @@ audit, `<add> && <audit>`; `rm -rf <V>`. Member: npm `-w <member>`, pnpm `--filt
 | npm | `npm install <pkg>@<v> --package-lock-only --ignore-scripts` | `npm audit --audit-level=high` |
 | pnpm | `pnpm add <pkg>@<v> --lockfile-only --ignore-scripts` | `pnpm audit --audit-level=high` |
 | yarn berry | `yarn add <pkg>@<v> --mode=update-lockfile` | `yarn npm audit --all --recursive --severity high` |
-| yarn classic | `yarn add <pkg>@<v> --ignore-scripts` | `yarn audit`; **block without `N vulnerabilities found`, else on `exit & 24` ≠ 0**, any `--level` |
+| yarn classic | `yarn add <pkg>@<v> --ignore-scripts` | `yarn audit`; **block without `N vulnerabilities found`, else `exit & 24` ≠ 0**, any `--level` |
 | cargo | `cargo add <crate>@<v>` | `cargo deny check advisories` with `deny.toml`, else `cargo audit` |
 
 Install scripts (report only): npm `hasInstallScript`, cargo `custom-build` (`cargo
@@ -53,7 +53,7 @@ metadata --format-version 1 --locked`); pnpm/yarn: "not checked".
 
 ## 5. Decide
 
-Block when: deprecated or yanked; add failed; new advisory (JS high/critical, cargo any) not
+Block when: deprecated/yanked; add failed; new advisory (JS high/critical, cargo any) not
 accepted; peer fit needs another dependency below its latest secure version. Offer
 alternatives. Baseline advisories: report separately, suggest an issue.
 
@@ -66,10 +66,11 @@ yarn classic: none.
 
 ## 6. Apply
 
-Passed: in `<dir>`, the Add without
+Passed: in `<dir>`, Add without
 `--package-lock-only`/`--lockfile-only`/`--mode`/`--ignore-scripts` (replacing: remove old),
-then audit (or `baton verify` if it audits). Failed add, audit error, no report, or advisory
-the copy didn't show: restore both from `<S>` (not HEAD), then JS frozen install (`npm ci`).
+then audit (or `baton verify` if it audits). Failed add, audit error/no report, or advisory
+the copy didn't show: restore both from `<S>` (not HEAD), then JS frozen install: `npm ci`,
+`pnpm install --frozen-lockfile`, `yarn install --immutable` (classic `--frozen-lockfile`).
 Blocked: `cmp` with `<S>` passes.
 
 ## 7. Report
@@ -82,5 +83,5 @@ Blocked: `cmp` with `<S>` passes.
 - Deprecated: <no/yes: message>   Yanked: <yes/no/n/a>   Peers: <ok/conflict>
 - Audit: <result> (baseline <result>; worktree <result/error>)
 - Install scripts: <new packages/none/not checked>
-Action: <added to/upgraded in/blocked, nothing changed/apply failed: <error>, reverted>
+Action: <added/upgraded/blocked, nothing changed/apply failed: <error>, reverted, <JS frozen install: ok/exit n>>
 ```

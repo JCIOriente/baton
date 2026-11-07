@@ -560,8 +560,19 @@ test('each_single_target_trim_keeps_only_that_target', () => {
   assert.doesNotMatch(jobsOf(crates).publish, /npm (view|publish)|download-artifact|setup-node/);
 });
 
+const publishingComment = (yml) => yml.match(/^ {2}# Publishing:.*\n(?: {2}#.*\n)*/m)?.[0] ?? '';
+
+test('publishing_comment_claims_no_credentials_only_for_jobs_running_dependency_code', () => {
+  // publish needs release-please, which holds RELEASE_PLEASE_TOKEN: "no credentials" must not cover
+  // every job before publish, only the ones that run dependency and build code.
+  const text = publishingComment(workflow()).replace(/^ *# ?/gm, '').replace(/\s+/g, ' ');
+  assert.ok(text, 'the # Publishing: comment exists');
+  assert.doesNotMatch(text, /jobs before publish[^.;]*no credentials/, 'no credentials claim for every job before publish');
+  assert.match(text, /jobs that run dependency and build code[^.;]*no credentials/, 'scoped to jobs running dependency code');
+  assert.match(text, /release-please holds RELEASE_PLEASE_TOKEN/, 'names the one credential a job before publish holds');
+});
+
 test('each_single_target_trim_publishing_comment_names_only_the_kept_target', () => {
-  const publishingComment = (yml) => yml.match(/^ {2}# Publishing:.*\n(?: {2}#.*\n)*/m)?.[0] ?? '';
   for (const [keep, other] of [['npm', /crates|cargo/i], ['crates', /npm/i]]) {
     const comment = publishingComment(trimTo(workflow(), keep));
     assert.ok(comment, `${keep} only: the # Publishing: comment is kept`);
