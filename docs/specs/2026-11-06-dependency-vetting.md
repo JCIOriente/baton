@@ -75,7 +75,8 @@ other repos can't use it. orientate also shows two failures the guide rules belo
 - Each supported manager has exact lookup, vet and audit commands, verified against a real
   install of that manager.
 - The trigger evals (`evals/deps-*`) pass: the skill loads for add, upgrade and replace prompts
-  and doesn't load for a lockfile refresh or a dependency question with no change.
+  and doesn't load for a lockfile refresh or for a dependency question that involves no change and
+  no version or safety choice (e.g. "what does lodash do").
 - Each repo-level rule appears in exactly one stack guide, and `reviewers/security.md` points to
   the skill instead of repeating it.
 
@@ -133,7 +134,11 @@ Steps (the skill body, under ~600 words; per-manager commands in a table):
      `npm view <pkg>@<v> peerDependencies`, one field per call (empty output means unset).
      Several fields in one call, or `--json`, are ambiguous: npm 12 prints a bare value when only
      one field is set, and `--json` returns a list that omits unset fields. In a berry repo with a
-     registry set only in `.yarnrc.yml`: `yarn npm info <pkg> --fields dist-tags,deprecated,peerDependencies --json`.
+     registry set only in `.yarnrc.yml`: `yarn npm info <pkg> --fields dist-tags --json`, then
+     `yarn npm info <pkg>@<v> --fields version,deprecated,peerDependencies --json`. Without a
+     version, the fields describe `latest`, not the chosen version, and yarn 4 answers a version
+     that does not exist with `latest`'s manifest and exit 0, so a `version` other than `<v>`
+     fails the lookup.
      Use the `latest` dist-tag, not the newest pre-release. A non-empty `deprecated` stops the
      vet: report the message, which often names the successor.
    - cargo: `cargo info <crate>` for the latest version and license. Yanked status comes from
@@ -157,7 +162,7 @@ Per-manager vet commands (run inside `$V`, in the target package's directory for
 
 | Manager | Add without installing or running scripts | Audit (block condition) |
 |---|---|---|
-| npm | `npm install <pkg>@<v> --package-lock-only --ignore-scripts --no-audit --no-fund` | `npm audit --audit-level=high` (exit ≠ 0) |
+| npm | `npm install <pkg>@<v> --package-lock-only --ignore-scripts` | `npm audit --audit-level=high` (exit ≠ 0) |
 | pnpm | `pnpm add <pkg>@<v> --lockfile-only --ignore-scripts` | `pnpm audit --audit-level=high` (exit ≠ 0) |
 | yarn berry | `yarn add <pkg>@<v> --mode=update-lockfile` | `yarn npm audit --recursive --severity high` (exit ≠ 0) |
 | yarn classic | `yarn add <pkg>@<v> --ignore-scripts` (no lockfile-only mode; installs into the copy) | `yarn audit`; the exit code is a bitmask (4 moderate, 8 high, 16 critical) that `--level` doesn't change, so block when `exit & 24` |
@@ -277,7 +282,8 @@ adopt the guide rule. The guide says so, and baton migrates nothing.
   does.
 - Trigger evals: `evals/deps-add` (positive: "add zod to the api package"), `evals/deps-upgrade`
   (positive: "upgrade tokio to the latest"), `evals/deps-lockfile-refresh` (negative: "the lockfile
-  drifted, run a frozen install"). Seed prompts from orientate's 20 trigger queries.
+  drifted, run a frozen install"), `evals/deps-replace` (positive: "replace moment with dayjs"),
+  `evals/deps-question-no-change` (negative: "what does zod do? change nothing"). Seed prompts from orientate's 20 trigger queries.
 - `npm test`: `cli/test/features.test.mjs:61-68` already checks that every `ALWAYS_RULES` line
   reaches the context; add an assertion that the deps line is among them.
 - `claude plugin validate .` passes with the new skill.
@@ -288,6 +294,12 @@ adopt the guide rule. The guide says so, and baton migrates nothing.
 - No NOTICE or `provenance.json` entry for orientate. Both record third-party sources under a
   license, and `provenance.json` tracks upstream drift. orientate is the owner's own project, so
   the spec credits it here.
+- Trigger wording (architect's call, #77): the description keeps "when asked whether a dependency
+  is safe", since a safety question is a version choice the skill vets. The success criterion
+  excludes only a dependency question with no change and no version or safety choice.
+- The npm vet add runs without `--no-audit --no-fund` (#77). The separate `npm audit` call is the
+  gate, and `npm install` doesn't fail on audit results, so the flags would only cut output noise
+  and cost words in the skill.
 
 ## FAQ
 ### Why a throwaway copy from `git archive` rather than editing in place and reverting?
