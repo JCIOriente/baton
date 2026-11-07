@@ -13,7 +13,8 @@ Command, from a new empty directory each:
 `claude -p --tools "" --setting-sources "" --strict-mcp-config "<prompt>"`, so the agent has no
 tools, no memory and no project context. For scenarios 1, 2, 7, 8, 10, 11, 12 and 13 the prompt
 is the file inside `<skill>` tags, the scenario text up to its Expected line inside `<scenario>`
-tags, and: "Answer as that agent: what you would do next, which commands you would run and which subagents you
+tags, and:
+"Answer as that agent: what you would do next, which commands you would run and which subagents you
 would dispatch, in order, and what you would tell the user, quoting your reasoning. You can't run
 anything; the recorded outputs in the scenario stand in for the commands they name." For scenarios
 3, 4, 5, 6 and 9 the prompt is the file inside `<brief>` tags, the scenario inside `<scenario>`
