@@ -21,15 +21,17 @@ lines. It still gets written and approved.
 2. **Check the scope first.** If the request spans several independent subsystems, say so
    before asking detail questions. Propose a split into sub-projects, each with its own
    spec -> plan -> implementation cycle and a build order. Then spec only the first one.
-3. **Ask clarifying questions one at a time.** Prefer multiple choice. Focus on purpose, users and
-   roles, constraints, success criteria and what is explicitly out of scope. Before presenting
-   a design, check that you know each of these. If not, it's the next question:
+3. **Ask only what changes the build** and the request or code doesn't settle, one per
+   message. Never reopen their decisions. Unless they said why, ask that first: open, no
+   options. Process steps (write-up, file paths, more reading) are yours: do them, say so.
+   Each gap below is the next question:
    - scope (which modules/files), acceptance criteria, error and edge cases
    - security: who may do what, what data is sensitive
    - testing expectations, performance/volume, UI and accessibility needs
    - data changes (schema, migrations), and existing patterns to follow
    - audience: which locales, time zones, currencies, tenants (organizations) it must serve
-4. **Propose 2-3 approaches** with trade-offs. Lead with your recommendation and why.
+4. **Propose 2-3 approaches** with trade-offs, your pick first and why. Only one sensible?
+   Say so and why others don't fit.
 5. **Present the design in sections**, sized to their complexity. Get approval per section:
    - domain model and data (entities, ownership, lifecycle, invariants)
    - interfaces (API, UI flows, events)
