@@ -6,22 +6,25 @@ argument-hint: "[task number | PR number]"
 
 # Review
 
-**Fresh-context subagents** that did not write the code review it, one brief per angle.
+Reviews are done by **fresh-context subagents** that did not write the code, one brief per
+angle. Never review your diff in the context you wrote it in.
 
 ## 1. Gather inputs
 
 Diff command (`git diff <baseBranch>...HEAD` or `gh pr diff <n>`), task text (`baton show <n>`,
 saved to a file), linked spec and plan, guide paths from `<baton>`, and briefs from
-`baton reviewers --json`. Record `git rev-parse HEAD` before each dispatch.
+`baton reviewers --json`; tell each its focus files and that it may read others. Record
+`git rev-parse HEAD` before each dispatch.
 
-**Dispatch each brief, re-reviews too, as written with placeholders filled, plus focus files
-(it may read others). Add nothing:** no "don't flag X", "at most minor" or "the plan chose".
-Rulings apply to returned findings.
+**Dispatch each brief, re-reviews too, as written with placeholders filled, plus focus files.
+Add nothing:** no "don't flag X", "at most minor" or "the plan chose". Rulings apply to returned
+findings.
 
 ## 2. Stage one: spec compliance (gate)
 
-Dispatch **only** the `spec-compliance` brief first. `CHANGES_REQUIRED` goes to the fix loop
-(step 4) before stage two. `APPROVE`: continue.
+Dispatch **only** the `spec-compliance` brief first, every placeholder filled, its content
+pasted as the prompt. `CHANGES_REQUIRED` goes to the fix loop (step 4) before stage two.
+`APPROVE`: continue.
 
 Findings labelled `plan-mandated` wait outside the loop: rule on each against the spec (spec
 beats plan), asking the user if the spec doesn't settle it. A ruling for the spec makes it an
@@ -30,8 +33,9 @@ open finding.
 ## 3. Stage two: quality angles, in parallel
 
 Dispatch all remaining briefs **in one message**, on the most capable model. Then:
-1. Merge duplicates.
-2. **Check each finding against the code** and drop any without a concrete failure scenario.
+1. Merge duplicates, keeping the clearer finding.
+2. **Check each finding against the code**: reviewers can be wrong. Drop findings without a
+   concrete failure scenario.
 3. Check `## Declined to judge` items no other reviewer covered likewise: a real defect becomes
    a finding; note the rest as checked. Checking alone never starts a round.
 4. Open findings go to the fix loop. Never ignore one silently.
@@ -42,8 +46,8 @@ Dispatch all remaining briefs **in one message**, on the most capable model. The
 
 A round is one fix plus one scoped re-review. Stages one and two share **5 rounds per task**.
 
-- Rounds 1-3: the author fixes (this session in `baton:implement`, the same implementer in
-  `baton:parallel`, resumed or re-dispatched with its brief, last report and open findings).
+- Rounds 1-3 are fixed by the author: this session in `baton:implement`, the same implementer
+  in `baton:parallel` (resumed, or re-dispatched with its brief, last report and open findings).
   Rounds 4-5: a fresh fixer on the most capable model, from
   `${CLAUDE_PLUGIN_ROOT}/templates/implementer-brief.md` with the open findings and "a prior
   implementer attempted this N times; you own it now".
@@ -51,13 +55,13 @@ A round is one fix plus one scoped re-review. Stages one and two share **5 round
   reported later, is deferred and never starts a round.
 - After each fix, `baton verify`, then **always** a re-review, even of one line: a fresh
   subagent from `${CLAUDE_PLUGIN_ROOT}/templates/re-review.md`, findings verbatim,
-  `{{FIX_BASE}}` = the HEAD the previous review saw. The findings after `ROUND: OPEN` stay
-  open; out-of-scope observations are deferred.
+  `{{FIX_BASE}}` = the HEAD the previous review saw. NOT ADDRESSED findings and new blocker or
+  major breakage stay open; out-of-scope observations are deferred.
 - **Round 5 ends `ROUND: OPEN`: stop.** No sixth round, no `baton done`, no PR. Give the user
-  the open findings and fix history; ask for a ruling on each (fix, defer, drop with reason). A
-  ruling of fix re-enters the loop at round 4.
+  the open findings and the fix history and ask for a ruling per finding (fix, defer, drop with
+  reason). A ruling of fix re-enters the loop at round 4.
 
-A `ROUND: OPEN` with every open finding ruled defer or drop counts as `ROUND: CLEAN`.
+A `ROUND: OPEN` whose open findings the user all ruled defer or drop counts as `ROUND: CLEAN`.
 The task is reviewed at the HEAD every angle approved or, with later commits, the HEAD after the
 last clean re-review. Record angles run, findings fixed, deferred items and rulings in the PR
 body's second paragraph (`baton:integrate`), then `Reviewed-at: <that HEAD>`. `baton done`
@@ -65,8 +69,8 @@ refuses a ready PR without it or with commits after it.
 
 ## Receiving human review on a PR
 
-- Verify each comment against the code before acting; if it is wrong, reply with the technical
-  reason. Don't comply just to be agreeable.
+- Verify each comment against the code before acting. If a comment is wrong, reply with the
+  technical reason. Don't comply just to be agreeable.
 - Fix confirmed issues one at a time (with a test for behavior bugs), run `baton verify`, push,
-  and reply with what changed.
+  and reply describing what changed.
 - Recurring comments are a signal for `baton:retro`.

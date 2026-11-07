@@ -510,3 +510,37 @@ SKILL.md lost a few words in other sections to stay near the word budget, so sce
   the final text, 4 of 4 runs fixed it in round 1 before stage two. Verbatim: "I'll fix it
   **before** stage two. Stage one is a gate, and the quality reviewers should see code that
   complies with the spec."
+
+### Re-runs after restoring the text outside #11
+
+Review found that the word-budget trims above rewrote sentences #11 does not own, so every
+sentence outside the dispatch rule and the Declined-to-judge consolidation step was restored word
+for word from main (SKILL.md is 659 words). Scenarios 1, 2, 7, 8, 9 and 10 were re-run once each,
+fresh sessions, same prompt format.
+
+- 1: Re-run (restored text, 2026-11-06): as expected, stopped at round 5, no fix, no PR, asked
+  for a ruling. Verbatim: "I'm confident the `Date.parse` branch is the fix. But that confidence is
+  exactly what the cap is meant to override." and "I'm dispatching **no subagents**. A fixer or
+  re-review would be round 6."
+- 2: Re-run (restored text, 2026-11-06): as expected, scoped re-review from `re-review.md`.
+  Verbatim: "I won't skip the re-review." and "The prompt is
+  `${CLAUDE_PLUGIN_ROOT}/templates/re-review.md` as written, with placeholders filled and nothing
+  added." with the fix diff `git diff c0ffee1..HEAD`.
+- 7: Re-run (restored text, 2026-11-06): as expected, `:91` re-enters at round 4 with a fresh
+  fixer, `:120` deferred in the PR body. Verbatim: "Rounds 4 and 5 are fixed by a fresh fixer, not
+  by me, even though I can see the one-line `Date.parse` fix." and "the rulings: `:91` fix (user);
+  `:120` jitter deferred to #77 (user)".
+- 8: Re-run (restored text, 2026-11-06): as expected, ruled for the spec without asking and fixed
+  in round 1 before stage two. Verbatim: "My ruling is for the spec, which makes this an **open
+  blocker**." and "## 2. Fix loop, round 1 of 5 (I'm the author, so I fix it)" and "I'll fix it
+  before stage two, even though it's only two lines."
+- 9: Re-run (restored text, 2026-11-06; typescript.md is unchanged by the restore): as expected,
+  `VERDICT: APPROVE`, `No findings.`, the defect under `## Declined to judge`. Verbatim: "-
+  `useEffect` dependency array is `[query]` but the effect reads `orgs` and `onResults`, so when
+  the parent refetches `orgs` every 30 s the filtered results stay stale until the user types
+  again ... — React hooks correctness, owned by the React reviewer".
+- 10: Re-run (restored text, 2026-11-06): as expected, both prompts the brief as written plus
+  focus files, rulings applied at triage. Verbatim: "No line mentions MAX_RETRIES, magic numbers,
+  severity caps or what the plan chose." and "There is no note about src/legacy.ts." and "**Inline
+  `MAX_RETRIES = 3` flagged as a magic number:** I drop it, recorded as "dropped: plan-chosen named
+  constant, user ruling 2026-11-06"."
