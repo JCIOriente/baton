@@ -46,6 +46,31 @@ context. Keep the scenarios in `tests/skills/<skill>.md` so changes can be re-ch
 - No emojis, no shouting, no persona fluff. Bold only for the one rule per section that agents
   break most.
 
+### Choose the form by failure type
+
+Classify the failure the red baseline showed, then write the guidance in the form that fits it.
+The form that fixes one failure type makes another worse.
+
+| Baseline failure | Write | Not |
+|---|---|---|
+| Breaks a rule under pressure (knows it, skips it anyway) | A prohibition plus a counter for each rationalization (Refactor step) | Soft guidance ("prefer", "consider") |
+| Complies, but the output has the wrong shape (restated diff, buried verdict, bloated prompt) | A positive recipe or contract: what the output is, its parts in order | Prohibitions ("don't restate", "never narrate"), alone or next to the recipe |
+| Leaves out an element of something it already produces | A REQUIRED slot in the template it fills in | A prose reminder in the skill or near the template |
+| Should act differently depending on a condition | A conditional keyed to something observable ("if `release-please-config.json` exists, ...") | An unconditional rule with exemption clauses |
+
+A prohibition backfires on a shape failure: with a competing goal, agents negotiate with
+"don't X". In upstream's wording tests the prohibition produced more of the unwanted content
+than a recipe, and trended worse than no guidance at all. A recipe leaves nothing to negotiate.
+
+- No nuance clauses. "Don't X unless it matters" reopens the negotiation, and adding one such
+  clause to a recipe that worked made it unreliable. Write a real exception as its own
+  conditional on something observable.
+- Micro-test the wording against a no-guidance control before the full scenarios. Give fresh
+  sessions the realistic context (the whole skill, not the sentence alone) and a task that
+  tempts the failure: 5 or more runs of each wording, plus 5 or more without it. If the control
+  doesn't fail, there is nothing to fix: write no guidance. Read every run instead of counting
+  matches. Runs that disagree mean the wording doesn't bind: change the form before adding words.
+
 ## Stack guides and reviewer briefs
 
 - Guides: rules an agent applies while writing code. Reviewer briefs: checks with a

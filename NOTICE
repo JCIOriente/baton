@@ -23,7 +23,7 @@ superpowers - https://github.com/obra/superpowers
 Adapted in:
   skills/spec, skills/plan, skills/debug, skills/verify, skills/review,
   skills/parallel, skills/implement (TDD section), templates/implementer-brief.md,
-  reviewers/spec-compliance.md, reviewers/code-quality.md,
+  templates/builder-check.md, reviewers/spec-compliance.md, reviewers/code-quality.md,
   .claude/skills/writing-skills (development only)
 ------------------------------------------------------------------------------
 MIT License
