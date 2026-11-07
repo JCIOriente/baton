@@ -517,6 +517,7 @@ test('every reviewer brief ends its report with the same Declined to judge block
   const tails = readdirSync(dir).filter((f) => f.endsWith('.md')).map((f) => {
     const text = readFileSync(join(dir, f), 'utf8');
     assert.match(text, /^## Declined to judge$/m, f);
+    assert.match(text, /^Output only the following, in this order, ending with the `## Declined to judge` block\. First\nline:$/m, f);
     const start = text.lastIndexOf('\nLast, after the findings');
     assert.ok(start >= 0, f);
     return text.slice(start);

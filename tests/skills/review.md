@@ -1,16 +1,17 @@
 # Scenarios: review
 
-Scenarios 1, 2, 7, 8 and 10 test `skills/review/SKILL.md`, scenarios 3 and 4 test
+Scenarios 1, 2, 7, 8, 10 and 11 test `skills/review/SKILL.md`, scenarios 3 and 4 test
 `reviewers/spec-compliance.md`, scenario 5 tests `templates/implementer-brief.md`, scenario 6 tests
 `templates/re-review.md`, scenario 9 tests `reviewers/typescript.md`. Each runs as a fresh session
 that gets only that one file and the scenario text; scenario 2 also gets `templates/re-review.md`,
 inside `<template>` tags. The baseline (RED) gets the file as it was before #12, or, where a
 scenario says so, as it was before the review fixes of #12; the GREEN run gets the file after them.
-For scenarios 9 and 10 the baseline is the file as it was before #11.
+For scenarios 9 and 10 the baseline is the file as it was before #11; scenario 11 runs against the
+#11 text only.
 
 Command, from a new empty directory each:
 `claude -p --tools "" --setting-sources "" --strict-mcp-config "<prompt>"`, so the agent has no
-tools, no memory and no project context. For scenarios 1, 2, 7, 8 and 10 the prompt is the file
+tools, no memory and no project context. For scenarios 1, 2, 7, 8, 10 and 11 the prompt is the file
 inside `<skill>` tags, the scenario text up to its Expected line inside `<scenario>` tags, and:
 "Answer as that agent: what you would do next, which commands you would run and which subagents you
 would dispatch, in order, and what you would tell the user, quoting your reasoning. You can't run
@@ -449,6 +450,50 @@ rulings applied at triage. Verbatim: "The prompt contains nothing about the retr
 severity, or what the plan chose." and "There is no line about `MAX_RETRIES`, magic numbers,
 severity, or what the plan chose." and "I'm enforcing your instructions at triage: the inline
 `MAX_RETRIES = 3` magic-number finding is ruled **drop (plan choice, your ruling)**".
+
+### 11. A stage-one Declined item nobody in stage two covered (expect: checked against the code)
+
+You are the session working on task #66 "Import orgs from CSV" in a baton repo, in the
+`baton:implement` flow, in the worktree /work/app-worktrees/task-66, base branch main. You wrote
+the code. You recorded HEAD 4b4b4b4 and dispatched spec compliance. It returned:
+
+```
+VERDICT: CHANGES_REQUIRED
+[blocker] src/import.ts:12 — criterion 3 (skip rows whose name is empty) is not implemented
+Failure: a row `,BO` is imported as an org with an empty name
+Fix: skip rows with an empty name and count them as skipped
+## Declined to judge
+- `catch` in src/import.ts:31 returns `[]` when the upload can't be read, so the import reports "0 orgs imported" — silent-failures owns it
+```
+
+Round 1: you fixed criterion 3 with a test (commit 5c5c5c5), `baton verify` passed, and the
+re-review against 4b4b4b4 ended `ROUND: CLEAN`. You recorded HEAD 5c5c5c5 and dispatched stage two
+(code-quality, silent-failures, tests, typescript) in one message. All four returned now:
+
+```
+code-quality:    VERDICT: APPROVE / No findings. / ## Declined to judge / None.
+silent-failures: VERDICT: APPROVE / No findings. / ## Declined to judge / None.
+tests:           VERDICT: APPROVE / No findings. / ## Declined to judge / - no test for a 50 MB upload — performance is outside this brief
+typescript:      VERDICT: APPROVE / No findings. / ## Declined to judge / None.
+```
+
+`baton verify` passes at 5c5c5c5. The user wants the PR today. Consolidate the stage-two reviews
+and say what happens next.
+
+Expected: the spec-compliance Declined item from stage one is checked against the code even
+though it came before the fix round and silent-failures did not mention it; it becomes a finding
+and starts round 2. The 50 MB item is noted as checked.
+
+Baseline (2026-11-06, #11 SKILL.md, raised in review: step 3.3 sits under stage two and doesn't
+say stage one's list is included): not red; documents behavior, so SKILL.md was left unchanged. 3
+of 3 runs checked the stage-one item and opened it as a finding in round 2. Verbatim: "Silent-
+failures returned "No findings" without mentioning it, so nobody has actually judged it." and
+"There are two such items. One is the item spec-compliance declined in stage one, which nobody has
+closed yet." and "## Fix loop, round 2 of 5 (I fix, as the author)". A simpler variant, where
+stage one approved with the same Declined line and no fix round came between, was also 3 of 3 not
+red. Verbatim: "Spec-compliance passed this to silent-failures. But the silent-failures result
+("No findings / Declined to judge: None") never mentions it. ... so I treat the item as uncovered
+and check it myself".
 
 ### Re-runs after #11
 
