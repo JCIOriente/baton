@@ -19,7 +19,8 @@ plus `status:blocked`. Priority is `priority:p0`..`p3`. Dependencies are a
 2. Create issues **in dependency order** (topological), so every `Depends on` can refer to
    issues that already exist. Keep a T-id -> issue-number map as you go.
 3. For each task, write the body from `${CLAUDE_PLUGIN_ROOT}/templates/task.md` to a temp
-   file, then:
+   file, copying the task block's Interfaces into `## Interfaces` unchanged except that each
+   `(T<N>)` becomes its issue number from the map, then:
    ```bash
    baton create --title "<title>" --body-file <file> --priority <0-3> --depends-on 12,14 --ready
    ```
