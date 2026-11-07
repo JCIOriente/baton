@@ -155,7 +155,9 @@ Steps (the skill body, under ~600 words; per-manager commands in a table):
 5. **Decide** (block rules below).
 6. **Apply** in the task worktree with the manager's normal add, then run the project's audit
    (or `baton verify` if audit is in `validate`). If the real tree shows an advisory the copy
-   didn't, revert the manifest and lockfile and report.
+   didn't, revert the manifest and lockfile, run the manager's frozen install so `node_modules`
+   matches them again (`npm ci`, `pnpm install --frozen-lockfile`, `yarn install --immutable`,
+   classic `--frozen-lockfile`), and report, with the install's exit status if it fails.
 7. **Report** in the format from Change in a nutshell.
 
 Per-manager vet commands (run inside `$V`, in the target package's directory for workspace members):

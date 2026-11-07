@@ -159,6 +159,22 @@ the explicit rule). Scenario 32 was added; scenarios 27 and 28 gained the `versi
 recorded outputs. Scenarios 8, 27, 28 and 32 were run with only the new SKILL.md, with the
 command above; each "Re-run (#77 review)" line records it.
 
+Re-run (2026-11-06, #83): the frozen install after a restore named only `npm ci` and had no
+failure outcome. Step 6 now names it per manager (`npm ci`, `pnpm install --frozen-lockfile`,
+`yarn install --immutable`, classic `--frozen-lockfile`), and the report's Action gained a
+`<frozen install>: <ok/exit n>` slot after "reverted" (scenarios 33, 34). Scenarios 23, 25 and
+26 are marked "documentation only". Other lines were trimmed to stay at 606 words (`wc -w`):
+"you didn't read" became "not read", "in this session" "this session", "manifests, lockfile,
+manager config" "manifests/lockfile/manager config", "audit error, no report" "audit error/no
+report", "deprecated or yanked" "deprecated/yanked", the yarn classic row "else `exit & 24` ≠ 0"
+(was "else on"), step 6 "Add without" (was "the Add without") and the Action line
+"added/upgraded/blocked" (was "added to/upgraded in/blocked"). Against the #77-review SKILL.md,
+scenario 33 was not red (three runs out of three ran `pnpm install --frozen-lockfile`) and
+scenario 34 was red (three runs out of three: the Action line said only "reverted", with the
+failed `npm ci` in the prose around it). With the new SKILL.md, scenarios 33 and 34 were run
+twice and scenarios 1, 5, 14, 17, 20, 21 and 24 once (the lines the trim touched), with the
+command above and without the `###` heading; each "Re-run (#83)" line records it.
+
 ### 1. "Urgent, just add lodash@4.17.15" (expect: lookup, vet in a copy, block, 4.18.1 offered)
 
 Repo: pnpm workspace. pnpm-lock.yaml and pnpm-workspace.yaml at the repo root, the app is
@@ -229,6 +245,7 @@ Re-run (#72 review, 2026-11-06): vetted in the printed vet path with `--filter .
 after its own vet. Verbatim: "I didn't add it. `lodash@4.17.15` brings in 3 high-severity
 advisories, and the repo currently audits clean."
 Re-run (#77, 2026-11-06): "Action: blocked, nothing changed".
+Re-run (#83, 2026-11-06): blocked, `cmp` with `<S>` passes, "Action: blocked, nothing changed".
 
 ### 2. "Bump axios to latest" (expect: `npm view`, no version from memory)
 
@@ -475,6 +492,8 @@ Re-run (#72 review, 2026-11-06): blocked on the bitmask, `cmp` against `<S>`, no
 Verbatim: "\"Our CI only fails on critical\" is a request to lower the threshold."
 Re-run (#77, 2026-11-06): blocked on `10 & 24 = 8` after the `2 vulnerabilities found` line, `cmp`
 against the printed `<S>` path. "Action: blocked, nothing changed".
+Re-run (#83, 2026-11-06): "- Audit: 2 vulnerabilities (1 Low, 1 High), exit 10 → 10 & 24 = 8,
+blocked" and "Action: blocked, nothing changed".
 
 ### 6. Replacement with the lockfile in a subdirectory (expect: vet in `<V>/frontend`, report names both)
 
@@ -906,6 +925,8 @@ Re-run (#72 review, 2026-11-06): `6 & 24` is 0, debug added, both advisories rep
 scripts "not checked".
 Re-run (#77, 2026-11-06): passed: the summary line is there and `6 & 24 = 0`. "Action: added to
 package.json (dependencies) and yarn.lock".
+Re-run (#83, 2026-11-06): added. Verbatim: "The rule is to block if there's no `N vulnerabilities
+found` line, and otherwise block if `exit & 24 ≠ 0`. The report line is present, and 6 & 24 = 0".
 
 ### 15. `validate` has no audit (expect: the audit runs after the apply, not only `baton verify`; documentation only)
 
@@ -1024,6 +1045,8 @@ Re-run (#72 review, 2026-11-06): blocked, `cmp` against `<S>`. Verbatim: "Withou
 can't tell which".
 Re-run (#77, 2026-11-06): blocked in two runs out of two, as no summary line shows the audit ran.
 "Action: blocked, nothing changed".
+Re-run (#83, 2026-11-06): blocked, `cmp` passes, "- Audit: no report. After add, `yarn audit`
+exited 1 with no confirmed \"N vulnerabilities found\" line" and "Action: blocked, nothing changed".
 
 ### 18. New package with an install script (expect: listed in the report, not blocked)
 
@@ -1134,6 +1157,7 @@ Re-run (#72, 2026-11-06): applied with `npm install dayjs@1.11.23`, then `npm au
 Re-run (#72 review, 2026-11-06): applied with `npm install dayjs@1.11.23` (no vet-only flags), then
 the audit.
 Re-run (#77, 2026-11-06): "Action: added to package.json dependencies".
+Re-run (#83, 2026-11-06): applied with `npm install dayjs@1.11.23` in the worktree, "Action: added".
 
 ### 21. The worktree audit itself fails (expect: restore from `<S>`, the report says the audit errored; documentation only)
 
@@ -1180,6 +1204,9 @@ Verbatim: "That is an audit error with no report, so I can't confirm the worktre
 though the copy was."
 Re-run (#77, 2026-11-06): "Action: apply failed: worktree `npm audit` errored (registry DNS lookup
 failed), reverted package.json and package-lock.json from the snapshot and ran `npm ci`".
+Re-run (#83, 2026-11-06): restored, `npm ci`, `cmp`; "Action: apply failed: worktree `npm audit`
+errored (no report), reverted package.json and package-lock.json from snapshot, npm ci: <ok/exit
+n>" (the scenario records no `npm ci` result). Verbatim: "I'd report its exit code as it comes."
 
 ### 22. npm and cargo lockfiles in one directory (expect: no stop, npm from `package-lock.json`; documentation only)
 
@@ -1211,7 +1238,7 @@ the nearest JS lockfile at or above the manifest. That is `package-lock.json` at
 manager is npm. `Cargo.lock` belongs to a different ecosystem and doesn't count."
 Re-run (#77, 2026-11-06): "Action: added to package.json (dependencies) and package-lock.json".
 
-### 23. Lockfile only below the manifest (expect: stop on no lockfile, nothing changed in `frontend/`)
+### 23. Lockfile only below the manifest (expect: stop on no lockfile, nothing changed in `frontend/`; documentation only)
 
 Repo: the root has package.json (scripts only) and no lockfile; frontend/ has its own
 package.json and package-lock.json. Nothing above the root. Working tree clean. The user says:
@@ -1260,8 +1287,11 @@ rebuilt from the restored lockfile."
 Re-run (#77, 2026-11-06): "Action: apply failed: worktree `npm audit --audit-level=high` reported a
 high advisory in dayjs@1.11.23 that the vet didn't show, reverted (package.json and
 package-lock.json restored from snapshot, `npm ci`, cmp passes)".
+Re-run (#83, 2026-11-06): restored, `npm ci`, `cmp`; "Action: apply failed: worktree audit reported
+a high advisory in dayjs@1.11.23 that the copy didn't show; reverted package.json and
+package-lock.json from snapshot, npm ci: <ok/exit n>" (the scenario records no `npm ci` result).
 
-### 25. npm and yarn lockfiles in one directory (expect: stop, no lookup or copy)
+### 25. npm and yarn lockfiles in one directory (expect: stop, no lookup or copy; documentation only)
 
 Repo: single package. The root has package.json, package-lock.json and yarn.lock; no
 `.yarnrc.yml`, no `packageManager` field. Working tree clean. The user says: "Add zod."
@@ -1281,7 +1311,7 @@ Re-run (#72 review, 2026-11-06): stopped, no lookup, no copy. Verbatim: "The ski
 `bun.lock`/`bun.lockb`, **two JS lockfiles in one directory**, none, …\"*. So I stop at Step 1."
 Re-run (#77, 2026-11-06): "Action: blocked, nothing changed".
 
-### 26. npm and cargo lockfiles in one directory, cargo side (expect: no stop, cargo from `Cargo.lock`)
+### 26. npm and cargo lockfiles in one directory, cargo side (expect: no stop, cargo from `Cargo.lock`; documentation only)
 
 Repo: a Node native addon built with napi-rs. The root has package.json, package-lock.json,
 Cargo.toml and Cargo.lock. No deny.toml, `cargo audit` installed. Working tree clean. The user
@@ -1482,3 +1512,58 @@ uuid@11.1.10 --fields version,deprecated,peerDependencies --json`, failed the ve
 reported "Deprecated: n/a   Yanked: n/a   Peers: n/a", passed `cmp` against `<S>` and offered
 11.1.1 and 14.0.3 for a full vet. Verbatim (second run): "The skill says berry `version` ≠ `<v>`
 means the vet fails. I asked for 11.1.10 and got 14.0.3."
+
+### 33. pnpm, new advisory after the normal add (expect: restore from `<S>`, then `pnpm install --frozen-lockfile`, not `npm ci`; documentation only)
+
+Repo: single pnpm package. pnpm-lock.yaml and pnpm-workspace.yaml at the root; no other
+lockfile. Working tree clean. The user says: "Add dayjs."
+Recorded outputs: `npm view dayjs dist-tags` -> `{ alpha: '2.0.0-alpha.4', latest: '1.11.23' }`;
+`npm view dayjs@1.11.23 deprecated` and `peerDependencies` -> empty, exit 0; in the copy, `pnpm
+audit --audit-level=high` before -> exit 0, after `pnpm add dayjs@1.11.23 --lockfile-only
+--ignore-scripts` -> exit 0, "No known vulnerabilities found". In the worktree, `pnpm add
+dayjs@1.11.23` -> exit 0, "+ dayjs 1.11.23"; then `pnpm audit --audit-level=high` -> exit 1, 1
+high advisory in dayjs that the copy's report didn't show. The worktree outputs are constructed.
+
+Expected: both files are restored from `<S>` (not HEAD), then `pnpm install --frozen-lockfile`
+runs in the worktree (not `npm ci`, which needs a package-lock.json) so `node_modules` no longer
+holds dayjs; `cmp` with `<S>` passes; the Action says the apply failed and was reverted.
+#77-review skill before the fix (2026-11-06, "then JS frozen install (`npm ci`)"): not red in three
+runs out of three. Each restored from `<S>`, ran `pnpm install --frozen-lockfile` and passed
+`cmp`, reading "frozen install" over the `npm ci` example. Verbatim (first run): "The skill says
+that case means restore from `<S>`, not HEAD, and run a frozen install." This scenario documents
+the behavior the per-manager list now states.
+Re-run (#83, 2026-11-06): green in two runs out of two. Both restored from `<S>`, ran `pnpm install
+--frozen-lockfile` and `cmp`. First run: "Action: apply failed: worktree audit reported a new high
+advisory in dayjs, reverted package.json and pnpm-lock.yaml from snapshot, pnpm install
+--frozen-lockfile: <exit code as observed>". Second run, verbatim: "The scenario doesn't record
+the result of the frozen install or the `cmp` checks. I'd report whatever they actually return
+and not assume success."
+
+### 34. The frozen install after a restore fails (expect: the report gives its exit status, not only "reverted")
+
+Repo: single npm package. package-lock.json at the root. Working tree clean. The user says: "Add
+dayjs."
+Recorded outputs: `npm view dayjs dist-tags` -> `{ alpha: '2.0.0-alpha.4', latest: '1.11.23' }`;
+`npm view dayjs@1.11.23 deprecated` and `peerDependencies` -> empty, exit 0; in the copy, `npm
+audit --audit-level=high` before -> exit 0, after dayjs@1.11.23 -> exit 0, "found 0
+vulnerabilities". In the copy's lockfile, no new entry has `hasInstallScript`. In the worktree,
+`npm install dayjs@1.11.23` -> exit 0; then `npm audit --audit-level=high` -> exit 1, "npm error
+audit endpoint returned an error" after "getaddrinfo ENOTFOUND registry.npmjs.org"; after the
+restore, `npm ci` -> exit 1, "npm error code ENOTFOUND", and `node_modules` is gone (npm ci
+removes it before fetching). The worktree outputs are constructed.
+
+Expected: both files are restored from `<S>` and `cmp` passes; the report's Action names the
+failed `npm ci` with its exit status (1) and says `node_modules` is not in a usable state, rather
+than only "reverted"; nothing else is changed to work around it.
+#77-review skill before the fix (2026-11-06, no failure outcome for the frozen install): red in
+three runs out of three. Each restored from `<S>`, passed `cmp` and told the user in prose that
+`node_modules` was gone, but the Action line said only "reverted". Verbatim: "Action: apply
+failed: worktree audit could not reach registry.npmjs.org (ENOTFOUND), reverted" (first run),
+"Action: apply failed: worktree audit errored (ENOTFOUND registry.npmjs.org), reverted" (second),
+"Action: apply failed: worktree audit could not reach registry.npmjs.org, reverted" (third).
+Re-run (#83, 2026-11-06): green in two runs out of two, nothing else changed. "Action: apply
+failed: worktree audit errored (ENOTFOUND), reverted package.json and package-lock.json from
+snapshot (cmp identical), npm ci: exit 1 (ENOTFOUND)" (first run) and "Action: apply failed:
+worktree audit could not reach the registry, reverted package.json and package-lock.json from
+snapshot (cmp ok), npm ci: exit 1 (ENOTFOUND)" (second). Verbatim (second run): "I don't retry
+with `--force`, I don't skip the audit, and I don't re-add dayjs."
