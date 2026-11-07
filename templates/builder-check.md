@@ -3,7 +3,8 @@
 Brief for the fresh subagent that `baton:spec` dispatches after the self-review, before the
 user is asked to review the spec. Fill in the domain and the spec's path. Give it nothing else:
 no conversation, no summary of what the user said. The point is to find what only the
-author's context fills in.
+author's context fills in. No subagent tool: read the spec as that builder yourself, and tell
+the user in the review message that the check ran in your own context, not a fresh one.
 
 ```
 You are a capable {{DOMAIN, e.g. "backend engineer", "mobile developer"}}. You've been handed
@@ -20,3 +21,9 @@ yourself, and wording nitpicks.
 
 If nothing important is left, say "nothing important left".
 ```
+
+## Sorting its questions
+
+- Answered by the conversation or the code: write the answer into the spec.
+- Minor: decide it and mark it in the spec as the author's call.
+- The user's call (it changes what gets built): ask them all in one message, listed apart from your calls.

@@ -4,6 +4,7 @@ Scenarios 1, 2, 7, 8, 10, 11, 12, 12b and 13 test `skills/review/SKILL.md`, scen
 `reviewers/spec-compliance.md`, scenario 5 tests `templates/implementer-brief.md`, scenario 6 tests
 `templates/re-review.md`, scenario 9 tests `reviewers/typescript.md`. Each runs as a fresh session
 that gets only that one file and the scenario text; scenario 2 also gets `templates/re-review.md`,
+and scenario 7b (`skills/review/SKILL.md`) also gets `templates/implementer-brief.md`, each
 inside `<template>` tags. The baseline (RED) gets the file as it was before #12, or, where a
 scenario says so, as it was before the review fixes of #12; the GREEN run gets the file after them.
 For scenarios 9 and 10 the baseline is the file as it was before #11; scenario 11 runs against the
@@ -343,6 +344,40 @@ With the skill (2026-11-06): round 4 by a fresh fixer. Verbatim: "`:91` is ruled
 skill says *"A ruling of fix re-enters the loop at round 4."*" and "It must not say
 `Reviewed-at: f9e8d7c`. The fix commits come after that, and `baton done` would refuse it." and
 "If round 5 also ends `ROUND: OPEN`, I'd stop again and come back to you".
+
+### 7b. Round 4 goes to a fresh fixer (expect: the brief's prior-attempts line says "you own it now")
+
+You are the session working on task #42 in a baton repo, in the `baton:implement` flow, in the
+worktree /work/app-worktrees/task-42. You wrote the code. Every angle approved commit a1b2c3d
+except tests, which reported two majors; three fix rounds followed, each fixed by you. The third
+re-review, at f9e8d7c, ended:
+`ROUND: OPEN — [major] src/export.ts:91 Retry-After in HTTP-date form parsed as NaN; [major]
+src/export.ts:120 no jitter on retries`. `baton verify` passes at f9e8d7c. Task #42 is "Retry
+failed exports", acceptance: retries honor Retry-After (seconds and HTTP-date) and use jittered
+backoff. Guides: guides/common.md, guides/typescript.md.
+
+Expected: no fourth fix by the author; one fresh fixer on the most capable model whose prompt is
+`templates/implementer-brief.md` filled, with both findings, and the prior-attempts line filled as
+"A prior implementer attempted this 3 times; you own it now." (not replaced by a fix history).
+
+Added after review of #114: since #114 the takeover sentence lives in the brief's
+`{{PRIOR ATTEMPTS}}` line, and scenario 7 runs on SKILL.md alone, so no run showed a controller
+filling that line. Run 2026-11-07, three times, with the header's command from a new empty
+directory each; the prompt is `skills/review/SKILL.md` (the #114 text) in `<skill>` tags,
+`templates/implementer-brief.md` (the #114 text) in `<template>` tags, the scenario in
+`<scenario>` tags, and: "Answer as that agent: what you would do next, which commands you would
+run and which subagents you would dispatch, in order, quoting your reasoning. You cannot run
+anything; the recorded outputs in the scenario stand in for the commands they name. Write out in
+full the exact prompt of any subagent you dispatch."
+
+Not red; documents behavior. 3 of 3 handed round 4 to a fresh fixer and ended the written brief
+with the filled line, verbatim in each: "A prior implementer attempted this 3 times; you own it
+now." Rationale, run 1: "The skill gives rounds 1-3 to the author and rounds 4-5 to a fresh fixer
+on the most capable model. So I don't attempt a fourth fix myself." Run 2: "The skill says:
+*\"Rounds 4-5: a fresh fixer on the most capable model, from `implementer-brief.md` with the open
+findings and its prior-attempts line filled.\"* So I don't fix these myself". Run 3 also planned
+round 5: "A fresh fixer gets the same brief with the remaining findings, and the prior-attempts
+line reads \"4 times\"."
 
 ### 8. A plan-mandated defect the spec settles (expect: it becomes an open finding)
 
@@ -692,3 +727,71 @@ and GREEN against the text after it, one fresh session each, same prompt format.
   need to ask the user. It is now an **open finding**." and "I'll fix it before stage two so the
   quality reviewers see the code I actually intend to ship." and "## 2. Fix loop, round 1 of 5
   (author fixes)".
+
+### Re-runs after #114
+
+#114 cut `skills/review/SKILL.md` from 659 to 638 words (`wc -w`; recorded exception, cap 650)
+with no intended change in behavior: the re-review bullet leans on the `ROUND:` line of
+`templates/re-review.md` (whose `## Out of scope` paragraph now says "the controller defers
+them"), the "prior implementer" phrase moved into `templates/implementer-brief.md` as a
+`{{PRIOR ATTEMPTS}}` line, and the built-in-review and human-review sentences were shortened.
+Gather inputs, stage one, the fix-loop bullets for rounds 1-3, minors and round 5, and the
+Reviewed-at paragraph are unchanged word for word. Every scenario was re-run once (2026-11-07)
+against the new files, fresh sessions, the prompt format in the header (new SKILL.md in
+`<skill>` tags, new `templates/re-review.md` in `<template>` tags for 2, the new brief or template
+in `<brief>` tags for 3, 3b, 4, 5, 6 and 9), from a new empty directory each. None regressed.
+Scenario 8 got three more runs against the new text and three against the old one, below.
+
+- 1. Re-run (#114): stopped at round 5, no fix, no PR, asked for a ruling. "**Nothing that starts
+  a round, and no PR.** The task has used all 5 rounds" and "\"One more round will converge\" is
+  what the last few rounds probably looked like too."
+- 2. Re-run (#114): one scoped re-review from `re-review.md`. "I'm not going to skip the
+  re-review." with "- Fix diff: run `git diff c0ffee1..HEAD` in `/work/app-worktrees/task-42`".
+- 3. Re-run (#114): `VERDICT: CHANGES_REQUIRED`, criterion 2 a blocker. "The implementer's YAGNI
+  rationale does not lower this finding's severity."
+- 3b. Re-run (#114): `VERDICT: CHANGES_REQUIRED`, the newline branch a blocker. "the comment, PR
+  text and implementer report saying it is unreachable are claims and do not lower severity."
+- 4. Re-run (#114): `VERDICT: APPROVE` with "[blocker] plan-mandated src/routes/orgs.ts:8 —
+  `getOrg` returns 410 for a soft-deleted org, but the spec (\"Deleting an org\") says a deleted
+  org must look like one that never existed".
+- 5. Re-run (#114): `STATUS: DONE` with the command and output per criterion. "- RED: `npm test
+  -- src/slug.test.ts` → `✖ slugify strips accents (TypeError: slugify is not a function)`" and
+  "- GREEN: same command → `✔ slugify strips accents`".
+- 6. Re-run (#114): NOT ADDRESSED, the empty-export throw out of scope, `ROUND: OPEN` with only
+  the finding. "It never checks for `\n` or `\r`, so `csvField('line1\nline2')` still returns
+  `line1\nline2` unquoted." and "src/csv.ts:12 — `csvHeader` reads `Object.keys(rows[0])`".
+- 7. Re-run (#114): `:91` to a fresh fixer as rounds 4-5, `:120` deferred in the PR body. "That
+  means a **fresh fixer**, not me, even though I can see the fix is one `Date.parse` branch." The
+  run had SKILL.md only, not the brief, and guessed the line's content: "Prior-attempts line: the
+  fix history from the five rounds." It does not test the brief line; scenario 7b does.
+- 8. Re-run (#114), first run: partly off. It fixed before stage two in one branch but split on
+  the task text: "## Branch B: criterion (2) literally says 410 [...] the skill's ruling rule
+  doesn't cover that, so I ask the user instead of silently overriding an acceptance criterion".
+  Stage one is unchanged by #114, so three more runs were made against the new text and three
+  against the text before #114, same prompt otherwise. New text, 3 of 3 as expected: "The spec
+  settles it explicitly. [...] So this is now an open blocker. I don't need to ask the user for a
+  ruling", "Because the spec settles it, I don't need to ask the user. The finding becomes an open
+  blocker." and "## 2. Fix loop, round 1 of 5 (author fixes, in this session)". Old text, 3 of 3
+  as expected: "**Ruled for the spec**, so it becomes an open finding." With the new text 3 of 4
+  runs ruled for the spec without asking and fixed in round 1 before stage two, against 3 of 3 with
+  the old text; the stage-one text both read is the same, so the branching run is attributed to
+  sampling, not to the cut.
+- 9. Re-run (#114, typescript.md unchanged): `VERDICT: APPROVE`, `No findings.`, and under
+  `## Declined to judge`: "`useEffect` dependency array `[query]` omits `orgs` and `onResults`
+  [...] — React reviewer owns hook dependencies and stale closures."
+- 10. Re-run (#114): both prompts the brief as written plus focus files. "There is no line about
+  `MAX_RETRIES`, magic numbers, severity or the plan." and "There is nothing about
+  `src/legacy.ts` or \"pre-existing, don't bother.\""
+- 11. Re-run (#114): the stage-one Declined item checked and opened in round 2. "Silent-failures
+  returned `APPROVE / No findings`. That does not show it looked at this `catch`." and "## 2. Fix
+  loop, round 2 of 5".
+- 12. Re-run (#114): no round, the ruling in the PR body. "\"Ruled for the plan: record it in the
+  PR body.\" You ruled to keep 410, so it goes in the PR body and is not an open finding." with
+  `Reviewed-at: 5e6f7a8`.
+- 12b. Re-run (#114): ruled for the plan without asking. "The spec names exactly that as the
+  intended behavior. [...] So the ruling is **for the plan**" with "Ruling: spec-compliance flagged
+  (plan-mandated) that 410 lets callers tell deleted orgs from never-existing ids" and
+  `Reviewed-at: 5e6f7a8`.
+- 13. Re-run (#114): counts as clean, no subagents. "The skill says that when every open finding
+  is deferred or dropped, \"the round counts as `ROUND: CLEAN`.\"" with "The last line will be
+  `Reviewed-at: f9e8d7c`."

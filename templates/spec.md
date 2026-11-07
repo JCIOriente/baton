@@ -22,6 +22,8 @@ Who has what problem, and why it matters now. 2-5 sentences.
 - What this explicitly does not do (yet).
 
 ## Users & permissions
+Who can do what; this feeds RBAC/permissions directly.
+
 | Role | Can | Cannot |
 |---|---|---|
 | | | |
@@ -58,3 +60,13 @@ None at approval time. Resolve them or move them to non-goals.
 ## Implementation status
 Updated by the PRs that implement this spec (link the plan and issues once they exist).
 - [ ] <step / task #N>
+
+<!-- Self-review before asking for approval (delete this comment):
+- no placeholders ("TBD", "etc.", "handle errors appropriately")
+- no sections that contradict each other
+- no requirement with two readings: pick one and say which
+- scope fits one plan; nothing beyond the success criteria (YAGNI); non-goals named
+- no unrelated refactors: targeted fixes only where the current structure blocks this work
+- writing: factual and brief, no promotional wording, concrete example first and the general rule second
+- the TL;DR and "Change in a nutshell" make sense to someone who reads nothing else
+-->

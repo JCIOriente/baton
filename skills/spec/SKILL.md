@@ -15,9 +15,8 @@ lines. It still gets written and approved.
 ## Steps
 
 1. **Read context.** Check existing specs (configured `docs.specs` dir), related code and recent
-   commits. Check whether the topic is already covered. Claims about current behavior cite
-   `path:line`. Anything you could not confirm goes under Open questions, not into the design
-   as fact.
+   commits. Claims about current behavior cite `path:line`. Anything you could not confirm goes
+   under Open questions, not into the design as fact.
 2. **Check the scope first.** If the request spans several independent subsystems, say so
    before asking detail questions. Propose a split into sub-projects, each with its own
    spec -> plan -> implementation cycle and a build order. Then spec only the first one.
@@ -32,46 +31,28 @@ lines. It still gets written and approved.
    - audience: which locales, time zones, currencies, tenants (organizations) it must serve
 4. **Propose 2-3 approaches** with trade-offs, your pick first and why. Only one sensible?
    Say so and why others don't fit.
-5. **Present the design in sections**, sized to their complexity. Get approval per section:
-   - domain model and data (entities, ownership, lifecycle, invariants)
-   - interfaces (API, UI flows, events)
-   - authorization (who can do what; this feeds RBAC/permissions directly)
-   - tenancy and localization (whose data is visible to whom, and which locales/time zones it serves)
-   - error handling and edge cases
-   - testing strategy (what proves it works)
+5. **Present the design section by section**, following
+   `${CLAUDE_PLUGIN_ROOT}/templates/spec.md` from Users & permissions through Testing strategy,
+   each sized to its complexity. Design units with one purpose, clear interfaces, testable in
+   isolation, following existing patterns. Get approval per section.
 6. **Write the spec in a worktree.** Run `baton worktree add <topic>` and work only inside
    the printed path, however small the spec: the main checkout is never edited or committed in.
    Write it from `${CLAUDE_PLUGIN_ROOT}/templates/spec.md` to `<docs.specs>/YYYY-MM-DD-<topic>.md`.
-7. **Self-review and fix inline:** look for placeholders ("TBD", "etc.", "handle errors
-   appropriately"), sections that contradict each other, requirements with two readings
-   (pick one and say which), and scope still too big for one plan. Check the writing too:
-   factual and brief, no promotional wording, concrete example first and the general rule
-   second. The TL;DR and "change in a nutshell" must make sense to someone who reads nothing else.
+7. **Self-review** against the checklist comment at the end of the template, fix inline, then
+   delete the comment.
 8. **Record decisions and vocabulary:**
    - A choice that later specs will have to follow (framework, database, tenancy model, auth
      approach) gets an ADR from `${CLAUDE_PLUGIN_ROOT}/templates/adr.md` in `docs/adr/`.
      The spec links to it instead of re-arguing it. Being hard to reverse is not enough: if
      only this spec depends on the choice, its reasoning goes in the spec's FAQ, not an ADR.
-   - Domain terms that needed explaining, or that have more than one meaning, go in
-     `CONTEXT.md` at the repo root (template: `${CLAUDE_PLUGIN_ROOT}/templates/context.md`).
-     Use those terms consistently in the spec, the code and the issues.
+   - Domain terms that needed explaining or have more than one meaning go in `CONTEXT.md` at
+     the repo root (template: `${CLAUDE_PLUGIN_ROOT}/templates/context.md`); use them
+     consistently in the spec, the code and the issues.
 9. **Builder check, then commit.** Your context fills gaps a builder can't see: dispatch a
    fresh subagent with `${CLAUDE_PLUGIN_ROOT}/templates/builder-check.md` and only the spec's
-   path (no subagent tool: read it as that builder yourself, and tell the user in the review
-   message that the check ran in your own context, not a fresh one). Sort its questions: answered by
-   the conversation or code (write the answer in), minor (decide it, mark it as the author's
-   call), or the user's call (it changes what gets built: ask them all in one message).
+   path. Sort its questions as the template says; the user's calls go in one message.
    **A default you picked is the author's call, never something the user agreed to.**
-   Commit the spec (with any ADRs and the glossary) in that worktree and ask the user to review
-   the file and your calls. Iterate there until they approve. Then push the branch and open the
-   PR with `gh pr create`.
+   Commit the spec, ADRs and glossary in that worktree and ask the user to review the file and
+   your calls. Iterate there until they approve, then push the branch and open the PR with
+   `gh pr create`.
 10. **Hand off** to `baton:plan`.
-
-## Design principles
-
-- Units with one purpose, clear interfaces, testable in isolation. You should be able to say
-  what each unit does, how it is used, and what it depends on.
-- In existing code, follow existing patterns. Include targeted fixes only where the current
-  structure blocks this work. No unrelated refactors.
-- YAGNI. Cut anything that is not needed for the success criteria.
-- Name what is out of scope. It saves a round of review later.
