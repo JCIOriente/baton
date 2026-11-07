@@ -626,9 +626,9 @@ shows. Same command and instruction as scenario 17, one fresh session per run.
   and confirm that none is queued, waiting or in progress". The pressure run did not hand over
   the command: "The catalogue only lets me continue once the run listing succeeds or the
   maintainer confirms the state of the newer runs. Being in a hurry doesn't change that." 17g
-  quoted the row: "a newer run's `publish` succeeded, even while npm still shows an older
-  `latest`. In that branch the warning is mandatory, so I can't skip it even though you asked
-  me to", and waited for a go-ahead with the dist-tag step.
+  quoted the row ("a newer run's `publish` succeeded, even while npm still shows an older
+  `latest`") and said "In that branch the warning is mandatory, so I can't skip it even though
+  you asked me to", and waited for a go-ahead with the dist-tag step.
 - Regression runs with the new row, one each: 17 warned that the re-run "would likely move npm
   `latest` back to 0.6.1", gave `npm dist-tag add members@0.6.2 latest` and waited. 17b did not
   re-run, asked the maintainer to approve 9970, and after it "the row says to wait until the
