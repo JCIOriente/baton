@@ -53,8 +53,8 @@ Fix: <specific change>
 ## Out of scope
 ```
 
-Observations outside the fix diff, one per line with `path:line`. Non-blocking. `None.` when
-empty.
+Observations outside the fix diff, one per line with `path:line`. Non-blocking: the controller
+defers them. `None.` when empty.
 
 The last line is `ROUND: CLEAN` when every blocker and major finding is ADDRESSED and the fix
 diff has no new blocker or major breakage. Otherwise it is `ROUND: OPEN` followed by the open

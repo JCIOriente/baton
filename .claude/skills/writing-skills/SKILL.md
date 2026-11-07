@@ -41,8 +41,13 @@ context. Keep the scenarios in `tests/skills/<skill>.md` so changes can be re-ch
 - Put the CLI in charge of anything mechanical. Skills decide *when* and *why*, `baton` does *how*.
 - Refer to other skills by name (`baton:verify`) instead of repeating their content.
 - Use `${CLAUDE_PLUGIN_ROOT}` for paths to templates and guides inside the plugin.
-- Token budget: the router (`workflow`) and frequently loaded skills stay short (< ~600
-  words). Move details to templates, guides or `baton help`.
+- Word budget: the router (`workflow`) and frequently loaded skills stay under ~600 words. This
+  is baton's choice, not an Anthropic or upstream rule (Anthropic's ceiling is 500 lines). It
+  limits the cost per invocation (the body loads when the skill runs; the always-on cost is the
+  description and the `<baton>` block) and keeps the rules prominent. Move details needed at one
+  step to templates, guides or `baton help`. **Never cut a gate, an exit condition or a bold
+  rule, or move one out of SKILL.md, to meet the budget, and never cut text another task owns:**
+  record an exception with its cap instead.
 - No emojis, no shouting, no persona fluff. Bold only for the one rule per section that agents
   break most.
 

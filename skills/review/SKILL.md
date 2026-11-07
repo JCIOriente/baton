@@ -40,7 +40,7 @@ Dispatch all remaining briefs **in one message**, on the most capable model. The
    a finding; note the rest as checked. Checking alone never starts a round.
 4. Open findings go to the fix loop. Never ignore one silently.
 
-`/code-review` and `/security-review` may add a final pass but never replace spec compliance.
+Built-in `/code-review` or `/security-review` may add a pass, never replace spec compliance.
 
 ## 4. Fix loop
 
@@ -49,14 +49,14 @@ A round is one fix plus one scoped re-review. Stages one and two share **5 round
 - Rounds 1-3 are fixed by the author: this session in `baton:implement`, the same implementer
   in `baton:parallel` (resumed, or re-dispatched with its brief, last report and open findings).
   Rounds 4-5: a fresh fixer on the most capable model, from
-  `${CLAUDE_PLUGIN_ROOT}/templates/implementer-brief.md` with the open findings and "a prior
-  implementer attempted this N times; you own it now".
+  `${CLAUDE_PLUGIN_ROOT}/templates/implementer-brief.md` with the open findings and its
+  prior-attempts line filled.
 - Behavior bugs get a test. Minors are fixed in the first round; one still open after it, or
   reported later, is deferred and never starts a round.
 - After each fix, `baton verify`, then **always** a re-review, even of one line: a fresh
   subagent from `${CLAUDE_PLUGIN_ROOT}/templates/re-review.md`, findings verbatim,
-  `{{FIX_BASE}}` = the HEAD the previous review saw. NOT ADDRESSED findings and new blocker or
-  major breakage stay open; out-of-scope observations are deferred.
+  `{{FIX_BASE}}` = the HEAD the previous review saw. Its `ROUND:` line says what stays open;
+  its out-of-scope items are deferred.
 - **Round 5 ends `ROUND: OPEN`: stop.** No round on your own, no `baton done`, no PR. Ask the
   user for a ruling per open finding (fix, defer, drop with reason), with the fix history. All
   defer or drop: the round counts as `ROUND: CLEAN`. Any fix: two more rounds, run as rounds
@@ -69,8 +69,6 @@ refuses a ready PR without it or with commits after it.
 
 ## Receiving human review on a PR
 
-- Verify each comment against the code before acting. If a comment is wrong, reply with the
-  technical reason. Don't comply just to be agreeable.
-- Fix confirmed issues one at a time (with a test for behavior bugs), run `baton verify`, push,
-  and reply describing what changed.
-- Recurring comments are a signal for `baton:retro`.
+Verify each comment against the code before acting; a wrong one gets a reply with the technical
+reason, not compliance. Fix confirmed issues one at a time (a test for behavior bugs),
+`baton verify`, push, reply with what changed. Recurring comments are a signal for `baton:retro`.
