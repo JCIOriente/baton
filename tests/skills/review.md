@@ -544,3 +544,28 @@ fresh sessions, same prompt format.
   severity caps or what the plan chose." and "There is no note about src/legacy.ts." and "**Inline
   `MAX_RETRIES = 3` flagged as a magic number:** I drop it, recorded as "dropped: plan-chosen named
   constant, user ruling 2026-11-06"."
+
+### Re-runs after #91
+
+#91 rewrote the plan-mandated paragraph in stage one and the round-5 bullet in the fix loop
+(SKILL.md stays at 659 words), so scenarios 7 and 8 were run as RED against the text before #91
+and GREEN against the text after it, one fresh session each, same prompt format.
+
+- 7: RED (text before #91, 2026-11-06): not red; documents behavior. Verbatim: "A ruling of fix
+  re-enters the loop at round 4. That means the fix comes from a **fresh fixer**, not from me" and
+  "If round 5 also ends open, I stop again and bring the findings to the user. There's no sixth
+  round and no PR, even with today's deadline."
+  GREEN (text after #91, 2026-11-06): as expected, `:91` gets two more rounds run as rounds 4-5 by
+  a fresh fixer, `:120` deferred in the PR body. Verbatim: "Your ruling counts as a fix, so the
+  skill gives two more rounds, run as rounds 4–5. Rounds 4–5 go to a fresh fixer, not to me." and
+  "If it's still open, I stop and come back to you with the history. I won't open a PR in that
+  case, deadline or not." and "Deferred by user ruling: no jitter on retries (:120), tracked in
+  #77".
+- 8: RED (text before #91, 2026-11-06): not red; documents behavior. Verbatim: "Ruling: **for the
+  spec**. The finding becomes an open blocker." and "### 2. Fix loop, round 1 of 5 (I'm the
+  author, so I fix)", fixed before stage two.
+  GREEN (text after #91, 2026-11-06): as expected, ruled for the spec without asking and fixed in
+  round 1 before stage two. Verbatim: "The spec settles the conflict, and spec beats plan. I don't
+  need to ask the user. It is now an **open finding**." and "I'll fix it before stage two so the
+  quality reviewers see the code I actually intend to ship." and "## 2. Fix loop, round 1 of 5
+  (author fixes)".

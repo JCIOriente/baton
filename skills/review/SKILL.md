@@ -26,9 +26,9 @@ Dispatch **only** the `spec-compliance` brief first, every placeholder filled, i
 pasted as the prompt. `CHANGES_REQUIRED` goes to the fix loop (step 4) before stage two.
 `APPROVE`: continue.
 
-Findings labelled `plan-mandated` wait outside the loop: rule on each against the spec (spec
-beats plan), asking the user if the spec doesn't settle it. A ruling for the spec makes it an
-open finding.
+Findings labelled `plan-mandated` wait outside the loop until ruled by the spec (spec beats
+plan); ask the user if the spec doesn't settle it. Ruled for the spec: an open finding. Ruled
+for the plan: record it in the PR body.
 
 ## 3. Stage two: quality angles, in parallel
 
@@ -57,11 +57,11 @@ A round is one fix plus one scoped re-review. Stages one and two share **5 round
   subagent from `${CLAUDE_PLUGIN_ROOT}/templates/re-review.md`, findings verbatim,
   `{{FIX_BASE}}` = the HEAD the previous review saw. NOT ADDRESSED findings and new blocker or
   major breakage stay open; out-of-scope observations are deferred.
-- **Round 5 ends `ROUND: OPEN`: stop.** No sixth round, no `baton done`, no PR. Give the user
-  the open findings and the fix history and ask for a ruling per finding (fix, defer, drop with
-  reason). A ruling of fix re-enters the loop at round 4.
+- **Round 5 ends `ROUND: OPEN`: stop.** No round on your own, no `baton done`, no PR. Ask the
+  user for a ruling per open finding (fix, defer, drop with reason), with the fix history. All
+  defer or drop: the round counts as `ROUND: CLEAN`. Any fix: two more rounds, run as rounds
+  4-5; open again, ask again.
 
-A `ROUND: OPEN` whose open findings the user all ruled defer or drop counts as `ROUND: CLEAN`.
 The task is reviewed at the HEAD every angle approved or, with later commits, the HEAD after the
 last clean re-review. Record angles run, findings fixed, deferred items and rulings in the PR
 body's second paragraph (`baton:integrate`), then `Reviewed-at: <that HEAD>`. `baton done`
