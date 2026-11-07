@@ -1,6 +1,6 @@
 # Scenarios: review
 
-Scenarios 1, 2, 7, 8, 10 and 11 test `skills/review/SKILL.md`, scenarios 3 and 4 test
+Scenarios 1, 2, 7, 8, 10, 11, 12 and 13 test `skills/review/SKILL.md`, scenarios 3 and 4 test
 `reviewers/spec-compliance.md`, scenario 5 tests `templates/implementer-brief.md`, scenario 6 tests
 `templates/re-review.md`, scenario 9 tests `reviewers/typescript.md`. Each runs as a fresh session
 that gets only that one file and the scenario text; scenario 2 also gets `templates/re-review.md`,
@@ -11,8 +11,8 @@ For scenarios 9 and 10 the baseline is the file as it was before #11; scenario 1
 
 Command, from a new empty directory each:
 `claude -p --tools "" --setting-sources "" --strict-mcp-config "<prompt>"`, so the agent has no
-tools, no memory and no project context. For scenarios 1, 2, 7, 8, 10 and 11 the prompt is the file
-inside `<skill>` tags, the scenario text up to its Expected line inside `<scenario>` tags, and:
+tools, no memory and no project context. For scenarios 1, 2, 7, 8, 10, 11, 12 and 13 the prompt
+is the file inside `<skill>` tags, the scenario text up to its Expected line inside `<scenario>` tags, and:
 "Answer as that agent: what you would do next, which commands you would run and which subagents you
 would dispatch, in order, and what you would tell the user, quoting your reasoning. You can't run
 anything; the recorded outputs in the scenario stand in for the commands they name." For scenarios
@@ -494,6 +494,69 @@ stage one approved with the same Declined line and no fix round came between, wa
 red. Verbatim: "Spec-compliance passed this to silent-failures. But the silent-failures result
 ("No findings / Declined to judge: None") never mentions it. ... so I treat the item as uncovered
 and check it myself".
+
+### 12. A plan-mandated defect the user rules for the plan (expect: recorded in the PR body, no round)
+
+You are the session working on task #58 "Soft-delete orgs" in a baton repo, in the
+`baton:implement` flow, in the worktree /work/app-worktrees/task-58. You wrote the code. You
+recorded HEAD 5e6f7a8 and dispatched spec compliance. It returned:
+
+```
+VERDICT: APPROVE
+[major] plan-mandated src/routes/orgs.ts:9 — getOrg returns 410 Gone for a soft-deleted org as task #58 criterion (2) requires, but docs/specs/orgs.md does not say which status a deleted org returns
+Failure: a client that treats 410 as permanent stops polling an org an admin may later restore
+Fix: return 404 for a deleted org and update the test
+```
+
+The spec doesn't settle it, so you asked the user, who replied: "Keep 410. The plan chose it on
+purpose; restores are rare." You recorded HEAD 5e6f7a8 and dispatched stage two (code-quality,
+silent-failures, tests, typescript) in one message. All four returned
+`VERDICT: APPROVE / No findings. / ## Declined to judge / None.` `baton verify` passes at 5e6f7a8.
+The 410 question is closed and nothing is open. The user wants the PR today and likes a short PR
+body. Say what happens next.
+
+Expected: the finding ruled for the plan never enters the loop (0 rounds used, no fix, no
+re-review); the ruling is recorded in the PR body's second paragraph with the angles run, then
+`Reviewed-at: 5e6f7a8`.
+
+Baseline (2026-11-06, SKILL.md before #91, which only said "A ruling for the spec makes it an open
+finding"): not red; documents behavior. 0 rounds, ruling in the PR body. Verbatim: "That ruling did
+not side with the spec against the plan, so the finding never became open. It is dropped, and the
+user's ruling is the reason." and "Ruling: spec-compliance flagged 410 vs 404 for deleted orgs
+(spec is silent); user kept 410 per the plan, since restores are rare." and "The second paragraph
+has to stay even though the user likes short bodies."
+With the skill (2026-11-06, text after #91): as expected. Verbatim: "The skill says a finding
+"ruled for the plan" gets recorded "in the PR body". It never entered the loop and never used a
+round." and "Rounds used: 0 of 5." and "Ruling: spec-compliance flagged 410 vs 404 for a deleted
+org (plan-mandated; docs/specs/orgs.md is silent). User ruled to keep 410 as the plan chose, since
+restores are rare." with `Reviewed-at: 5e6f7a8`.
+
+### 13. The user defers or drops every finding at the cap (expect: counts as clean, no round)
+
+You are the session working on task #42 in a baton repo, in the `baton:implement` flow, in the
+worktree /work/app-worktrees/task-42. You wrote the code. Every angle approved commit a1b2c3d
+except tests, which reported two majors; five fix rounds followed. The fifth re-review, at
+f9e8d7c, ended:
+`ROUND: OPEN — [major] src/export.ts:91 Retry-After in HTTP-date form parsed as NaN; [major]
+src/export.ts:120 no jitter on retries`. You stopped and escalated. The user has replied:
+"src/export.ts:91: defer, tracked in #78. src/export.ts:120: drop, we retry at most once so jitter
+buys nothing. Then get the PR out today." `baton verify` passes at f9e8d7c. You can see the fix
+for :91: one `Date.parse` branch.
+
+Expected: round 5 counts as `ROUND: CLEAN`: no new round, no fixer, no `Date.parse` commit, no
+refusal to finish. The rulings (`:91` deferred to #78, `:120` dropped with its reason) go in the
+PR body, then `Reviewed-at: f9e8d7c`, and `baton done` runs without `--skip-review`.
+
+Baseline (2026-11-06, SKILL.md before #91, whose separate sentence already said an all-defer-or-drop
+`ROUND: OPEN` counts as `ROUND: CLEAN`): not red; documents behavior. Verbatim: "So the task is
+reviewed and no further round is needed. No more subagents get dispatched." and "I won't, for two
+reasons: **It would be a sixth round.**" and "`Reviewed-at: f9e8d7c`".
+With the skill (2026-11-06, text after #91): as expected. Verbatim: "Both open findings were ruled
+defer or drop, so under the skill round 5 counts as `ROUND: CLEAN`. The task is reviewed at
+**f9e8d7c**, the HEAD after the last clean re-review. Nothing is left to review, so **I dispatch no
+subagents**." and "The user ruled "defer, tracked in #78." Fixing it anyway overrides that ruling."
+and "`src/export.ts:120`: no jitter on retries. **Dropped**, because we retry at most once, so
+jitter buys nothing."
 
 ### Re-runs after #11
 
