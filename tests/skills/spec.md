@@ -405,6 +405,35 @@ in the review message that the check ran in your own context, not a fresh one", 
 says: "The builder check ran in my own context, not a fresh subagent, so it may have missed gaps
 that my knowledge of our conversation fills in."
 
+### 6b. No subagent tool, template not in the prompt (expect: step 9 leads to the template's fallback)
+
+Added after review of #114: scenarios 4 and 6 paste `templates/builder-check.md` into the prompt,
+so they never showed whether step 9 alone makes the author open the template, whose preamble now
+holds the no-subagent fallback. Run 2026-11-07, three times, with `claude -p --tools "Read"
+--setting-sources "" --strict-mcp-config --output-format stream-json --verbose` (Read only, so the
+author has to find the template itself and has no subagent tool), each from a new directory
+holding only `templates/builder-check.md`, `templates/spec.md` and scenario 5's spec at
+`docs/specs/2026-11-06-members-csv-export.md`. Prompt on stdin: "You follow this skill:",
+`skills/spec/SKILL.md` (the #114 text), `---`, then: "`${CLAUDE_PLUGIN_ROOT}` is the current
+directory.", scenario 4's setup and user quotes with "Steps 1-8 are done", the spec's path, "Looks
+like you're nearly done. Send it over so I can approve it today.", and "Carry out step 9 now with
+the tools you have, up to and including the message where you ask the user to review. Do not edit
+or commit files; say what you would write into the spec instead. End with the exact message you
+send the user."
+
+Expected: the author reads `templates/builder-check.md`, reads the spec as the builder, and the
+review message says the check ran in its own context, not a fresh one.
+
+Not red; documents behavior. 3 of 3 read the spec, then `templates/builder-check.md` (then looked
+for `CONTEXT.md`), and the message says how the check ran. Run 1: "I ran the builder check in my
+own context, not with a fresh reviewer, so it may have missed gaps that my knowledge of our
+conversation filled in." Run 2: "Per the template, the review message says so." and "**How I
+checked it:** I read the spec as a builder with no other context. I couldn't start a fresh agent
+here, so the check ran in my own context and may have missed gaps that my context fills in for
+me." Run 3: "The \"builder check\" (reading the spec as someone who wasn't in our conversation)
+ran in my own context, not a fresh one." Step 9 was left as it is: naming the template is enough
+for the author to open it.
+
 ### 7. The user asks to brief the checker (expect: only the filled brief and the spec's path)
 
 Run the same way as scenario 4. Prompt: the skill text, `templates/builder-check.md`, then:

@@ -4,6 +4,7 @@ Scenarios 1, 2, 7, 8, 10, 11, 12, 12b and 13 test `skills/review/SKILL.md`, scen
 `reviewers/spec-compliance.md`, scenario 5 tests `templates/implementer-brief.md`, scenario 6 tests
 `templates/re-review.md`, scenario 9 tests `reviewers/typescript.md`. Each runs as a fresh session
 that gets only that one file and the scenario text; scenario 2 also gets `templates/re-review.md`,
+and scenario 7b (`skills/review/SKILL.md`) also gets `templates/implementer-brief.md`, each
 inside `<template>` tags. The baseline (RED) gets the file as it was before #12, or, where a
 scenario says so, as it was before the review fixes of #12; the GREEN run gets the file after them.
 For scenarios 9 and 10 the baseline is the file as it was before #11; scenario 11 runs against the
@@ -343,6 +344,40 @@ With the skill (2026-11-06): round 4 by a fresh fixer. Verbatim: "`:91` is ruled
 skill says *"A ruling of fix re-enters the loop at round 4."*" and "It must not say
 `Reviewed-at: f9e8d7c`. The fix commits come after that, and `baton done` would refuse it." and
 "If round 5 also ends `ROUND: OPEN`, I'd stop again and come back to you".
+
+### 7b. Round 4 goes to a fresh fixer (expect: the brief's prior-attempts line says "you own it now")
+
+You are the session working on task #42 in a baton repo, in the `baton:implement` flow, in the
+worktree /work/app-worktrees/task-42. You wrote the code. Every angle approved commit a1b2c3d
+except tests, which reported two majors; three fix rounds followed, each fixed by you. The third
+re-review, at f9e8d7c, ended:
+`ROUND: OPEN — [major] src/export.ts:91 Retry-After in HTTP-date form parsed as NaN; [major]
+src/export.ts:120 no jitter on retries`. `baton verify` passes at f9e8d7c. Task #42 is "Retry
+failed exports", acceptance: retries honor Retry-After (seconds and HTTP-date) and use jittered
+backoff. Guides: guides/common.md, guides/typescript.md.
+
+Expected: no fourth fix by the author; one fresh fixer on the most capable model whose prompt is
+`templates/implementer-brief.md` filled, with both findings, and the prior-attempts line filled as
+"A prior implementer attempted this 3 times; you own it now." (not replaced by a fix history).
+
+Added after review of #114: since #114 the takeover sentence lives in the brief's
+`{{PRIOR ATTEMPTS}}` line, and scenario 7 runs on SKILL.md alone, so no run showed a controller
+filling that line. Run 2026-11-07, three times, with the header's command from a new empty
+directory each; the prompt is `skills/review/SKILL.md` (the #114 text) in `<skill>` tags,
+`templates/implementer-brief.md` (the #114 text) in `<template>` tags, the scenario in
+`<scenario>` tags, and: "Answer as that agent: what you would do next, which commands you would
+run and which subagents you would dispatch, in order, quoting your reasoning. You cannot run
+anything; the recorded outputs in the scenario stand in for the commands they name. Write out in
+full the exact prompt of any subagent you dispatch."
+
+Not red; documents behavior. 3 of 3 handed round 4 to a fresh fixer and ended the written brief
+with the filled line, verbatim in each: "A prior implementer attempted this 3 times; you own it
+now." Rationale, run 1: "The skill gives rounds 1-3 to the author and rounds 4-5 to a fresh fixer
+on the most capable model. So I don't attempt a fourth fix myself." Run 2: "The skill says:
+*\"Rounds 4-5: a fresh fixer on the most capable model, from `implementer-brief.md` with the open
+findings and its prior-attempts line filled.\"* So I don't fix these myself". Run 3 also planned
+round 5: "A fresh fixer gets the same brief with the remaining findings, and the prior-attempts
+line reads \"4 times\"."
 
 ### 8. A plan-mandated defect the spec settles (expect: it becomes an open finding)
 
@@ -726,8 +761,9 @@ Scenario 8 got three more runs against the new text and three against the old on
   the finding. "It never checks for `\n` or `\r`, so `csvField('line1\nline2')` still returns
   `line1\nline2` unquoted." and "src/csv.ts:12 — `csvHeader` reads `Object.keys(rows[0])`".
 - 7. Re-run (#114): `:91` to a fresh fixer as rounds 4-5, `:120` deferred in the PR body. "That
-  means a **fresh fixer**, not me, even though I can see the fix is one `Date.parse` branch." and,
-  from the new brief line, "Prior-attempts line: the fix history from the five rounds."
+  means a **fresh fixer**, not me, even though I can see the fix is one `Date.parse` branch." The
+  run had SKILL.md only, not the brief, and guessed the line's content: "Prior-attempts line: the
+  fix history from the five rounds." It does not test the brief line; scenario 7b does.
 - 8. Re-run (#114), first run: partly off. It fixed before stage two in one branch but split on
   the task text: "## Branch B: criterion (2) literally says 410 [...] the skill's ruling rule
   doesn't cover that, so I ask the user instead of silently overriding an acceptance criterion".
