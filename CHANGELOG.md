@@ -3,6 +3,31 @@
 Generated from PR titles at release by release-please. Versions follow
 [semver](https://semver.org); before 1.0, minor versions may change behavior.
 
+## [0.5.0](https://github.com/JCIOriente/baton/compare/v0.4.0...v0.5.0) (2026-11-07)
+
+
+### Features
+
+* **plan:** give each task an Interfaces block and add failure-mode rows to the coverage check ([#90](https://github.com/JCIOriente/baton/issues/90)) ([4e638a1](https://github.com/JCIOriente/baton/commit/4e638a1890609aca44dd2c259e9f58bafaa06dac))
+* **review:** bounded fix loop with scoped re-reviews, a 5-round cap and RED/GREEN evidence ([#92](https://github.com/JCIOriente/baton/issues/92)) ([896fa8f](https://github.com/JCIOriente/baton/commit/896fa8f13a7899c0e855475b025660a4f023d6ff))
+* **review:** reviewers list what they declined to judge, and briefs are dispatched as written ([#96](https://github.com/JCIOriente/baton/issues/96)) ([0ccb77e](https://github.com/JCIOriente/baton/commit/0ccb77e8428f642b0565f0d93b435aa74766902f))
+* **spec:** ask only what changes the build, and say so when one approach is the only sensible one ([#113](https://github.com/JCIOriente/baton/issues/113)) ([46377aa](https://github.com/JCIOriente/baton/commit/46377aad3752460fdf6b9bc2ecf66314af9ede8b))
+* **spec:** check each spec with a fresh builder subagent before asking for approval ([#88](https://github.com/JCIOriente/baton/issues/88)) ([ea8c44b](https://github.com/JCIOriente/baton/commit/ea8c44b29bfdc5c5127a31fa5cdddee68ef4f097))
+
+
+### Bug Fixes
+
+* **deps:** apply with the normal add, handle a failed worktree audit, stop on two lockfiles per ecosystem ([#84](https://github.com/JCIOriente/baton/issues/84)) ([5c61fd4](https://github.com/JCIOriente/baton/commit/5c61fd4a17462cdd62941a096c326e7077af1504))
+* **deps:** keep the baton:deps skill under its word budget ([#108](https://github.com/JCIOriente/baton/issues/108)) ([2748f37](https://github.com/JCIOriente/baton/commit/2748f376e1adc20f492e6d05f2bd2fb7afacbcd7))
+* **deps:** run each package manager's own frozen install after a restore and report its result ([#105](https://github.com/JCIOriente/baton/issues/105)) ([bd61aa8](https://github.com/JCIOriente/baton/commit/bd61aa8c759c0b7dc72a9f8bc5ce008f9fe80309))
+* **deps:** vet the chosen version's deprecation and peers under yarn berry ([#94](https://github.com/JCIOriente/baton/issues/94)) ([b415210](https://github.com/JCIOriente/baton/commit/b415210116539b453d9dba31060f2a00128c582c))
+* **provenance:** track superpowers from the 2026-10-28 triage and report drift only for adapted files ([#98](https://github.com/JCIOriente/baton/issues/98)) ([4c7f0b4](https://github.com/JCIOriente/baton/commit/4c7f0b4eb18e1205fb22938052536730b9c4e7b0))
+* **release:** don't re-run a superseded publish while the release run list fails, and judge newer versions by npm latest or a newer successful publish ([#104](https://github.com/JCIOriente/baton/issues/104)) ([11d4a4c](https://github.com/JCIOriente/baton/commit/11d4a4c524db4b6037257c28714e376a74de91cd))
+* **release:** stop the release workflow comment claiming release-please holds no credentials ([#100](https://github.com/JCIOriente/baton/issues/100)) ([85aad87](https://github.com/JCIOriente/baton/commit/85aad87d5b873260e2e42569365d7774ff3efdf5))
+* **release:** trimmed release workflow comment names only the kept publish target ([#79](https://github.com/JCIOriente/baton/issues/79)) ([e470af5](https://github.com/JCIOriente/baton/commit/e470af5a7ccc827ebc34bdf6adbb4ea4a8784ef9))
+* **release:** wait for a newer pending publish before re-running a superseded one ([#82](https://github.com/JCIOriente/baton/issues/82)) ([791850d](https://github.com/JCIOriente/baton/commit/791850d2e219ba635480f7f799670e007cfaf413))
+* **review:** count spec-ruled plan findings toward the round cap and let a fix ruling at the cap run two more rounds ([#107](https://github.com/JCIOriente/baton/issues/107)) ([3e3b842](https://github.com/JCIOriente/baton/commit/3e3b842a088d7cfec78ee2426baf70d942b1e44f))
+
 ## [0.4.0](https://github.com/JCIOriente/baton/compare/v0.3.0...v0.4.0) (2026-11-06)
 
 
