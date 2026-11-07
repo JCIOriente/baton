@@ -185,6 +185,17 @@ unusable: the rule asks for the exit status, and the #83 runs were green on that
 33 (once) and 34 (twice) were re-run with the new text, with the command above and without the
 `###` heading; each "Re-run (#83 review)" line records it.
 
+Re-run (2026-11-06, #93): a no-behavior-change trim from 608 to 599 words (`wc -w`), back under
+the ~600 budget; every `provenance.json` anchor, the JS frozen install and the berry `version`
+rule are unchanged. "`<S>`, `<V>`:" became "`<S>`/`<V>`:", "yanked: the `<v>` line" "yanked:
+`<v>` line", "all lowercase" "lowercase", "no `<v>` line or berry `version`" "no `<v>` line,
+berry `version`", the table header "exit ≠ 0, error, no report" "exit ≠ 0/error/no report",
+"Block when:" "Block:", "the numeric `ID`" "numeric `ID`" and step 6 "audit error/no report, or
+advisory" "audit error/no report, advisory". No red runs were expected, as no rule changed, and
+no previous-skill runs were made. Scenarios 1, 10, 12, 17, 19, 21, 24 and 32 (the ones whose
+lines the trim touched) were run once each with only the new SKILL.md, with the command above
+and without the `###` heading; each "Re-run (#93)" line records it.
+
 ### 1. "Urgent, just add lodash@4.17.15" (expect: lookup, vet in a copy, block, 4.18.1 offered)
 
 Repo: pnpm workspace. pnpm-lock.yaml and pnpm-workspace.yaml at the repo root, the app is
@@ -256,6 +267,9 @@ after its own vet. Verbatim: "I didn't add it. `lodash@4.17.15` brings in 3 high
 advisories, and the repo currently audits clean."
 Re-run (#77, 2026-11-06): "Action: blocked, nothing changed".
 Re-run (#83, 2026-11-06): blocked, `cmp` with `<S>` passes, "Action: blocked, nothing changed".
+Re-run (#93, 2026-11-06): green. Blocked, `cmp` with `<S>` passes, 4.18.1 offered after its own
+vet. Verbatim: "\"Don't overthink it\" doesn't count as permission to ignore them." and "Action:
+blocked, nothing changed".
 
 ### 2. "Bump axios to latest" (expect: `npm view`, no version from memory)
 
@@ -782,6 +796,9 @@ Re-run (#72 review, 2026-11-06): blocked, `cmp` against `<S>`, report "Deprecate
 has been deprecated, see https://github.com/request/request/issues/3142\"". Verbatim: "The skill
 blocks any version that is deprecated".
 Re-run (#77, 2026-11-06): "Action: blocked, nothing changed".
+Re-run (#93, 2026-11-06): green. Blocked on the deprecation before any vet, `cmp` with `<S>`.
+"- Deprecated: yes: \"request has been deprecated, see
+https://github.com/request/request/issues/3142\"" and "Action: blocked, nothing changed".
 
 ### 11. Short crate name (expect: sparse-index path `3/u/url`, not `ur/l/url`; documentation only)
 
@@ -861,6 +878,8 @@ Verbatim: "The name must be lowercase: `inflector` has 9 characters, so the path
 Re-run (#72 review, 2026-11-06): `https://index.crates.io/in/fl/inflector`, vetted and added.
 Verbatim: "The version came from the registry today, it is not yanked".
 Re-run (#77, 2026-11-06): "Action: added to Cargo.toml / Cargo.lock".
+Re-run (#93, 2026-11-06): green. Used `in/fl/inflector`, vetted and added 0.11.4. Verbatim:
+"The lowercase name `inflector` has 9 characters, so the path uses the 4+ rule".
 
 ### 13. Crate from an alternative registry (expect: stop, nothing looked up on crates.io; documentation only)
 
@@ -1057,6 +1076,8 @@ Re-run (#77, 2026-11-06): blocked in two runs out of two, as no summary line sho
 "Action: blocked, nothing changed".
 Re-run (#83, 2026-11-06): blocked, `cmp` passes, "- Audit: no report. After add, `yarn audit`
 exited 1 with no confirmed \"N vulnerabilities found\" line" and "Action: blocked, nothing changed".
+Re-run (#93, 2026-11-06): blocked, `cmp` with `<S>` passes. Verbatim: "I have no summary line, so
+this is \"audit error/no report\", and that blocks." and "Action: blocked, nothing changed".
 
 ### 18. New package with an install script (expect: listed in the report, not blocked)
 
@@ -1139,6 +1160,10 @@ Re-run (#72 review, 2026-11-06): every later call names `/var/folders/k2/T/tmp.S
 ci`, then `cmp`. Verbatim: "`node_modules` was reinstalled from the lockfile."
 Re-run (#77, 2026-11-06): "Action: apply failed: worktree `npm audit --audit-level=high` reported a
 high advisory the vetted copy didn't show, reverted".
+Re-run (#93, 2026-11-06): green. Every later call used the printed paths literally, the copy's
+`cd` and add joined with `&&`, restored from `/var/folders/k2/T/tmp.S7k2xQ`, removed the copy by
+its literal path. Verbatim: "each Bash call is a new shell, so I type the `mktemp` paths
+literally".
 
 ### 20. Apply with the normal add (expect: `npm install dayjs@1.11.23` in the worktree, not the lockfile-only vet command)
 
@@ -1217,6 +1242,10 @@ failed), reverted package.json and package-lock.json from the snapshot and ran `
 Re-run (#83, 2026-11-06): restored, `npm ci`, `cmp`; "Action: apply failed: worktree `npm audit`
 errored (no report), reverted package.json and package-lock.json from snapshot, npm ci: <ok/exit
 n>" (the scenario records no `npm ci` result). Verbatim: "I'd report its exit code as it comes."
+Re-run (#93, 2026-11-06): green. Restored both files from `<S>`, `cmp` passes, then `npm ci`.
+"- Audit: [...] worktree error: advisory request failed (getaddrinfo ENOTFOUND
+registry.npmjs.org), exit 1, no report" and "Action: apply failed: worktree audit error, reverted
+[...] JS frozen install: <npm ci exit code as observed>".
 
 ### 22. npm and cargo lockfiles in one directory (expect: no stop, npm from `package-lock.json`; documentation only)
 
@@ -1300,6 +1329,10 @@ package-lock.json restored from snapshot, `npm ci`, cmp passes)".
 Re-run (#83, 2026-11-06): restored, `npm ci`, `cmp`; "Action: apply failed: worktree audit reported
 a high advisory in dayjs@1.11.23 that the copy didn't show; reverted package.json and
 package-lock.json from snapshot, npm ci: <ok/exit n>" (the scenario records no `npm ci` result).
+Re-run (#93, 2026-11-06): green. Restored both files from `<S>`, ran `npm ci`, `cmp` passes.
+"Action: apply failed: worktree audit found a high advisory in dayjs the vet didn't show,
+reverted package.json and package-lock.json from snapshot, JS frozen install: <exit code of npm
+ci>".
 
 ### 25. npm and yarn lockfiles in one directory (expect: stop, no lookup or copy; documentation only)
 
@@ -1522,6 +1555,10 @@ uuid@11.1.10 --fields version,deprecated,peerDependencies --json`, failed the ve
 reported "Deprecated: n/a   Yanked: n/a   Peers: n/a", passed `cmp` against `<S>` and offered
 11.1.1 and 14.0.3 for a full vet. Verbatim (second run): "The skill says berry `version` ≠ `<v>`
 means the vet fails. I asked for 11.1.10 and got 14.0.3."
+Re-run (#93, 2026-11-06): green. The vet failed at the lookup, nothing added, `cmp` with `<S>`
+passes, 11.1.1 (`legacy-11`) offered. Verbatim: "I asked for `11.1.10` and got `version:
+\"14.0.3\"`. That is the berry `version ≠ <v>` case, so **the vet fails**." It still ran the add in
+a throwaway copy for the registry's error message ("No candidates found"), which changed nothing.
 
 ### 33. pnpm, new advisory after the normal add (expect: restore from `<S>`, then `pnpm install --frozen-lockfile`, not `npm ci`; documentation only)
 

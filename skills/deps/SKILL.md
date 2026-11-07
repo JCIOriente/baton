@@ -15,7 +15,7 @@ Package, manifest, reason; category only: ask which. Manager: nearest same-ecosy
 at/above the manifest. `package-lock.json` npm, `pnpm-lock.yaml` pnpm, `yarn.lock` yarn (berry
 with `.yarnrc.yml` or `packageManager: "yarn@2+"`, else classic), `Cargo.lock` cargo. Stop
 (no lookup) on `bun.lock`/`bun.lockb`, two JS lockfiles in one directory, none, cargo
-`registry =`/source replacement. `<dir>`: lockfile directory. `<S>`, `<V>`: `mktemp -d`
+`registry =`/source replacement. `<dir>`: lockfile directory. `<S>`/`<V>`: `mktemp -d`
 outputs, **typed literally: tool calls share no variables**. `cp <manifest> <lockfile> <S>`.
 
 ## 2. Look up
@@ -24,10 +24,10 @@ JS: `npm view <pkg> dist-tags` (`latest`, not pre-release), then `npm view <pkg>
 deprecated`, `peerDependencies`, one field per call. Berry, registry only in `.yarnrc.yml`:
 `yarn npm info <pkg> --fields dist-tags --json`, then
 `yarn npm info <pkg>@<v> --fields version,deprecated,peerDependencies --json`. cargo: `cargo info
-<crate>`; yanked: the `<v>` line of `curl -fsS https://index.crates.io/<prefix>/<crate>`, all
+<crate>`; yanked: `<v>` line of `curl -fsS https://index.crates.io/<prefix>/<crate>`,
 lowercase, prefix `1`, `2`, `3/<first char>` by length, else `se/rd/serde`; not the crates.io
-API. Non-zero exit, timeout, no `<v>` line or berry `version` ≠ `<v>`:
-vet fails; empty with exit 0: unset.
+API. Non-zero exit, timeout, no `<v>` line, berry `version` ≠ `<v>`: vet fails; empty with exit
+0: unset.
 
 ## 3. Peers (JS)
 
@@ -40,7 +40,7 @@ uncommitted manifests/lockfile/manager config. **`cd <V>/<dir> &&`, not `<V>`:**
 audit, `<add> && <audit>`; `rm -rf <V>`. Member: npm `-w <member>`, pnpm `--filter ./<member>`,
 `yarn workspace <name> add`, cargo `-p <crate>`.
 
-| Manager | Add | Audit; block on exit ≠ 0, error, no report |
+| Manager | Add | Audit; block on exit ≠ 0/error/no report |
 |---|---|---|
 | npm | `npm install <pkg>@<v> --package-lock-only --ignore-scripts` | `npm audit --audit-level=high` |
 | pnpm | `pnpm add <pkg>@<v> --lockfile-only --ignore-scripts` | `pnpm audit --audit-level=high` |
@@ -53,7 +53,7 @@ metadata --format-version 1 --locked`); pnpm/yarn: "not checked".
 
 ## 5. Decide
 
-Block when: deprecated/yanked; add failed; new advisory (JS high/critical, cargo any) not
+Block: deprecated/yanked; add failed; new advisory (JS high/critical, cargo any) not
 accepted; peer fit needs another dependency below its latest secure version. Offer
 alternatives. Baseline advisories: report separately, suggest an issue.
 
@@ -61,14 +61,14 @@ alternatives. Baseline advisories: report separately, suggest an issue.
 user's explicit OK to that exact change**, even after "just ignore it". Propose an entry
 (reason, drop condition); wait: cargo `deny.toml` `[advisories] ignore`, else
 `.cargo/audit.toml`; pnpm `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`; berry
-`npmAuditIgnoreAdvisories` in `.yarnrc.yml`, the numeric `ID` from `--json`, not the GHSA; npm,
+`npmAuditIgnoreAdvisories` in `.yarnrc.yml`, numeric `ID` from `--json`, not the GHSA; npm,
 yarn classic: none.
 
 ## 6. Apply
 
 Passed: in `<dir>`, Add without
 `--package-lock-only`/`--lockfile-only`/`--mode`/`--ignore-scripts` (replacing: remove old),
-then audit (or `baton verify` if it audits). Failed add, audit error/no report, or advisory
+then audit (or `baton verify` if it audits). Failed add, audit error/no report, advisory
 the copy didn't show: restore both from `<S>` (not HEAD), then JS frozen install: `npm ci`,
 `pnpm install --frozen-lockfile`, `yarn install --immutable` (classic `--frozen-lockfile`).
 Blocked: `cmp` with `<S>` passes.
