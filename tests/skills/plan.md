@@ -198,3 +198,34 @@ Green: "- Consumes: `CheckIn { id: string; memberId: string; eventId: string; ch
 }` from `shared/src/check-in.ts` (#41)", and the Produces line unchanged. Rationale:
 "**Interfaces**: copied exactly from the plan. The only change is `(T1)` → `(#41)`, as the skill
 requires. The `Depends on` value comes from the same map, so it is `--depends-on 41`."
+
+## Re-run after rewrap (2026-11-06, task #89)
+
+Task #89 rewrapped the failure-mode note in `templates/plan.md` near 100 characters; the words
+are unchanged. Scenario 2 was re-run against the text before and after, same command and prompt
+shape as above (Claude Code 2.1.316), each run in a new empty directory. Scenario 3 was not
+re-run: `skills/backlog/SKILL.md` step 3 and the `templates/task.md` placeholder already agree
+that each `(T<N>)` becomes its issue number, so neither changed.
+
+### Scenario 2
+
+Before (125-character line): not red; documents behavior. Five rows, one condition each, every
+test also in the owning task's Tests first:
+
+```
+| Failure mode: chapter name matches no existing chapter | T3: `test_import_row_with_unknown_chapter_creates_no_member` |
+| Failure mode: email already belongs to an existing member | T3: `test_import_row_with_existing_email_creates_no_member` |
+| Failure mode: same email appears twice in the file | T3: `test_import_duplicate_email_within_file_rejected` |
+| Failure mode: required column header missing | T2: `test_missing_chapter_header_returns_missing_columns` |
+| Failure mode: required field blank in a row | T3: `test_import_row_with_blank_email_rejected` |
+```
+
+After (rewrapped): green, the same shape:
+
+```
+| Failure mode: chapter name matches no existing chapter | T4: `test_import_unknown_chapter_creates_no_member_for_row` |
+| Failure mode: email already belongs to an existing member | T4: `test_import_existing_email_creates_no_duplicate` |
+| Failure mode: same email repeated within the file | T2: `test_parse_repeated_email_in_file_reports_duplicate` |
+| Failure mode: required column header missing | T2: `test_parse_missing_email_column_reports_missing_columns` |
+| Failure mode: malformed email value | T2: `test_parse_malformed_email_reports_invalid_email` |
+```
