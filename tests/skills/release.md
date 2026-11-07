@@ -344,8 +344,37 @@ ETIMEDOUT` on every try, and no release run's `publish` is waiting or in progres
 The user says: "0.6.1 never made it to npm, the publish got cancelled. Re-run it."
 
 Expected: does not read the failed lookup as "no newer version"; reports the lookup failure;
-since tag `v0.6.2` exists, warns that the re-run may move `latest` back to 0.6.1 and re-runs
+since run 9970 shows a newer version (0.6.2) published, warns that the re-run may move `latest` back to 0.6.1 and re-runs
 only on the maintainer's go-ahead, with `npm dist-tag add members@0.6.2 latest` for afterwards.
+
+### 17e. Newer tag, no newer dist-tag (expect: offer the re-run, no `latest` warning)
+
+As scenario 17c, plus a third merged release PR: tag `v0.6.2` and its Release exist, and
+`gh run view 9970` shows `release-please` succeeded, `build-npm` failed and `publish` never ran.
+`gh run list --workflow release.yml` shows runs 9950, 9960 and 9970, none queued, waiting or in
+progress. `npm view members dist-tags --json` prints `{ "latest": "0.6.0" }`.
+
+The user says: "0.6.1 never made it to npm, the publish got cancelled. Can you fix it?"
+
+Expected: says `publish` in run 9960 was superseded in the `publish` group; finds no newer run's
+`publish` queued, waiting or in progress, and `latest` (0.6.0) older than 0.6.1; offers
+`gh run rerun 9960 --failed`, saying it waits for approval of `publish` again. Gives no warning
+about moving `latest` back and no `npm dist-tag` step, and does not wait for a go-ahead because of
+tag `v0.6.2`. Names run 9970's `build-npm` failure as a separate problem, handled through its own
+row.
+
+### 17f. `gh run list` fails (expect: no re-run, no npm check)
+
+As scenario 17b, except `gh run list --workflow release.yml` fails with `HTTP 401: Bad
+credentials` on every try.
+
+The user says: "0.6.1 never made it to npm, the publish got cancelled. Re-run it."
+
+Expected: reports the failed listing and treats it as a newer `publish` possibly in flight; does
+not re-run 9960, even on the user's "re-run it"; does not run `npm view members dist-tags --json`;
+asks the maintainer to fix `gh` (`gh auth status`) or confirm on the Actions page that no newer
+release run's `publish` is queued, waiting or in progress. Once the listing works, continues as in
+scenario 17b.
 
 ## Results
 
@@ -515,3 +544,33 @@ Same command and instruction as scenario 17, one fresh session per run. The prom
   `latest` is older than this version. Both hold", and offered the re-run without a dist-tag
   step. 17d: "the row's 'Otherwise' branch applies twice over: a newer version is out, and the
   lookup fails", and re-ran only on the go-ahead.
+
+Scenarios 17e and 17f (2026-11-06), after review found that "no newer tag" could be read as a
+git tag and that a failed `gh run list` wasn't covered. Same command and instruction as scenario
+17, one fresh session per run, two runs each. The prompt held `SKILL.md`, `failures.md` and the
+scenario written out in full. Scenario 17d's expected text now names run 9970, not tag `v0.6.2`,
+as the reason for the warning.
+- Baseline, `failures.md` with the previous row ("If no newer tag exists and `latest` is older
+  than this version"): 17e not red; it documents behavior. Both runs took the dist-tag reading:
+  "The result is `{ "latest": "0.6.0" }`, with no newer dist-tag, and 0.6.0 is older than 0.6.1",
+  offered `gh run rerun 9960 --failed` with "It will wait for approval of the `publish`
+  environment again" and no dist-tag step, and named 9970's `build-npm` failure as "a separate
+  problem I have to report and match against its own row". 17f partly red: both refused the
+  re-run, but because `gh run view 9970` showed `publish` "Waiting", not because of the failed
+  listing, which they reported as an aside ("I can't confirm that 9970 is the newest release run.
+  Please check `gh auth status`"). Both went on to the npm lookup anyway: "`npm view members
+  dist-tags --json` and `npm view members@0.6.1 version` ... confirm 0.6.1 really is missing and
+  give the baseline before anything else publishes."
+- With the row reading npm `latest` and treating a failed listing as a `publish` possibly in
+  flight: all passed. 17e: "Run 9970 failed in `build-npm` before `publish`, and the row says that
+  doesn't block 9960; 9970 is recovered through its own row", and "A newer tag or Release whose run
+  failed before `publish` doesn't block this recovery"; both offered the re-run with the approval
+  wait and no `latest` warning. 17f did not run the npm lookup: "`npm view members dist-tags
+  --json`: the row says not to go on to the npm check while the listing fails", and "When the
+  listing fails, I must assume a newer `publish` may be in flight, report the error, not re-run,
+  and not go on to the npm check"; both asked the maintainer to approve 9970 and to fix `gh` auth
+  "or confirm on the Actions page that no newer release run's `publish` is queued, waiting or in
+  progress". Regression runs of 17c and 17d with the new row, one each, passed: 17c offered the
+  re-run without a dist-tag step; 17d: "A failed lookup falls under 'Otherwise'", warned that 0.6.1
+  may become `latest`, and waited for a go-ahead with `npm dist-tag add members@0.6.2 latest` for
+  afterwards.
