@@ -6,59 +6,60 @@ argument-hint: "[task number | PR number]"
 
 # Review
 
-Reviews are done by **fresh-context subagents** that did not write the code, using briefs
-that each focus on one angle. The author's context makes you blind to your own assumptions,
-so never review your own diff in the same context you wrote it in.
+Reviews are done by **fresh-context subagents** that did not write the code, one brief per
+angle. Never review your diff in the context you wrote it in.
 
 ## 1. Gather inputs
 
-- Worktree path and diff command: `git diff <baseBranch>...HEAD` (or `gh pr diff <n>` for a PR)
-- Task: `baton show <n>` (save the text to a temp file)
-- Spec and plan paths linked from the task
-- Guide paths from the `<baton>` block
-- Reviewer briefs: `baton reviewers --json`. It lists `spec-compliance` first, then general
-  angles (code quality, security, tests, silent failures) and one per enabled stack, each with
-  the changed files it should focus on. Tell each reviewer its focus files, and that it may still
-  read anything else it needs. Every reviewer runs unless the project turned on
-  `review.scopeToDiff`, which skips a stack reviewer only when the diff provably doesn't touch
-  that stack.
+Diff command (`git diff <baseBranch>...HEAD` or `gh pr diff <n>`), task text (`baton show <n>`,
+saved to a file), linked spec and plan, guide paths from `<baton>`, and briefs from
+`baton reviewers --json`; tell each its focus files and that it may read others. Record
+`git rev-parse HEAD` before each dispatch.
 
 ## 2. Stage one: spec compliance (gate)
 
-Dispatch **only** the `spec-compliance` brief first. Fill in its placeholders (every occurrence)
-(`{{DIFF_CMD}}`, `{{WORKTREE}}`, `{{TASK}}`, `{{SPEC}}`, `{{GUIDES}}`) and pass it as the subagent
-prompt. Paste the content; don't ask the subagent to fetch the brief.
+Dispatch **only** the `spec-compliance` brief first, every placeholder filled, its content
+pasted as the prompt. `CHANGES_REQUIRED` goes to the fix loop (step 4) before stage two.
+`APPROVE`: continue.
 
-- `CHANGES_REQUIRED`: the implementation is missing something or built something extra. Fix
-  it (the implementer, not the reviewer), run `baton verify`, and re-run this stage. Quality
-  review on code that does the wrong thing is wasted.
-- `APPROVE`: continue.
+Findings labelled `plan-mandated` wait outside the loop: rule on each against the spec (spec
+beats plan), asking the user if the spec doesn't settle it. A ruling for the spec makes it an
+open finding.
 
 ## 3. Stage two: quality angles, in parallel
 
-Dispatch all remaining briefs **in one message** so they run concurrently. Use the most capable
-model available for reviewers. Review is where judgment matters most.
+Dispatch all remaining briefs **in one message**, on the most capable model. Then:
+1. Merge duplicates, keeping the clearer finding.
+2. **Check each finding against the code**: reviewers can be wrong. Drop findings without a
+   concrete failure scenario.
+3. Open findings go to the fix loop. Never ignore one silently.
 
-Then consolidate:
-1. Merge duplicates. If two angles flag the same line, keep the clearer finding.
-2. **Check each finding against the code** before accepting it. Reviewers can be wrong.
-   Drop findings without a concrete failure scenario.
-3. Fix `blocker` and `major` findings, each with a test when it is a behavior bug. `minor`
-   findings are fixed or listed in the PR description. Never ignore them silently.
-4. **Every change after a review gets reviewed.** After fixes: `baton verify`, then re-dispatch
-   the angles that had findings, plus spec compliance if a fix changed behavior. Repeat until all
-   approve.
+`/code-review` and `/security-review` may add a final pass but never replace spec compliance.
 
-A task is reviewed when spec compliance and every quality angle report `APPROVE` for the
-current commit. Record the consolidated outcome (angles run, findings fixed, minors deferred) in
-the second paragraph of the PR body (`baton:integrate`), followed by the line
-`Reviewed-at: <git rev-parse HEAD>`. `baton done` refuses a ready PR without it, or when
-commits were added after it. That is how "reviewers run after every change" is enforced.
+## 4. Fix loop
 
-## Built-in alternatives
+A round is one fix plus one scoped re-review. Stages one and two share **5 rounds per task**.
 
-Claude Code's `/code-review` and `/security-review` can run in addition to the briefs, e.g.
-as a final pass on the whole PR. They don't replace spec compliance, which only baton checks.
+- Rounds 1-3 are fixed by the author: this session in `baton:implement`, the same implementer
+  in `baton:parallel` (resumed, or re-dispatched with its brief, last report and open findings).
+  Rounds 4-5: a fresh fixer on the most capable model, from
+  `${CLAUDE_PLUGIN_ROOT}/templates/implementer-brief.md` with the open findings and "a prior
+  implementer attempted this N times; you own it now".
+- Behavior bugs get a test. Minors are fixed in the first round; one still open after it, or
+  reported later, is deferred and never starts a round.
+- After each fix, `baton verify`, then **always** a re-review, even of one line: a fresh
+  subagent from `${CLAUDE_PLUGIN_ROOT}/templates/re-review.md`, findings verbatim,
+  `{{FIX_BASE}}` = the HEAD the previous review saw. NOT ADDRESSED findings and new blocker or
+  major breakage stay open; out-of-scope observations are deferred.
+- **Round 5 ends `ROUND: OPEN`: stop.** No sixth round, no `baton done`, no PR. Give the user
+  the open findings and the fix history and ask for a ruling per finding (fix, defer, drop with
+  reason). A ruling of fix re-enters the loop at round 4.
+
+A `ROUND: OPEN` whose open findings the user all ruled defer or drop counts as `ROUND: CLEAN`.
+The task is reviewed at the HEAD every angle approved or, with later commits, the HEAD after the
+last clean re-review. Record angles run, findings fixed, deferred items and rulings in the PR
+body's second paragraph (`baton:integrate`), then `Reviewed-at: <that HEAD>`. `baton done`
+refuses a ready PR without it or with commits after it.
 
 ## Receiving human review on a PR
 
@@ -66,4 +67,4 @@ as a final pass on the whole PR. They don't replace spec compliance, which only 
   technical reason. Don't comply just to be agreeable.
 - Fix confirmed issues one at a time (with a test for behavior bugs), run `baton verify`, push,
   and reply describing what changed.
-- Recurring comments are a signal for `baton:retro`: the convention may need to be written down.
+- Recurring comments are a signal for `baton:retro`.
