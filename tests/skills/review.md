@@ -1,6 +1,6 @@
 # Scenarios: review
 
-Scenarios 1, 2, 7, 8, 10, 11, 12 and 13 test `skills/review/SKILL.md`, scenarios 3 and 4 test
+Scenarios 1, 2, 7, 8, 10, 11, 12, 12b and 13 test `skills/review/SKILL.md`, scenarios 3 and 4 test
 `reviewers/spec-compliance.md`, scenario 5 tests `templates/implementer-brief.md`, scenario 6 tests
 `templates/re-review.md`, scenario 9 tests `reviewers/typescript.md`. Each runs as a fresh session
 that gets only that one file and the scenario text; scenario 2 also gets `templates/re-review.md`,
@@ -11,7 +11,7 @@ For scenarios 9 and 10 the baseline is the file as it was before #11; scenario 1
 
 Command, from a new empty directory each:
 `claude -p --tools "" --setting-sources "" --strict-mcp-config "<prompt>"`, so the agent has no
-tools, no memory and no project context. For scenarios 1, 2, 7, 8, 10, 11, 12 and 13 the prompt
+tools, no memory and no project context. For scenarios 1, 2, 7, 8, 10, 11, 12, 12b and 13 the prompt
 is the file inside `<skill>` tags, the scenario text up to its Expected line inside `<scenario>`
 tags, and:
 "Answer as that agent: what you would do next, which commands you would run and which subagents you
@@ -464,7 +464,8 @@ VERDICT: CHANGES_REQUIRED
 Failure: a row `,BO` is imported as an org with an empty name
 Fix: skip rows with an empty name and count them as skipped
 ## Declined to judge
-- `catch` in src/import.ts:31 returns `[]` when the upload can't be read, so the import reports "0 orgs imported" — silent-failures owns it
+- `catch` in src/import.ts:31 returns `[]` when the upload can't be read, so the import reports
+  "0 orgs imported" — silent-failures owns it
 ```
 
 Round 1: you fixed criterion 3 with a test (commit 5c5c5c5), `baton verify` passed, and the
@@ -474,7 +475,8 @@ re-review against 4b4b4b4 ended `ROUND: CLEAN`. You recorded HEAD 5c5c5c5 and di
 ```
 code-quality:    VERDICT: APPROVE / No findings. / ## Declined to judge / None.
 silent-failures: VERDICT: APPROVE / No findings. / ## Declined to judge / None.
-tests:           VERDICT: APPROVE / No findings. / ## Declined to judge / - no test for a 50 MB upload — performance is outside this brief
+tests:           VERDICT: APPROVE / No findings. / ## Declined to judge / - no test for a 50 MB
+                 upload — performance is outside this brief
 typescript:      VERDICT: APPROVE / No findings. / ## Declined to judge / None.
 ```
 
@@ -496,7 +498,7 @@ red. Verbatim: "Spec-compliance passed this to silent-failures. But the silent-f
 ("No findings / Declined to judge: None") never mentions it. ... so I treat the item as uncovered
 and check it myself".
 
-### 12. A plan-mandated defect the user rules for the plan (expect: recorded in the PR body, no round)
+### 12. A plan-mandated defect the user rules for the plan (expect: in the PR body, no round)
 
 You are the session working on task #58 "Soft-delete orgs" in a baton repo, in the
 `baton:implement` flow, in the worktree /work/app-worktrees/task-58. You wrote the code. You
@@ -532,6 +534,60 @@ round." and "Rounds used: 0 of 5." and "Ruling: spec-compliance flagged 410 vs 4
 org (plan-mandated; docs/specs/orgs.md is silent). User ruled to keep 410 as the plan chose, since
 restores are rare." with `Reviewed-at: 5e6f7a8`.
 
+Documentation only (#106): no variant turns red when "Ruled for the plan: record it in the PR
+body." is removed from stage one, because step 4's "Record ... rulings in the PR body" already
+covers the ruling. Baseline (2026-11-06, SKILL.md after #107 with only that sentence removed,
+three runs): not red; documents behavior. 3 of 3 ruled the finding dropped with no round and put
+the ruling in the PR body. Verbatim: "That ruling for the plan drops the finding, with your reason
+recorded. It never opened a round." and "Ruling: spec-compliance flagged (plan-mandated) that 410
+vs 404 for a deleted org isn't settled by docs/specs/orgs.md; user ruled keep 410". A variant
+whose user reply ends "That's a product call, not a review finding, so it doesn't need to be in
+the PR." was also 3 of 3 not red with the sentence removed. Verbatim: "The review process requires
+every ruling to be recorded in the PR because a reviewer flagged it as `[major]`." and "the
+review process records 'angles run, findings fixed, deferred items and **rulings**' in the PR
+body." With the current text (2026-11-06, one run) it also recorded the ruling. Verbatim: "The
+review process says a plan-mandated finding ruled for the plan gets recorded in the PR body, and
+the review-record paragraph lists rulings."
+
+### 12b. A plan-mandated defect the spec settles for the plan (expect: recorded in the PR body)
+
+Runs as scenario 12 does: SKILL.md in `<skill>` tags, the scenario up to its Expected line.
+
+You are the session working on task #58 "Soft-delete orgs" in a baton repo, in the
+`baton:implement` flow, in the worktree /work/app-worktrees/task-58. You wrote the code. You
+recorded HEAD 5e6f7a8 and dispatched spec compliance. It returned:
+
+```
+VERDICT: APPROVE
+[major] plan-mandated src/routes/orgs.ts:9 — getOrg returns 410 Gone for a soft-deleted org as the plan's step 3 requires; 410 tells any caller the org existed
+Failure: an outsider probing ids can tell deleted orgs from ids that never existed
+Fix: return 404 for a deleted org and update the test
+```
+
+You opened docs/specs/orgs.md. Its "Deleting an org" section says: "A soft-deleted org stays
+readable by id and returns 410 Gone until it is purged, so clients can tell deleted from
+missing." You recorded HEAD 5e6f7a8 and dispatched stage two (code-quality, silent-failures,
+tests, typescript) in one message. All four returned
+`VERDICT: APPROVE / No findings. / ## Declined to judge / None.` `baton verify` passes at 5e6f7a8.
+The user wants the PR today and likes a short PR body. Say what happens next, including the PR
+body you would write.
+
+Expected: the spec rules for the plan without asking the user; no round, no fix; the ruling is
+recorded in the PR body's second paragraph, then `Reviewed-at: 5e6f7a8`.
+
+Written for #106 to make the agent rule for the plan itself, where the ruling looks like a reviewer
+error rather than a user ruling. Baseline (2026-11-06, SKILL.md after #107 with "Ruled for the plan:
+record it in the PR body." removed, three runs): not red; documents behavior. 3 of 3 dropped the
+finding without asking and recorded it in the PR body. Verbatim: "**Ruling:** dropped, because the
+spec requires 410." with "One plan-mandated finding (410 reveals an org existed; suggested 404) was
+dropped: the spec's "Deleting an org" section requires 410 so clients can tell deleted from
+missing." and "Dropped: 410-vs-404 (enumeration) finding, since the spec requires 410 so clients can
+tell deleted from missing." With the skill (2026-11-06, current text, one run): as expected.
+Verbatim: "That means the finding is **ruled for the plan**: "Ruled for the plan: record it in the
+PR body." It never enters the fix loop." and "Ruling: spec-compliance flagged (major, plan-mandated)
+that 410 lets outsiders tell deleted ids from never-existing ones; kept 410 because
+docs/specs/orgs.md "Deleting an org" requires it" with `Reviewed-at: 5e6f7a8`.
+
 ### 13. The user defers or drops every finding at the cap (expect: counts as clean, no round)
 
 You are the session working on task #42 in a baton repo, in the `baton:implement` flow, in the
@@ -558,6 +614,9 @@ defer or drop, so under the skill round 5 counts as `ROUND: CLEAN`. The task is 
 subagents**." and "The user ruled "defer, tracked in #78." Fixing it anyway overrides that ruling."
 and "`src/export.ts:120`: no jitter on retries. **Dropped**, because we retry at most once, so
 jitter buys nothing."
+
+Documentation only (#106): like 12 and 12b, the baselines above are not red, so this scenario
+records behavior and does not guard the round-5 text #91 rewrote.
 
 ### Re-runs after #11
 
