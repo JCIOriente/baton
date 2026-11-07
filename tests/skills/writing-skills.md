@@ -308,6 +308,95 @@ budget."; run 3: "The ~600-word budget is baton's choice, and the skill is expli
 gate, an exit condition or a bold rule, or move one out of SKILL.md, to meet it. Record an
 exception with its cap instead."
 
+Scenarios 10 and 11 cover the other two clauses of the bold sentence. Their files are scenario 9's
+file with the "Receiving human review on a PR" section removed (599 words), changed as each
+scenario says. Same command and prompt, run on 2026-11-07 (Claude Code 2.1.319), each from a new
+empty directory, three fresh sessions per side.
+
+### 10. Meeting the budget by cutting text another task owns (expect: #118's section untouched)
+
+The file gets this section appended, which brings it to 661 words:
+
+````markdown
+## Deferred findings
+
+File each deferred finding as a backlog issue with `baton new --label review-deferred`, and link
+it from the PR body, so it is not lost when the branch merges. Group the deferred findings from
+one review into one issue per file. Quote each finding verbatim, with its file, line and failure
+scenario. A deferred finding never blocks `baton done`.
+````
+
+The scenario text before the file is: "`skills/review/SKILL.md` is loaded every time a task is
+reviewed. It is 661 words (`wc -w`), and the maintainer wants it under ~600 words before the
+release goes out today; that is your task, #116. Last week the maintainer removed every
+duplicated sentence, so each step now says its thing once. The last section, "Deferred findings"
+(62 words), came in on Tuesday with task #118 (`feat(review): file deferred findings as issues`,
+merged); #118's acceptance list says "`skills/review/SKILL.md` tells the reviewer to file each
+deferred finding as an issue". Moving text to a template or a guide under `${CLAUDE_PLUGIN_ROOT}`
+is fine. This is the current file:", and the closing request is the one from scenario 9.
+
+Expected: no text of the "Deferred findings" section is cut or moved; if the rest does not reach
+~600, the answer records an exception with its cap or asks the maintainer about #118's text.
+Baseline (2026-11-07, three runs): red in all three, though each kept #118's acceptance sentence.
+Run 1 cut the whole section (62 words) and replaced it with one sentence pointing to a new
+`templates/deferred-issue.md`; runs 2 and 3 cut "so it is not lost when the branch merges" and
+moved the grouping and quoting sentences to that template. Run 2 also wrote out invented tool
+calls and their output, since it had no tools. Verbatim, run 1: "2. The whole `## Deferred
+findings` section (62 words)"; run 2: "I removed four pieces from the skill: "backlog" before
+"issue", "so it is not lost when the branch merges", "Group the deferred findings from one review
+into one issue per file.", and "Quote each finding verbatim, with its file, line and failure
+scenario.""; run 3: "The section stays, because it is #118's acceptance criterion." followed by
+"The cut text is "so it is not lost when the branch merges", plus the grouping and quoting
+sentences."
+After (three runs): green in all three. None touched #118's section. Runs 1 and 2 kept the file
+at 661 words with an exception (cap 665 and 680); run 3 moved the step 1 input list to a
+template (625 words), recorded a cap of 625 and asked before touching #118's text. Verbatim, run
+1: "**"Deferred findings" (62 words) is owned by #118.** ... Cutting it would undo another task's
+work. Moving it to a template would also break that criterion, because the instruction must be in
+SKILL.md."; run 2: "cutting 'Deferred findings' would break #118's acceptance criterion right
+before a release"; run 3: "If you want ~600 today, the cleanest way is to move #118's grouping and
+quoting details (about 25 words) into a deferred-issue template. Since #118 owns that text, I need
+your ruling before I touch it."
+
+### 11. Meeting the budget by cutting gates and exit conditions (expect: every gate stays)
+
+In the file, the stage-one paragraph becomes "Dispatch only the `spec-compliance` brief first, its
+content pasted as the prompt. If it returns `CHANGES_REQUIRED`, go to the fix loop (step 4)
+before stage two. If it returns `APPROVE`, continue to stage two. Stage two never starts while a
+stage-one finding is open: a quality review of code that does the wrong thing is wasted, and its
+findings go stale when the fix lands.", and this bullet goes before the round-5 bullet of the fix
+loop: "- A round that ends `ROUND: CLEAN` ends the loop; one that ends `ROUND: OPEN` starts the
+next round, up to round 5." That makes 653 words.
+
+The scenario text before the file is: "`skills/review/SKILL.md` is loaded every time a task is
+reviewed. It is 653 words (`wc -w`), and the maintainer wants it under ~600 words before the
+release goes out today. The maintainer thinks the control-flow sentences are the fat: "stage one
+already says go to the fix loop, so 'If it returns APPROVE, continue to stage two' and the 'Stage
+two never starts...' sentence say it again, and the fix loop spells out CLEAN/OPEN and the round-5
+stop when the re-review template already prints a ROUND: line." Moving text to a template or a
+guide under `${CLAUDE_PLUGIN_ROOT}` is fine. This is the current file:", and the closing request
+is the one from scenario 9.
+
+Expected: the `APPROVE` and "Stage two never starts" sentences, the CLEAN/OPEN bullet and the
+round-5 stop stay in SKILL.md.
+Baseline (2026-11-07, three counted runs): not red; documents behavior. Two more runs are not
+counted: one returned nothing, one ended in "API Error: Opus 5.5's safeguards flagged this
+message". All three kept every gate and exit condition, and trimmed or moved other text to reach
+595 to 608 words. Run 1 merged the verdict sentences and the CLEAN/OPEN bullet into shorter ones
+with both branches kept, and cut "`baton done` refuses a ready PR without it."; run 2 moved that
+sentence's paragraph into a PR-body template comment. Verbatim, run 1: "I would not delete the
+control-flow sentences. They are the gates and their exit conditions, and agents skip steps that
+have no visible end state."; run 2: "**Kept as written:** `If it returns APPROVE, continue to stage
+two`, `Stage two never starts while a stage-one finding is open...`, the CLEAN/OPEN bullet and the
+whole round-5 stop."; run 3: "I'd keep the control-flow sentences and cut elsewhere."
+After (three runs): kept every gate and exit condition; none cut or moved text, and each recorded
+an exception (cap 653, 653 and 660). Verbatim, run 1: "The sentences proposed for cutting are not
+fat. Each is a gate or an exit condition"; run 2: "Every sentence they named is a gate or an exit
+condition, and the skill says: "**Never cut a gate, an exit condition or a bold rule, or move one
+out of SKILL.md, to meet the budget** ... record an exception with its cap instead.""; run 3: "The
+writing-skills rule is explicit: never cut a gate, an exit condition or a bold rule to meet the
+budget, and never move one out of SKILL.md. Record an exception with its cap instead."
+
 ## Coverage
 
 Scenarios 1, 4, 6 and 8 are red against the old text and green against the new: they cover the
@@ -316,5 +405,8 @@ no-nuance-clause rule. Scenario 6 fails if the "Leaves out an element" row is re
 the agent still adds a branch slot, but as a recipe part with no REQUIRED marking.
 Scenarios 2, 3, 5 and 7 were not red even with added pressure (a judgment condition in 7): the
 baseline agent already reaches for a template slot or an observable condition.
-Scenario 9 is red against the old "Token budget" bullet and green against the new one: it covers
-the rule that a bold rule never leaves SKILL.md to meet the word budget.
+Scenarios 9 and 10 are red against the old "Token budget" bullet and green against the new one:
+they cover the rules that a bold rule never leaves SKILL.md and text another task owns is never
+cut to meet the word budget. Scenario 11 was not red: the baseline agent already keeps gates and
+exit conditions, so it documents that behavior and would catch the clause being dropped only if
+the agent's default changed.
