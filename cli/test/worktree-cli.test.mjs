@@ -595,8 +595,79 @@ test('worktree_clean_keeps_a_worktree_whose_pr_head_was_never_fetched', (t) => {
   gh.setPrs({ 'merged-one': [pr(5, 'MERGED', unknown)] });
   const rows = cleanRows(gh.run(root, 'worktree', 'clean', '--json'));
   assert.deepEqual([rows['merged-one'].state, rows['merged-one'].action], ['unverified', 'keep']);
-  assert.equal(rows['merged-one'].reason, 'PR #5 head deadbee not available locally; run `git fetch`');
+  // The head is missing on the remote too, so the fetch fails and says why.
+  assert.ok(rows['merged-one'].reason.startsWith('PR #5 head deadbee not available locally; run `git fetch origin pull/5/head`; fetch failed: '), rows['merged-one'].reason);
+  assert.match(rows['merged-one'].reason, /pull\/5\/head$/);
   assert.ok(existsSync(merged.path));
+});
+
+/**
+ * Worktree `merged-one` whose branch was deleted on origin after a commit was pushed straight to
+ * refs/pull/5/head, so a plain `git fetch` never brings it. The commit sits on `from`'s tip.
+ */
+function prHeadOnlyAtPullRef(t, from) {
+  const { dir, root, base } = repo(t);
+  const merged = pushedWorktree(root, base, 'merged-one');
+  const other = join(dir, 'other');
+  git(dir, 'clone', '-q', '-b', from, join(dir, 'origin.git'), other);
+  git(other, 'commit', '-q', '--allow-empty', '-m', 'applied suggestion');
+  const prHead = git(other, 'rev-parse', 'HEAD');
+  git(other, 'push', '-q', 'origin', 'HEAD:refs/pull/5/head');
+  git(root, 'push', '-q', 'origin', '--delete', 'merged-one');
+  git(root, 'fetch', '-q', '--prune');
+  return { root, merged, prHead, gh: withFakeGh(dir) };
+}
+
+test('worktree_clean_fetches_a_pr_head_that_exists_only_at_refs_pull', (t) => {
+  const { root, merged, prHead, gh } = prHeadOnlyAtPullRef(t, 'merged-one');
+  gh.setPrs({ 'merged-one': [pr(5, 'MERGED', prHead)] });
+  const rows = cleanRows(gh.run(root, 'worktree', 'clean', '--json'));
+  assert.deepEqual([rows['merged-one'].state, rows['merged-one'].action], ['merged', 'remove']);
+  assert.ok(!existsSync(merged.path));
+});
+
+test('worktree_clean_dry_run_fetches_a_pr_head_and_updates_no_ref', (t) => {
+  const { root, merged, prHead, gh } = prHeadOnlyAtPullRef(t, 'merged-one');
+  gh.setPrs({ 'merged-one': [pr(5, 'MERGED', prHead)] });
+  const refsBefore = git(root, 'for-each-ref');
+  const rows = cleanRows(gh.run(root, 'worktree', 'clean', '--dry-run', '--json'));
+  assert.deepEqual([rows['merged-one'].state, rows['merged-one'].action], ['merged', 'remove']);
+  assert.ok(existsSync(merged.path), 'a dry run removes nothing');
+  assert.equal(git(root, 'for-each-ref'), refsBefore, 'the fetch updates no ref');
+});
+
+test('worktree_clean_keeps_a_worktree_with_commits_missing_from_the_fetched_pr_head', (t) => {
+  // refs/pull/5/head grew from main, so the worktree's own commit isn't in it.
+  const { root, merged, prHead, gh } = prHeadOnlyAtPullRef(t, 'main');
+  gh.setPrs({ 'merged-one': [pr(5, 'MERGED', prHead)] });
+  const rows = cleanRows(gh.run(root, 'worktree', 'clean', '--json'));
+  assert.deepEqual([rows['merged-one'].state, rows['merged-one'].action], ['dirty', 'keep']);
+  assert.ok(existsSync(merged.path));
+});
+
+test('worktree_clean_keeps_a_worktree_whose_pr_head_is_missing_after_a_successful_fetch', (t) => {
+  const { root, merged, gh } = prHeadOnlyAtPullRef(t, 'merged-one');
+  gh.setPrs({ 'merged-one': [pr(5, 'MERGED', 'deadbeef'.repeat(5))] });
+  const rows = cleanRows(gh.run(root, 'worktree', 'clean', '--json'));
+  assert.deepEqual([rows['merged-one'].state, rows['merged-one'].action], ['unverified', 'keep']);
+  assert.equal(rows['merged-one'].reason, 'PR #5 head deadbee not available locally; run `git fetch origin pull/5/head`');
+  assert.ok(existsSync(merged.path));
+});
+
+test('worktree_clean_does_not_fetch_a_pr_head_that_is_already_local', (t) => {
+  const { dir, root, base } = repo(t);
+  const merged = pushedWorktree(root, base, 'merged-one');
+  // Any fetch from origin runs this upload-pack, which logs the call and fails.
+  const fetchLog = join(dir, 'fetch.log');
+  const uploadPack = join(dir, 'failing-upload-pack');
+  writeFileSync(uploadPack, `#!/bin/sh\necho fetched >> ${JSON.stringify(fetchLog)}\nexit 1\n`);
+  chmodSync(uploadPack, 0o755);
+  git(root, 'config', 'remote.origin.uploadpack', uploadPack);
+  const gh = withFakeGh(dir);
+  gh.setPrs({ 'merged-one': [pr(5, 'MERGED', merged.head)] });
+  const rows = cleanRows(gh.run(root, 'worktree', 'clean', '--json'));
+  assert.deepEqual([rows['merged-one'].state, rows['merged-one'].action], ['merged', 'remove']);
+  assert.ok(!existsSync(fetchLog), 'no fetch ran');
 });
 
 test('worktree_clean_keeps_a_no_pr_task_whose_issue_cannot_be_read', (t) => {

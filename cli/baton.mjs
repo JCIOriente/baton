@@ -639,10 +639,22 @@ function cleanDecision(provider, config, w, { here, force }) {
   // The PR head, not the remote branch: a squash merge usually deletes the remote branch.
   // Exit 1 means "not an ancestor"; any other failure means git can't tell, usually because the PR
   // head (a commit added on GitHub) was never fetched. Both keep the worktree, with different reasons.
-  const ancestry = git(['merge-base', '--is-ancestor', 'HEAD', pr.headRefOid], { cwd: w.path, allowFail: true }).code;
+  const isAncestor = () => git(['merge-base', '--is-ancestor', 'HEAD', pr.headRefOid], { cwd: w.path, allowFail: true }).code;
+  let ancestry = isAncestor();
+  // Once the branch is deleted, only refs/pull/<N>/head still reaches the head. Fetching it updates
+  // no ref but FETCH_HEAD, so a dry run does it too and its plan stays accurate.
+  const pullRef = `pull/${pr.number}/head`;
+  let fetched = null;
+  if (ancestry !== 0 && ancestry !== 1) {
+    fetched = git(['fetch', '--quiet', config.git.remote, pullRef], { cwd: w.path, allowFail: true });
+    if (fetched.code === 0) ancestry = isAncestor();
+  }
   if (ancestry === 1) return decide('dirty', 'keep', `commits not in PR #${pr.number}`, prNumber);
   if (ancestry !== 0) {
-    return decide('unverified', 'keep', `PR #${pr.number} head ${pr.headRefOid.slice(0, 7)} not available locally; run \`git fetch\``, prNumber);
+    const hint = `git fetch ${config.git.remote} ${pullRef}`;
+    // A network or auth failure must not look like a head that's missing on the remote.
+    const failure = fetched && fetched.code !== 0 ? `; fetch failed: ${oneLine(fetched.stderr)}` : '';
+    return decide('unverified', 'keep', `PR #${pr.number} head ${pr.headRefOid.slice(0, 7)} not available locally; run \`${hint}\`${failure}`, prNumber);
   }
   if (pr.state === 'MERGED') return decide('merged', 'remove', `PR #${pr.number} merged`, prNumber);
   if (pr.state === 'CLOSED') {
