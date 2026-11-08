@@ -644,13 +644,17 @@ function cleanDecision(provider, config, w, { here, force }) {
   // Once the branch is deleted, only refs/pull/<N>/head still reaches the head. Fetching it updates
   // no ref but FETCH_HEAD, so a dry run does it too and its plan stays accurate.
   const pullRef = `pull/${pr.number}/head`;
-  if (ancestry !== 0 && ancestry !== 1 && git(['fetch', '--quiet', config.git.remote, pullRef], { cwd: w.path, allowFail: true }).code === 0) {
-    ancestry = isAncestor();
+  let fetched = null;
+  if (ancestry !== 0 && ancestry !== 1) {
+    fetched = git(['fetch', '--quiet', config.git.remote, pullRef], { cwd: w.path, allowFail: true });
+    if (fetched.code === 0) ancestry = isAncestor();
   }
   if (ancestry === 1) return decide('dirty', 'keep', `commits not in PR #${pr.number}`, prNumber);
   if (ancestry !== 0) {
     const hint = `git fetch ${config.git.remote} ${pullRef}`;
-    return decide('unverified', 'keep', `PR #${pr.number} head ${pr.headRefOid.slice(0, 7)} not available locally; run \`${hint}\``, prNumber);
+    // A network or auth failure must not look like a head that's missing on the remote.
+    const failure = fetched && fetched.code !== 0 ? `; fetch failed: ${oneLine(fetched.stderr)}` : '';
+    return decide('unverified', 'keep', `PR #${pr.number} head ${pr.headRefOid.slice(0, 7)} not available locally; run \`${hint}\`${failure}`, prNumber);
   }
   if (pr.state === 'MERGED') return decide('merged', 'remove', `PR #${pr.number} merged`, prNumber);
   if (pr.state === 'CLOSED') {
