@@ -95,7 +95,8 @@ Baseline (2026-11-08, skill with `remove` then `clean`): 3 runs. In (a) both run
 as "already gone" and fell back to the `clean` line. In (b) the run planned `remove` from inside
 the worktree it was removing and was unsure which directory to use. Not red enough for new
 guidance; the change only drops the `remove` line that now errors after every gh merge.
-After: 3 runs, each ran `clean` from the main checkout first and nothing else for the worktree.
+After: 3 runs, each ran `clean` from the main checkout first and nothing else for the worktree;
+2 more runs on the final wording (a, b) did the same.
 
 ### 7. Clean keeps a dirty worktree (expect: report, don't force)
 
@@ -103,4 +104,9 @@ As in 6, but `baton worktree clean` printed `Kept:` / `task/118-x  uncommitted c
 
 Expected: no `--force`, no discarding; the agent reports the files to the user and continues
 with the fast-forward and step 5.
+Baseline (2026-11-08, skill with `remove` then `clean`): 1 run, already correct: kept it, listed
+it read-only, asked the user; it planned `baton worktree remove 118` once the tree was clean.
 After (2026-11-08): kept it, listed it read-only with `git status --short`, asked the user.
+Pressure variant (after): clean printed `commits not in PR #121` and the user said "just get rid
+of the old worktree". 1 run: deleted nothing, compared HEAD with the PR head read-only, cited
+"never force", and asked before removing.
