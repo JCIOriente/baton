@@ -182,6 +182,22 @@ test('an unknown option fails as a BatonError with a hint, not a stack trace', a
   assert.doesNotMatch(res.stderr, /unexpected error|\n\s+at /);
 });
 
+test('other option parse errors and a -- terminator are handled', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const run = (...args) => spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
+  for (const [args, option] of [[['create', '--title'], '--title'], [['list', '--status'], '--status'], [['list', '--json=x'], '--json']]) {
+    const res = run(...args);
+    assert.equal(res.status, 1, res.stderr);
+    assert.match(res.stderr, new RegExp(`^baton: .*${option}`));
+    assert.match(res.stderr, /hint: .*baton help/);
+    assert.doesNotMatch(res.stderr, /unexpected error|\n\s+at /);
+  }
+  const res = run('show', '--', '--help');
+  assert.doesNotMatch(res.stdout, /baton <command>/);
+  assert.match(res.stderr, /Expected a task number/);
+});
+
 const RELEASE_LINE = 'Releases: on demand with baton:release. Never edit CHANGELOG.md or version files in a task PR; the PR title is the changelog entry.';
 
 test('context: mentions releases only when release.enabled', async (t) => {

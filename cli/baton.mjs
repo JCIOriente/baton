@@ -127,7 +127,7 @@ function opts(argv, options = {}) {
       allowPositionals: true,
     });
   } catch (err) {
-    if (err.code !== 'ERR_PARSE_ARGS_UNKNOWN_OPTION') throw err;
+    if (!err.code?.startsWith('ERR_PARSE_ARGS_')) throw err;
     throw new BatonError(err.message.split('. ')[0], { hint: 'Run `baton help`.' });
   }
 }
