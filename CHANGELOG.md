@@ -3,6 +3,21 @@
 Generated from PR titles at release by release-please. Versions follow
 [semver](https://semver.org); before 1.0, minor versions may change behavior.
 
+## [0.6.0](https://github.com/JCIOriente/baton/compare/v0.5.0...v0.6.0) (2026-11-08)
+
+
+### Features
+
+* **status:** list named worktrees too, not only task worktrees ([#127](https://github.com/JCIOriente/baton/issues/127)) ([470de8b](https://github.com/JCIOriente/baton/commit/470de8b3af324094984f30e66f7eae9fda82a8c9))
+* **worktree:** add `baton worktree clean` to remove worktrees whose PR is merged or closed ([#121](https://github.com/JCIOriente/baton/issues/121)) ([49e88c1](https://github.com/JCIOriente/baton/commit/49e88c1f652dceccc109b2b2aee0635390e60c21))
+
+
+### Bug Fixes
+
+* **cli:** print help for `--help` on any command and report option errors without a stack trace ([#120](https://github.com/JCIOriente/baton/issues/120)) ([5431902](https://github.com/JCIOriente/baton/commit/54319023708310d6f892c4e321d687f47890024c))
+* **integrate:** clean up with `baton worktree clean` from the main checkout, since gh may already remove the worktree ([#128](https://github.com/JCIOriente/baton/issues/128)) ([5bbf81a](https://github.com/JCIOriente/baton/commit/5bbf81a69bb0598f2cf7e72c3e5258eaf370f352))
+* **worktree:** fetch an unfetched PR head in `worktree clean` instead of giving a hint that can't work ([#126](https://github.com/JCIOriente/baton/issues/126)) ([6152e89](https://github.com/JCIOriente/baton/commit/6152e89c85ef7814864b1645907baa4378df625f))
+
 ## [0.5.0](https://github.com/JCIOriente/baton/compare/v0.4.0...v0.5.0) (2026-11-07)
 
 
