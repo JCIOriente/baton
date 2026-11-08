@@ -114,15 +114,22 @@ async function main() {
   if (!cmd || cmd === '-h' || cmd === '--help' || cmd === 'help') return print(USAGE);
   const fn = commands[cmd];
   if (!fn) throw new BatonError(`Unknown command '${cmd}'`, { hint: 'Run `baton help`.' });
+  const end = rest.indexOf('--');
+  if ((end === -1 ? rest : rest.slice(0, end)).some((a) => a === '-h' || a === '--help')) return print(USAGE);
   await fn(rest);
 }
 
 function opts(argv, options = {}) {
-  return parseArgs({
-    args: argv,
-    options: { json: { type: 'boolean' }, ...options },
-    allowPositionals: true,
-  });
+  try {
+    return parseArgs({
+      args: argv,
+      options: { json: { type: 'boolean' }, ...options },
+      allowPositionals: true,
+    });
+  } catch (err) {
+    if (err.code !== 'ERR_PARSE_ARGS_UNKNOWN_OPTION') throw err;
+    throw new BatonError(err.message.split('. ')[0], { hint: 'Run `baton help`.' });
+  }
 }
 
 function issueArg(positionals, i = 0) {

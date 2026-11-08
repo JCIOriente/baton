@@ -162,6 +162,26 @@ test('the CLI entry point loads and prints help', async () => {
   for (const cmd of ['claim', 'start', 'reviewers', 'done', 'doctor', 'upstream']) assert.match(res.stdout, new RegExp(`\\b${cmd}\\b`));
 });
 
+test('a subcommand answers --help with the usage text', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  for (const args of [['create', '--help'], ['list', '-h'], ['worktree', 'add', '--help']]) {
+    const res = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /baton <command>/);
+  }
+});
+
+test('an unknown option fails as a BatonError with a hint, not a stack trace', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const res = spawnSync(process.execPath, [cli, 'list', '--bogus'], { encoding: 'utf8' });
+  assert.equal(res.status, 1);
+  assert.match(res.stderr, /baton: Unknown option '--bogus'/);
+  assert.match(res.stderr, /hint: .*baton help/);
+  assert.doesNotMatch(res.stderr, /unexpected error|\n\s+at /);
+});
+
 const RELEASE_LINE = 'Releases: on demand with baton:release. Never edit CHANGELOG.md or version files in a task PR; the PR title is the changelog entry.';
 
 test('context: mentions releases only when release.enabled', async (t) => {
