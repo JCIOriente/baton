@@ -564,6 +564,57 @@ test('worktree_clean_fails_and_changes_nothing_without_gh', (t) => {
   assert.equal(git(root, 'worktree', 'list', '--porcelain'), before);
 });
 
+/** A repo with task worktree #12, task worktree #3 and a named worktree `orgs-spec`. */
+function statusRepo(t) {
+  const r = repo(t);
+  git(r.root, 'worktree', 'add', '-q', '-b', 'task/12-x', join(r.base, 'task-12-x'), 'main');
+  git(r.root, 'worktree', 'add', '-q', '-b', 'task/3-y', join(r.base, 'task-3-y'), 'main');
+  git(r.root, 'worktree', 'add', '-q', '-b', 'orgs-spec', join(r.base, 'orgs-spec'), 'main');
+  return r;
+}
+
+test('status_lists_task_worktrees_first_then_named_and_never_the_main_checkout', (t) => {
+  const { root, base } = statusRepo(t);
+  const res = baton(root, 'status');
+  assert.equal(res.status, 0, res.stderr);
+  const lines = res.stdout.split('\n').filter((l) => /^[ *] \S/.test(l));
+  assert.deepEqual(lines, ['  #3 task/3-y', '  #12 task/12-x', '  orgs-spec']);
+  assert.ok(res.stdout.includes(join(base, 'orgs-spec')));
+  assert.ok(!res.stdout.includes(`${root}\n`) && !/\bmain\b/.test(res.stdout));
+});
+
+test('status_json_gives_null_task_for_a_named_worktree', (t) => {
+  const { root, base } = statusRepo(t);
+  const rows = JSON.parse(baton(root, 'status', '--json').stdout);
+  assert.deepEqual(rows.map((r) => r.task), [3, 12, null]);
+  assert.deepEqual(rows[2], { task: null, branch: 'orgs-spec', path: join(base, 'orgs-spec'), current: false, dirty: false });
+});
+
+test('status_marks_the_current_and_uncommitted_worktrees_of_each_kind', (t) => {
+  const { root, base } = statusRepo(t);
+  writeFileSync(join(base, 'task-12-x', 'new.txt'), 'x');
+  writeFileSync(join(base, 'orgs-spec', 'new.txt'), 'x');
+  const res = baton(join(base, 'orgs-spec'), 'status');
+  const lines = res.stdout.split('\n').filter((l) => /^[ *] \S/.test(l));
+  assert.deepEqual(lines, ['  #3 task/3-y', '  #12 task/12-x (uncommitted)', '* orgs-spec (uncommitted)']);
+});
+
+test('status_shows_a_stale_worktree_as_missing_instead_of_failing', (t) => {
+  const { root, base } = statusRepo(t);
+  rmSync(join(base, 'task-12-x'), { recursive: true });
+  rmSync(join(base, 'orgs-spec'), { recursive: true });
+  const res = baton(root, 'status');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /#12 task\/12-x \(missing; baton worktree prune\)/);
+  assert.match(res.stdout, /orgs-spec \(missing; baton worktree prune\)/);
+  assert.equal(JSON.parse(baton(root, 'status', '--json').stdout).find((r) => r.task === 12).dirty, false);
+});
+
+test('status_with_no_linked_worktrees_prints_no_worktrees', (t) => {
+  const { root } = repo(t);
+  assert.equal(baton(root, 'status').stdout.trim(), 'No worktrees.');
+});
+
 test('help_lists_worktree_clean', (t) => {
   const { root } = repo(t);
   const res = baton(root, 'help');
