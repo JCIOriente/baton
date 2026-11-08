@@ -79,12 +79,12 @@ gh pr merge <pr> --squash --delete-branch   # use git.mergeStrategy from config
 Merging with `Closes #N` closes the issue. Then clean up:
 
 ```bash
-baton worktree remove <n>             # refuses if uncommitted changes remain
-baton worktree clean                  # catch-all: also removes worktrees of earlier merged PRs
+baton worktree clean                  # from the main checkout; may already be gone
 git -C <main checkout> branch --show-current
 git -C <main checkout> pull --ff-only # only when the line above printed git.baseBranch
 ```
 
+Report worktrees clean keeps (dirty, unpushed); never force them.
 The fast-forward keeps the config and docs the main checkout serves current. If the main
 checkout is on another branch, don't pull: report it, since the base branch stays behind. If the
 pull can't fast-forward (local commits, uncommitted changes), report that to the user. Never
