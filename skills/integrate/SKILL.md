@@ -80,6 +80,7 @@ Merging with `Closes #N` closes the issue. Then clean up:
 
 ```bash
 baton worktree remove <n>             # refuses if uncommitted changes remain
+baton worktree clean                  # catch-all: also removes worktrees of earlier merged PRs
 git -C <main checkout> branch --show-current
 git -C <main checkout> pull --ff-only # only when the line above printed git.baseBranch
 ```

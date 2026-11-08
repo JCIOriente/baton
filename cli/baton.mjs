@@ -68,6 +68,10 @@ Execution
                                    not a task (spec, plan, docs, config); --setup runs the setup steps
   worktree remove <n|name> [--force]
                                    Remove a task's or a named worktree; the branch is kept
+  worktree clean [--dry-run] [--delete-branch] [--force] [--json]
+                                   Remove worktrees whose PR is merged (closed too with --force); keeps
+                                   open, no-PR, dirty and the current one; --delete-branch drops merged
+                                   local branches
   status                           Local worktrees and the tasks they belong to
 
 Integration
@@ -496,7 +500,12 @@ function createWorktree(root, config, branch) {
 
 function worktree(argv) {
   const [sub, ...rest] = argv;
-  const { values, positionals } = opts(rest, { force: { type: 'boolean' }, setup: { type: 'boolean' } });
+  const { values, positionals } = opts(rest, {
+    force: { type: 'boolean' },
+    setup: { type: 'boolean' },
+    'dry-run': { type: 'boolean' },
+    'delete-branch': { type: 'boolean' },
+  });
   const { root, config } = requireConfig();
   if (sub === 'list' || !sub) {
     const rows = listWorktrees(root).map((w) => ({ ...w, task: issueFromBranch(config, w.branch) }));
@@ -548,7 +557,93 @@ function worktree(argv) {
     git(['worktree', 'prune'], { cwd: root });
     return print('Pruned stale worktree records.');
   }
+  if (sub === 'clean') return cleanWorktrees(root, config, values);
   throw new BatonError(`Unknown worktree subcommand '${sub}'`);
+}
+
+/**
+ * `worktree clean`: removes the worktrees whose PR is merged (or closed, with --force). The whole
+ * plan is made before anything changes, so a gh failure leaves every worktree as it was.
+ */
+function cleanWorktrees(root, config, values) {
+  const provider = getProvider(config, root);
+  const here = currentTop();
+  const plan = listWorktrees(root)
+    .filter((w) => w.path !== root)
+    .map((w) => ({ w, ...cleanDecision(provider, config, w, { here, force: values.force }) }));
+  const dryRun = values['dry-run'];
+  const rows = plan.map(({ w, pr, state, action, reason }) => {
+    const deleteBranch = values['delete-branch'] && state === 'merged';
+    if (!dryRun && (action === 'remove' || action === 'prune')) removeWorktree(root, w);
+    // -D, not -d: after a squash merge git never sees the branch as merged.
+    if (!dryRun && deleteBranch) git(['branch', '-D', w.branch], { cwd: root });
+    const fullReason = state === 'merged' ? `${reason}; branch ${deleteBranch ? 'deleted' : 'kept'}` : reason;
+    return { branch: w.branch, path: w.path, task: issueFromBranch(config, w.branch), pr, state, action, reason: fullReason };
+  });
+  if (values.json) return print(rows);
+  if (!rows.length) return print('No worktrees to clean.');
+  const groups = [
+    [dryRun ? 'Would remove' : 'Removed', ['remove', 'prune']],
+    ['Kept', ['keep']],
+    ['Skipped', ['skip']],
+  ];
+  const lines = [];
+  for (const [heading, actions] of groups) {
+    const members = rows.filter((r) => actions.includes(r.action));
+    if (!members.length) continue;
+    lines.push(`${heading}:`, ...members.map((r) => `  ${r.branch ?? r.path}  ${r.reason}`));
+  }
+  if (dryRun) lines.push('Dry run: nothing changed.');
+  print(lines.join('\n'));
+}
+
+/**
+ * Sorts worktree `w` into exactly one clean-up category. The PR state on GitHub is the signal,
+ * since squash merges hide merged branches from `git branch --merged`. Changes nothing.
+ * @returns {{ pr: number|null, state: string, action: 'remove'|'prune'|'keep'|'skip', reason: string }}
+ */
+function cleanDecision(provider, config, w, { here, force }) {
+  const decide = (state, action, reason, pr = null) => ({ pr, state, action, reason });
+  if (w.path === here) return decide('current', 'keep', 'current worktree');
+  // git refuses to remove or prune a locked worktree.
+  if (w.locked) return decide('locked', 'skip', `locked; \`git worktree unlock ${w.path}\` to let clean see it`);
+  if (isStale(w)) return decide('stale', 'prune', 'folder missing; record cleared');
+  if (!w.branch) return decide('detached', 'skip', 'detached HEAD');
+
+  const pr = fromGithub(() => provider.latestPullRequest(w.branch));
+  const prNumber = pr?.number ?? null;
+  if (hasUncommittedChanges(w.path)) return decide('dirty', 'keep', 'uncommitted changes', prNumber);
+  if (!pr) return decide('no-pr', 'keep', noPrReason(provider, config, w));
+  // The PR head, not the remote branch: a squash merge usually deletes the remote branch.
+  const isInPr = git(['merge-base', '--is-ancestor', 'HEAD', pr.headRefOid], { cwd: w.path, allowFail: true }).code === 0;
+  if (!isInPr) return decide('dirty', 'keep', `commits not in PR #${pr.number}`, prNumber);
+  if (pr.state === 'MERGED') return decide('merged', 'remove', `PR #${pr.number} merged`, prNumber);
+  if (pr.state === 'CLOSED') {
+    return force
+      ? decide('closed', 'remove', `PR #${pr.number} closed without merging`, prNumber)
+      : decide('closed', 'skip', `PR #${pr.number} closed without merging; --force removes it`, prNumber);
+  }
+  return decide('open', 'keep', `PR #${pr.number} open`, prNumber);
+}
+
+function noPrReason(provider, config, w) {
+  const parts = ['no PR'];
+  const task = issueFromBranch(config, w.branch);
+  if (task && fromGithub(() => provider.get(task)).state.toLowerCase() === 'closed') parts.push(`issue #${task} is closed`);
+  const { remote, baseBranch } = config.git;
+  const base = [`${remote}/${baseBranch}`, baseBranch].find((ref) => git(['rev-parse', '--verify', '--quiet', ref], { cwd: w.path, allowFail: true }).code === 0);
+  if (base && git(['rev-list', '--count', `${base}..HEAD`], { cwd: w.path }).stdout === '0') parts.push(`no commits beyond ${base}`);
+  return parts.join('; ');
+}
+
+/** Runs a GitHub lookup for `worktree clean`, turning a gh failure into a hint to log in. */
+function fromGithub(lookup) {
+  try {
+    return lookup();
+  } catch (err) {
+    if (!(err instanceof BatonError)) throw err;
+    throw new BatonError(`Could not read PR state from GitHub: ${err.message}`, { hint: 'Install gh and run `gh auth login`, then retry. Nothing was changed.' });
+  }
 }
 
 function status(argv) {

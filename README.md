@@ -48,7 +48,7 @@ Claude to load it, along with the repo's phases, gates, guide paths and validati
 | Concern | Where it lives |
 |---|---|
 | Shared task state (ownership, status, deps, history) | GitHub Issues: labels, assignees, `Depends on: #N`, claim marker comments |
-| Local execution | Every change happens in a linked worktree. One per task from `baton start <n>` (`../<repo>-worktrees/task-<n>-<slug>`), `setup` and a baseline run on start; one per spec, plan or other non-task change from `baton worktree add <name>`. The main checkout stays on the base branch and only fast-forwards. No shared mutable local files |
+| Local execution | Every change happens in a linked worktree. One per task from `baton start <n>` (`../<repo>-worktrees/task-<n>-<slug>`), `setup` and a baseline run on start; one per spec, plan or other non-task change from `baton worktree add <name>`. `baton worktree clean` removes the ones whose PR is merged, keeping open, no-PR and dirty ones (`--dry-run` previews). The main checkout stays on the base branch and only fast-forwards. No shared mutable local files |
 | Integration | `baton verify` (project-defined commands) -> review (spec compliance, then quality angles) -> `baton done` (PR `Closes #N`) -> merge policy |
 | Learning | `baton:retro` turns review and verification evidence into convention/ADR changes, reviewed like code. Nothing is learned privately |
 | Workflow definition | `.baton/config.json` in each project, falling back to defaults |
