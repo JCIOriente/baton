@@ -446,6 +446,20 @@ function pruneStale(root, w) {
 }
 
 /**
+ * Removes the worktree `w` with `git worktree remove` (`force` discards uncommitted changes), or
+ * only clears its record when the folder is already gone. Returns 'removed' or 'pruned'. The
+ * branch is always kept.
+ */
+function removeWorktree(root, w, { force = false } = {}) {
+  if (isStale(w)) {
+    pruneStale(root, w);
+    return 'pruned';
+  }
+  git(['worktree', 'remove', ...(force ? ['--force'] : []), w.path], { cwd: root });
+  return 'removed';
+}
+
+/**
  * The worktree for `branch` under `worktreeBase`: an existing one is reused, an existing local
  * branch is checked out, otherwise the branch starts from the remote base with no upstream.
  * A stale record for the branch is pruned first, so the worktree is made again.
@@ -522,14 +536,12 @@ function worktree(argv) {
       ? (all.find((w) => issueFromBranch(config, w.branch) === n) ?? all.find((w) => w.branch === slugify(positionals[0])))
       : all.find((w) => w.branch === name);
     if (!wt) throw new BatonError(`No worktree for ${label}`);
-    if (isStale(wt)) {
-      pruneStale(root, wt);
-      return print(`Worktree ${wt.path} was already missing on disk; cleared its record (branch ${wt.branch} kept).`);
-    }
-    if (!values.force && hasUncommittedChanges(wt.path)) {
+    if (!isStale(wt) && !values.force && hasUncommittedChanges(wt.path)) {
       throw new BatonError(`Worktree for ${label} has uncommitted changes`, { hint: 'Commit or discard them, or pass --force.' });
     }
-    git(['worktree', 'remove', ...(values.force ? ['--force'] : []), wt.path], { cwd: root });
+    if (removeWorktree(root, wt, { force: values.force }) === 'pruned') {
+      return print(`Worktree ${wt.path} was already missing on disk; cleared its record (branch ${wt.branch} kept).`);
+    }
     return print(`Removed worktree ${wt.path} (branch ${wt.branch} kept).`);
   }
   if (sub === 'prune') {
