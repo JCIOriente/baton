@@ -72,7 +72,7 @@ Execution
                                    Remove worktrees whose PR is merged (closed too with --force); keeps
                                    open, no-PR, dirty and the current one; --delete-branch drops merged
                                    local branches
-  status                           Local worktrees and the tasks they belong to
+  status                           Local task and named worktrees
 
 Integration
   verify [--only NAME]             Run the project's validation commands in the current checkout
@@ -704,10 +704,15 @@ function status(argv) {
   const { root, config } = requireConfig();
   const here = currentTop();
   const rows = listWorktrees(root)
-    .map((w) => ({ task: issueFromBranch(config, w.branch), branch: w.branch, path: w.path, current: w.path === here, dirty: hasUncommittedChanges(w.path) }))
-    .filter((w) => w.task);
-  if (values.json) return print(rows);
-  print(rows.length ? rows.map((r) => `${r.current ? '*' : ' '} #${r.task} ${r.branch}${r.dirty ? ' (uncommitted)' : ''}\n    ${r.path}`).join('\n') : 'No task worktrees.');
+    .filter((w) => w.path !== root)
+    .map((w) => {
+      const stale = isStale(w);
+      return { task: issueFromBranch(config, w.branch), branch: w.branch, path: w.path, current: w.path === here, dirty: !stale && hasUncommittedChanges(w.path), stale };
+    })
+    .sort((a, b) => (a.task && b.task ? a.task - b.task : a.task ? -1 : b.task ? 1 : (a.branch ?? '(detached)').localeCompare(b.branch ?? '(detached)')));
+  if (values.json) return print(rows.map(({ stale, ...row }) => row));
+  const note = (r) => (r.stale ? ' (missing; baton worktree prune)' : r.dirty ? ' (uncommitted)' : '');
+  print(rows.length ? rows.map((r) => `${r.current ? '*' : ' '} ${r.task ? `#${r.task} ` : ''}${r.branch ?? '(detached)'}${note(r)}\n    ${r.path}`).join('\n') : 'No worktrees.');
 }
 
 // --- Integration ----------------------------------------------------------
