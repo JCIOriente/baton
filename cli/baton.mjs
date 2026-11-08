@@ -68,6 +68,10 @@ Execution
                                    not a task (spec, plan, docs, config); --setup runs the setup steps
   worktree remove <n|name> [--force]
                                    Remove a task's or a named worktree; the branch is kept
+  worktree clean [--dry-run] [--delete-branch] [--force] [--json]
+                                   Remove worktrees whose PR is merged (closed too with --force); keeps
+                                   open, no-PR, dirty and the current one; --delete-branch drops merged
+                                   local branches
   status                           Local worktrees and the tasks they belong to
 
 Integration
@@ -446,6 +450,20 @@ function pruneStale(root, w) {
 }
 
 /**
+ * Removes the worktree `w` with `git worktree remove` (`force` discards uncommitted changes), or
+ * only clears its record when the folder is already gone. Returns 'removed' or 'pruned'. The
+ * branch is always kept.
+ */
+function removeWorktree(root, w, { force = false } = {}) {
+  if (isStale(w)) {
+    pruneStale(root, w);
+    return 'pruned';
+  }
+  git(['worktree', 'remove', ...(force ? ['--force'] : []), w.path], { cwd: root });
+  return 'removed';
+}
+
+/**
  * The worktree for `branch` under `worktreeBase`: an existing one is reused, an existing local
  * branch is checked out, otherwise the branch starts from the remote base with no upstream.
  * A stale record for the branch is pruned first, so the worktree is made again.
@@ -482,7 +500,12 @@ function createWorktree(root, config, branch) {
 
 function worktree(argv) {
   const [sub, ...rest] = argv;
-  const { values, positionals } = opts(rest, { force: { type: 'boolean' }, setup: { type: 'boolean' } });
+  const { values, positionals } = opts(rest, {
+    force: { type: 'boolean' },
+    setup: { type: 'boolean' },
+    'dry-run': { type: 'boolean' },
+    'delete-branch': { type: 'boolean' },
+  });
   const { root, config } = requireConfig();
   if (sub === 'list' || !sub) {
     const rows = listWorktrees(root).map((w) => ({ ...w, task: issueFromBranch(config, w.branch) }));
@@ -522,21 +545,146 @@ function worktree(argv) {
       ? (all.find((w) => issueFromBranch(config, w.branch) === n) ?? all.find((w) => w.branch === slugify(positionals[0])))
       : all.find((w) => w.branch === name);
     if (!wt) throw new BatonError(`No worktree for ${label}`);
-    if (isStale(wt)) {
-      pruneStale(root, wt);
-      return print(`Worktree ${wt.path} was already missing on disk; cleared its record (branch ${wt.branch} kept).`);
-    }
-    if (!values.force && hasUncommittedChanges(wt.path)) {
+    if (!isStale(wt) && !values.force && hasUncommittedChanges(wt.path)) {
       throw new BatonError(`Worktree for ${label} has uncommitted changes`, { hint: 'Commit or discard them, or pass --force.' });
     }
-    git(['worktree', 'remove', ...(values.force ? ['--force'] : []), wt.path], { cwd: root });
+    if (removeWorktree(root, wt, { force: values.force }) === 'pruned') {
+      return print(`Worktree ${wt.path} was already missing on disk; cleared its record (branch ${wt.branch} kept).`);
+    }
     return print(`Removed worktree ${wt.path} (branch ${wt.branch} kept).`);
   }
   if (sub === 'prune') {
     git(['worktree', 'prune'], { cwd: root });
     return print('Pruned stale worktree records.');
   }
+  if (sub === 'clean') return cleanWorktrees(root, config, values);
   throw new BatonError(`Unknown worktree subcommand '${sub}'`);
+}
+
+/**
+ * `worktree clean`: removes the worktrees whose PR is merged (or closed, with --force). The whole
+ * plan is made before anything changes, so a gh failure leaves every worktree as it was.
+ */
+function cleanWorktrees(root, config, values) {
+  const provider = getProvider(config, root);
+  const here = currentTop();
+  const plan = listWorktrees(root)
+    .filter((w) => w.path !== root)
+    .map((w) => ({ w, ...cleanDecision(provider, config, w, { here, force: values.force }) }));
+  const dryRun = values['dry-run'];
+  let hasFailure = false;
+  // Each row is carried out on its own, so one failure still leaves a full report of what changed.
+  const rows = plan.map(({ w, pr, state, action, reason }) => {
+    const row = { branch: w.branch, path: w.path, task: issueFromBranch(config, w.branch), pr, state, action, reason };
+    const isMergedRemoval = state === 'merged' && action === 'remove';
+    const deleteBranch = values['delete-branch'] && isMergedRemoval;
+    if (dryRun) {
+      if (!isMergedRemoval) return row;
+      return { ...row, reason: `${reason}; branch ${deleteBranch ? 'would be deleted' : 'kept'}` };
+    }
+    if (action !== 'remove' && action !== 'prune') return row;
+    try {
+      removeWorktree(root, w);
+    } catch (err) {
+      if (!(err instanceof BatonError)) throw err;
+      hasFailure = true;
+      return { ...row, action: 'skip', reason: `removal failed: ${oneLine(err.message)}` };
+    }
+    if (!isMergedRemoval) return row;
+    if (!deleteBranch) return { ...row, reason: `${reason}; branch kept` };
+    const tip = git(['rev-parse', '--short', `refs/heads/${w.branch}`], { cwd: root }).stdout;
+    // -D, not -d: after a squash merge git never sees the branch as merged.
+    const deleted = git(['branch', '-D', w.branch], { cwd: root, allowFail: true });
+    if (deleted.code !== 0) {
+      hasFailure = true;
+      return { ...row, reason: `${reason}; branch deletion failed: ${oneLine(deleted.stderr)}` };
+    }
+    return { ...row, reason: `${reason}; branch deleted (was ${tip})` };
+  });
+  if (hasFailure) process.exitCode = 1;
+  if (values.json) return print(rows);
+  if (!rows.length) return print('No worktrees to clean.');
+  const groups = [
+    [dryRun ? 'Would remove' : 'Removed', ['remove', 'prune']],
+    ['Kept', ['keep']],
+    ['Skipped', ['skip']],
+  ];
+  const lines = [];
+  for (const [heading, actions] of groups) {
+    const members = rows.filter((r) => actions.includes(r.action));
+    if (!members.length) continue;
+    lines.push(`${heading}:`, ...members.map((r) => `  ${r.branch ?? r.path}  ${r.reason}`));
+  }
+  if (dryRun) lines.push('Dry run: nothing changed.');
+  print(lines.join('\n'));
+}
+
+/**
+ * Sorts worktree `w` into exactly one clean-up category. The PR state on GitHub is the signal,
+ * since squash merges hide merged branches from `git branch --merged`. Changes nothing.
+ * @returns {{ pr: number|null, state: string, action: 'remove'|'prune'|'keep'|'skip', reason: string }}
+ */
+function cleanDecision(provider, config, w, { here, force }) {
+  const decide = (state, action, reason, pr = null) => ({ pr, state, action, reason });
+  if (w.path === here) return decide('current', 'keep', 'current worktree');
+  // git refuses to remove or prune a locked worktree.
+  if (w.locked) return decide('locked', 'skip', `locked; \`git worktree unlock ${w.path}\` to let clean see it`);
+  if (isStale(w)) return decide('stale', 'prune', 'folder missing; record cleared');
+  if (!w.branch) return decide('detached', 'skip', 'detached HEAD');
+
+  const pr = fromGithub(() => provider.latestPullRequest(w.branch));
+  const prNumber = pr?.number ?? null;
+  if (hasUncommittedChanges(w.path)) return decide('dirty', 'keep', 'uncommitted changes', prNumber);
+  if (!pr) return decide('no-pr', 'keep', noPrReason(provider, config, w));
+  // The PR head, not the remote branch: a squash merge usually deletes the remote branch.
+  // Exit 1 means "not an ancestor"; any other failure means git can't tell, usually because the PR
+  // head (a commit added on GitHub) was never fetched. Both keep the worktree, with different reasons.
+  const ancestry = git(['merge-base', '--is-ancestor', 'HEAD', pr.headRefOid], { cwd: w.path, allowFail: true }).code;
+  if (ancestry === 1) return decide('dirty', 'keep', `commits not in PR #${pr.number}`, prNumber);
+  if (ancestry !== 0) {
+    return decide('unverified', 'keep', `PR #${pr.number} head ${pr.headRefOid.slice(0, 7)} not available locally; run \`git fetch\``, prNumber);
+  }
+  if (pr.state === 'MERGED') return decide('merged', 'remove', `PR #${pr.number} merged`, prNumber);
+  if (pr.state === 'CLOSED') {
+    return force
+      ? decide('closed', 'remove', `PR #${pr.number} closed without merging`, prNumber)
+      : decide('closed', 'skip', `PR #${pr.number} closed without merging; --force removes it`, prNumber);
+  }
+  return decide('open', 'keep', `PR #${pr.number} open`, prNumber);
+}
+
+function noPrReason(provider, config, w) {
+  const parts = ['no PR'];
+  const task = issueFromBranch(config, w.branch);
+  if (task && isIssueClosed(provider, task)) parts.push(`issue #${task} is closed`);
+  const { remote, baseBranch } = config.git;
+  const base = [`${remote}/${baseBranch}`, baseBranch].find((ref) => git(['rev-parse', '--verify', '--quiet', ref], { cwd: w.path, allowFail: true }).code === 0);
+  if (base && git(['rev-list', '--count', `${base}..HEAD`], { cwd: w.path }).stdout === '0') parts.push(`no commits beyond ${base}`);
+  return parts.join('; ');
+}
+
+/** False when the issue can't be read (deleted, transferred): it only adds detail to a kept row. */
+function isIssueClosed(provider, task) {
+  try {
+    return provider.get(task).state.toLowerCase() === 'closed';
+  } catch (err) {
+    if (!(err instanceof BatonError)) throw err;
+    return false;
+  }
+}
+
+function oneLine(text) {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/** Runs a GitHub lookup for `worktree clean`, turning a gh failure into a hint to log in. */
+function fromGithub(lookup) {
+  try {
+    return lookup();
+  } catch (err) {
+    if (!(err instanceof BatonError)) throw err;
+    throw new BatonError(`Could not read PR state from GitHub: ${err.message}`, { hint: 'Install gh and run `gh auth login`, then retry. Nothing was changed.' });
+  }
 }
 
 function status(argv) {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -30,26 +30,37 @@ function baton(cwd, ...args) {
 
 /**
  * A fake `gh` first on PATH: it logs each call to <dir>/gh.log and answers as user `me`, who
- * already holds the claim on any issue `issue view` asks for (titled `title`).
+ * already holds the claim on any issue `issue view` asks for (titled `title`). `pr list --head B`
+ * answers with `prs[B]` (none by default), read on every call so `setPrs` can change it after the
+ * commits exist. `issue view N` takes its state from `issueStates[N]`, and fails like gh on a
+ * missing issue for a number in `missingIssues`. With `loggedOut`, every call fails the way gh
+ * does without a login.
  */
-function withFakeGh(dir, { title = 'Task' } = {}) {
+function withFakeGh(dir, { title = 'Task', issueStates = {}, missingIssues = [], loggedOut = false } = {}) {
   const bin = join(dir, 'bin');
   mkdirSync(bin, { recursive: true });
   const log = join(dir, 'gh.log');
+  const prsFile = join(dir, 'gh-prs.json');
+  writeFileSync(prsFile, '{}');
   const issue = { number: 12, title, body: '', state: 'OPEN', assignees: [], labels: [], url: '', comments: [{ author: { login: 'me' }, body: '<!-- baton:claim user=me nonce=abc -->' }] };
   writeFileSync(
     join(bin, 'gh'),
     `#!${process.execPath}
+const fs = require('fs');
 const a = process.argv.slice(2);
-require('fs').appendFileSync(${JSON.stringify(log)}, a.join(' ') + '\\n');
+fs.appendFileSync(${JSON.stringify(log)}, a.join(' ') + '\\n');
+if (${loggedOut}) { console.error('To get started with GitHub CLI, please run:  gh auth login'); process.exit(4); }
 if (a[0] === 'api') console.log('me');
 else if (a[0] === 'issue' && a[1] === 'list') console.log('[]');
-else if (a[0] === 'issue' && a[1] === 'view') console.log(${JSON.stringify(JSON.stringify(issue))});
+else if (a[0] === 'issue' && a[1] === 'view' && ${JSON.stringify(missingIssues.map(String))}.includes(a[2])) { console.error('GraphQL: Could not resolve to an issue or pull request'); process.exit(1); }
+else if (a[0] === 'issue' && a[1] === 'view') console.log(JSON.stringify({ ...${JSON.stringify(issue)}, number: Number(a[2]), state: ${JSON.stringify(issueStates)}[a[2]] ?? 'OPEN' }));
+else if (a[0] === 'pr' && a[1] === 'list') console.log(JSON.stringify(JSON.parse(fs.readFileSync(${JSON.stringify(prsFile)}, 'utf8'))[a[a.indexOf('--head') + 1]] ?? []));
 `,
   );
   chmodSync(join(bin, 'gh'), 0o755);
   return {
     log: () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : []),
+    setPrs: (prs) => writeFileSync(prsFile, JSON.stringify(prs)),
     run: (cwd, ...args) => spawnSync(process.execPath, [cli, ...args], { cwd, env: { ...env, PATH: `${bin}:${env.PATH}` }, encoding: 'utf8' }),
   };
 }
@@ -365,4 +376,286 @@ test('worktree_remove_reports_a_locked_worktree_whose_directory_is_gone', (t) =>
   assert.notEqual(res.status, 0);
   assert.doesNotMatch(res.stdout, /cleared its record/);
   assert.match(res.stderr, /git worktree unlock/);
+});
+
+/** A worktree on branch `name` with one commit pushed to origin. */
+function pushedWorktree(root, base, name) {
+  assert.equal(baton(root, 'worktree', 'add', name).status, 0);
+  const path = join(base, name);
+  git(path, 'commit', '-q', '--allow-empty', '-m', name);
+  git(path, 'push', '-q', '-u', 'origin', name);
+  return { path, head: git(path, 'rev-parse', 'HEAD') };
+}
+
+function pr(number, state, headRefOid) {
+  return { number, state, url: `https://github.com/acme/acme/pull/${number}`, headRefOid };
+}
+
+function cleanRows(res) {
+  assert.equal(res.status, 0, res.stderr);
+  return Object.fromEntries(JSON.parse(res.stdout).map((r) => [r.branch, r]));
+}
+
+test('worktree_clean_removes_merged_worktrees_and_keeps_their_branches', (t) => {
+  const { dir, root, base } = repo(t);
+  const plan = pushedWorktree(root, base, 'app-shell-plan');
+  const spike = pushedWorktree(root, base, 'spike-spec');
+  // A squash merge deletes the remote branch; the PR head still matches the local branch.
+  git(root, 'push', '-q', 'origin', '--delete', 'spike-spec');
+  git(root, 'fetch', '-q', '--prune');
+  const gh = withFakeGh(dir);
+  // Several PRs for one branch: the newest decides, whatever order gh lists them in.
+  gh.setPrs({ 'app-shell-plan': [pr(3, 'CLOSED', plan.head), pr(5, 'MERGED', plan.head)], 'spike-spec': [pr(11, 'MERGED', spike.head)] });
+  const res = gh.run(root, 'worktree', 'clean');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /^Removed:\n/);
+  assert.match(res.stdout, /app-shell-plan.*PR #5 merged/);
+  assert.match(res.stdout, /spike-spec.*PR #11 merged/);
+  assert.ok(!existsSync(plan.path) && !existsSync(spike.path), 'both worktrees are gone');
+  assert.equal(git(root, 'branch', '--list', 'app-shell-plan', 'spike-spec'), 'app-shell-plan\n  spike-spec', 'the branches are kept');
+  assert.ok(gh.log().includes('pr list --head app-shell-plan --state all --json number,state,url,headRefOid'), gh.log().join('\n'));
+});
+
+test('worktree_clean_delete_branch_deletes_only_merged_local_branches', (t) => {
+  const { dir, root, base } = repo(t);
+  const merged = pushedWorktree(root, base, 'merged-one');
+  const closed = pushedWorktree(root, base, 'closed-one');
+  const gh = withFakeGh(dir);
+  gh.setPrs({ 'merged-one': [pr(5, 'MERGED', merged.head)], 'closed-one': [pr(6, 'CLOSED', closed.head)] });
+  const res = gh.run(root, 'worktree', 'clean', '--delete-branch', '--force');
+  assert.equal(res.status, 0, res.stderr);
+  assert.ok(!existsSync(merged.path) && !existsSync(closed.path));
+  assert.equal(git(root, 'branch', '--list', 'merged-one'), '', 'the merged branch is deleted');
+  assert.equal(git(root, 'branch', '--list', 'closed-one'), 'closed-one', 'the closed branch is kept');
+  assert.match(git(root, 'ls-remote', '--heads', 'origin', 'merged-one'), /merged-one/, 'the remote branch is untouched');
+});
+
+test('worktree_clean_keeps_open_and_no_pr_worktrees_even_with_force', (t) => {
+  const { dir, root, base } = repo(t);
+  const open = pushedWorktree(root, base, 'open-one');
+  const task = join(base, 'task-9-x');
+  git(root, 'worktree', 'add', '-q', '-b', 'task/9-x', task, 'main');
+  const gh = withFakeGh(dir, { issueStates: { 9: 'CLOSED' } });
+  gh.setPrs({ 'open-one': [pr(27, 'OPEN', open.head)] });
+  const rows = cleanRows(gh.run(root, 'worktree', 'clean', '--force', '--json'));
+  assert.equal(rows['open-one'].state, 'open');
+  assert.equal(rows['open-one'].action, 'keep');
+  assert.equal(rows['task/9-x'].state, 'no-pr');
+  assert.equal(rows['task/9-x'].action, 'keep');
+  assert.equal(rows['task/9-x'].task, 9);
+  assert.match(rows['task/9-x'].reason, /issue #9 is closed/);
+  assert.match(rows['task/9-x'].reason, /no commits beyond origin\/main/);
+  assert.ok(existsSync(open.path) && existsSync(task));
+});
+
+test('worktree_clean_removes_a_closed_pr_worktree_only_with_force', (t) => {
+  const { dir, root, base } = repo(t);
+  const closed = pushedWorktree(root, base, 'closed-one');
+  const gh = withFakeGh(dir);
+  gh.setPrs({ 'closed-one': [pr(6, 'CLOSED', closed.head)] });
+  const plain = gh.run(root, 'worktree', 'clean');
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.match(plain.stdout, /Skipped:\n.*closed-one.*--force/);
+  assert.ok(existsSync(closed.path), 'kept without --force');
+  const forced = gh.run(root, 'worktree', 'clean', '--force');
+  assert.equal(forced.status, 0, forced.stderr);
+  assert.ok(!existsSync(closed.path), 'removed with --force');
+  assert.equal(git(root, 'branch', '--list', 'closed-one'), 'closed-one');
+});
+
+test('worktree_clean_keeps_dirty_and_unpushed_worktrees_even_with_force', (t) => {
+  const { dir, root, base } = repo(t);
+  const dirty = pushedWorktree(root, base, 'dirty-one');
+  writeFileSync(join(dirty.path, 'draft.md'), 'wip\n');
+  const unpushed = pushedWorktree(root, base, 'unpushed-one');
+  git(unpushed.path, 'commit', '-q', '--allow-empty', '-m', 'after the merge');
+  // The remote branch is gone too, so the PR head is the only record of what was pushed.
+  git(root, 'push', '-q', 'origin', '--delete', 'unpushed-one');
+  git(root, 'fetch', '-q', '--prune');
+  const gh = withFakeGh(dir);
+  gh.setPrs({ 'dirty-one': [pr(5, 'MERGED', dirty.head)], 'unpushed-one': [pr(6, 'MERGED', unpushed.head)] });
+  const rows = cleanRows(gh.run(root, 'worktree', 'clean', '--force', '--delete-branch', '--json'));
+  assert.deepEqual([rows['dirty-one'].state, rows['dirty-one'].action], ['dirty', 'keep']);
+  assert.match(rows['dirty-one'].reason, /uncommitted/);
+  assert.deepEqual([rows['unpushed-one'].state, rows['unpushed-one'].action], ['dirty', 'keep']);
+  assert.match(rows['unpushed-one'].reason, /not in PR #6/);
+  assert.ok(existsSync(dirty.path) && existsSync(unpushed.path));
+  assert.equal(git(root, 'branch', '--list', '--format=%(refname:short)', 'unpushed-one'), 'unpushed-one');
+});
+
+test('worktree_clean_prunes_a_stale_record', (t) => {
+  const { dir, root, base } = repo(t);
+  assert.equal(baton(root, 'worktree', 'add', 'gone').status, 0);
+  rmSync(join(base, 'gone'), { recursive: true, force: true });
+  const rows = cleanRows(withFakeGh(dir).run(root, 'worktree', 'clean', '--json'));
+  assert.deepEqual([rows.gone.state, rows.gone.action], ['stale', 'prune']);
+  assert.ok(!git(root, 'worktree', 'list', '--porcelain').includes('gone'), 'the stale record is gone');
+  assert.equal(git(root, 'branch', '--list', 'gone'), 'gone', 'the branch is kept');
+});
+
+test('worktree_clean_dry_run_changes_nothing', (t) => {
+  const { dir, root, base } = repo(t);
+  const merged = pushedWorktree(root, base, 'merged-one');
+  assert.equal(baton(root, 'worktree', 'add', 'gone').status, 0);
+  rmSync(join(base, 'gone'), { recursive: true, force: true });
+  const gh = withFakeGh(dir);
+  gh.setPrs({ 'merged-one': [pr(5, 'MERGED', merged.head)] });
+  const before = git(root, 'worktree', 'list', '--porcelain');
+  const res = gh.run(root, 'worktree', 'clean', '--dry-run', '--delete-branch');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /^Would remove:\n/);
+  assert.match(res.stdout, /merged-one {2}PR #5 merged; branch would be deleted$/m);
+  assert.match(res.stdout, /gone/);
+  assert.equal(git(root, 'worktree', 'list', '--porcelain'), before, 'no worktree or record changed');
+  assert.ok(existsSync(merged.path));
+  assert.equal(git(root, 'branch', '--list', '--format=%(refname:short)', 'merged-one'), 'merged-one');
+});
+
+test('worktree_clean_json_rows_have_a_fixed_shape', (t) => {
+  const { dir, root, base } = repo(t);
+  const merged = pushedWorktree(root, base, 'merged-one');
+  const gh = withFakeGh(dir);
+  gh.setPrs({ 'merged-one': [pr(5, 'MERGED', merged.head)] });
+  const res = gh.run(root, 'worktree', 'clean', '--json');
+  assert.equal(res.status, 0, res.stderr);
+  assert.deepEqual(JSON.parse(res.stdout), [
+    { branch: 'merged-one', path: merged.path, task: null, pr: 5, state: 'merged', action: 'remove', reason: 'PR #5 merged; branch kept' },
+  ]);
+});
+
+test('worktree_clean_never_removes_the_current_worktree_or_the_main_checkout', (t) => {
+  const { dir, root, base } = repo(t);
+  const here = pushedWorktree(root, base, 'here');
+  const other = pushedWorktree(root, base, 'other');
+  const gh = withFakeGh(dir);
+  gh.setPrs({ here: [pr(5, 'MERGED', here.head)], other: [pr(6, 'MERGED', other.head)] });
+  const rows = cleanRows(gh.run(here.path, 'worktree', 'clean', '--json'));
+  assert.deepEqual(Object.keys(rows).sort(), ['here', 'other'], 'the main checkout is not listed');
+  assert.deepEqual([rows.here.state, rows.here.action, rows.here.reason], ['current', 'keep', 'current worktree']);
+  assert.ok(existsSync(here.path), 'the current worktree is kept');
+  assert.ok(!existsSync(other.path), 'the other merged worktree is removed');
+});
+
+test('worktree_clean_fails_and_changes_nothing_when_gh_is_logged_out', (t) => {
+  const { dir, root, base } = repo(t);
+  pushedWorktree(root, base, 'merged-one');
+  assert.equal(baton(root, 'worktree', 'add', 'gone').status, 0);
+  rmSync(join(base, 'gone'), { recursive: true, force: true });
+  const before = git(root, 'worktree', 'list', '--porcelain');
+  const res = withFakeGh(dir, { loggedOut: true }).run(root, 'worktree', 'clean');
+  assert.equal(res.status, 1);
+  assert.match(res.stderr, /gh auth login/);
+  assert.match(res.stderr, /^hint: /m);
+  assert.equal(git(root, 'worktree', 'list', '--porcelain'), before, 'nothing changed, not even the stale record');
+});
+
+test('worktree_clean_fails_and_changes_nothing_without_gh', (t) => {
+  const { dir, root, base } = repo(t);
+  pushedWorktree(root, base, 'merged-one');
+  // Only git on PATH, so no gh can be found.
+  const bin = join(dir, 'git-only');
+  mkdirSync(bin);
+  symlinkSync(spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim(), join(bin, 'git'));
+  const before = git(root, 'worktree', 'list', '--porcelain');
+  const res = spawnSync(process.execPath, [cli, 'worktree', 'clean'], { cwd: root, env: { ...env, PATH: bin }, encoding: 'utf8' });
+  assert.equal(res.status, 1);
+  assert.match(res.stderr, /'gh' not found/);
+  assert.match(res.stderr, /^hint: /m);
+  assert.equal(git(root, 'worktree', 'list', '--porcelain'), before);
+});
+
+test('help_lists_worktree_clean', (t) => {
+  const { root } = repo(t);
+  const res = baton(root, 'help');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /worktree clean \[--dry-run\] \[--delete-branch\] \[--force\] \[--json\]/);
+});
+
+test('worktree_clean_skips_locked_and_detached_worktrees', (t) => {
+  const { dir, root, base } = repo(t);
+  const locked = pushedWorktree(root, base, 'locked-one');
+  git(root, 'worktree', 'lock', locked.path);
+  const detached = join(base, 'detached');
+  git(root, 'worktree', 'add', '-q', '--detach', detached, 'main');
+  const gh = withFakeGh(dir);
+  gh.setPrs({ 'locked-one': [pr(5, 'MERGED', locked.head)] });
+  const res = gh.run(root, 'worktree', 'clean', '--force', '--json');
+  assert.equal(res.status, 0, res.stderr);
+  const rows = JSON.parse(res.stdout);
+  assert.deepEqual(rows.map((r) => [r.branch, r.state, r.action]), [[null, 'detached', 'skip'], ['locked-one', 'locked', 'skip']]);
+  assert.ok(existsSync(locked.path) && existsSync(detached));
+});
+
+test('worktree_clean_keeps_a_worktree_whose_pr_head_was_never_fetched', (t) => {
+  const { dir, root, base } = repo(t);
+  const merged = pushedWorktree(root, base, 'merged-one');
+  // A commit added on GitHub (an applied suggestion) that this clone never fetched.
+  const unknown = 'deadbeef'.repeat(5);
+  const gh = withFakeGh(dir);
+  gh.setPrs({ 'merged-one': [pr(5, 'MERGED', unknown)] });
+  const rows = cleanRows(gh.run(root, 'worktree', 'clean', '--json'));
+  assert.deepEqual([rows['merged-one'].state, rows['merged-one'].action], ['unverified', 'keep']);
+  assert.equal(rows['merged-one'].reason, 'PR #5 head deadbee not available locally; run `git fetch`');
+  assert.ok(existsSync(merged.path));
+});
+
+test('worktree_clean_keeps_a_no_pr_task_whose_issue_cannot_be_read', (t) => {
+  const { dir, root, base } = repo(t);
+  const task = join(base, 'task-999-x');
+  git(root, 'worktree', 'add', '-q', '-b', 'task/999-x', task, 'main');
+  const rows = cleanRows(withFakeGh(dir, { missingIssues: [999] }).run(root, 'worktree', 'clean', '--json'));
+  assert.deepEqual([rows['task/999-x'].state, rows['task/999-x'].action], ['no-pr', 'keep']);
+  assert.equal(rows['task/999-x'].reason, 'no PR; no commits beyond origin/main');
+});
+
+test('worktree_clean_reports_every_row_when_one_removal_fails', (t) => {
+  const { dir, root, base } = repo(t);
+  const first = pushedWorktree(root, base, 'a-first');
+  assert.equal(baton(root, 'worktree', 'add', 'b-broken').status, 0);
+  const broken = join(base, 'b-broken');
+  mkdirSync(join(broken, 'locked'));
+  writeFileSync(join(broken, 'locked', 'file.txt'), 'x\n');
+  git(broken, 'add', '-A');
+  git(broken, 'commit', '-qm', 'b-broken');
+  git(broken, 'push', '-q', '-u', 'origin', 'b-broken');
+  const third = pushedWorktree(root, base, 'c-third');
+  const firstTip = git(root, 'rev-parse', '--short', 'a-first');
+  const gh = withFakeGh(dir);
+  gh.setPrs({
+    'a-first': [pr(5, 'MERGED', first.head)],
+    'b-broken': [pr(6, 'MERGED', git(broken, 'rev-parse', 'HEAD'))],
+    'c-third': [pr(7, 'MERGED', third.head)],
+  });
+  // A folder git can't empty makes `git worktree remove` fail on this worktree only.
+  chmodSync(join(broken, 'locked'), 0o555);
+  let res;
+  try {
+    res = gh.run(root, 'worktree', 'clean', '--delete-branch', '--json');
+  } finally {
+    chmodSync(join(broken, 'locked'), 0o755);
+  }
+  assert.equal(res.status, 1, res.stderr);
+  const rows = Object.fromEntries(JSON.parse(res.stdout).map((r) => [r.branch, r]));
+  assert.deepEqual([rows['a-first'].action, rows['a-first'].reason], ['remove', `PR #5 merged; branch deleted (was ${firstTip})`]);
+  assert.equal(rows['b-broken'].action, 'skip');
+  assert.match(rows['b-broken'].reason, /^removal failed: /);
+  assert.equal(rows['c-third'].action, 'remove', 'later rows still run');
+  assert.ok(!existsSync(first.path) && !existsSync(third.path));
+  assert.equal(git(root, 'branch', '--list', 'a-first'), '', 'the first branch is deleted');
+  assert.equal(git(root, 'branch', '--list', '--format=%(refname:short)', 'b-broken'), 'b-broken', 'the failed one keeps its branch');
+});
+
+test('worktree_clean_text_lists_kept_worktrees_and_the_newest_pr_decides', (t) => {
+  const { dir, root, base } = repo(t);
+  // Reopened as a new PR after an older one merged: the newest (#5, open) decides, even listed first.
+  const reopened = pushedWorktree(root, base, 'reopened');
+  const task = join(base, 'task-10-y');
+  git(root, 'worktree', 'add', '-q', '-b', 'task/10-y', task, 'main');
+  git(task, 'commit', '-q', '--allow-empty', '-m', 'work');
+  const gh = withFakeGh(dir);
+  gh.setPrs({ reopened: [pr(5, 'OPEN', reopened.head), pr(3, 'MERGED', reopened.head)] });
+  const res = gh.run(root, 'worktree', 'clean');
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(res.stdout, 'Kept:\n  reopened  PR #5 open\n  task/10-y  no PR\n');
+  assert.ok(existsSync(reopened.path) && existsSync(task));
 });

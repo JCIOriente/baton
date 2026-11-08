@@ -142,6 +142,12 @@ export class GithubProvider {
     const prs = this.ghJson(['pr', 'list', ...this.repoArgs, '--head', branch, '--state', 'open', '--json', 'number,url,title']);
     return prs[0] ?? null;
   }
+
+  /** The newest PR (highest number) from `branch` in any state, with its head commit, or null. */
+  latestPullRequest(branch) {
+    const prs = this.ghJson(['pr', 'list', ...this.repoArgs, '--head', branch, '--state', 'all', '--json', 'number,state,url,headRefOid']) ?? [];
+    return prs.reduce((newest, pr) => (!newest || pr.number > newest.number ? pr : newest), null);
+  }
 }
 
 export function getProvider(config, root) {
