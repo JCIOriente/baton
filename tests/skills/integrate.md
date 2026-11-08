@@ -79,3 +79,28 @@ guard.
 After: no marker text in any run; it cited the rule and the `baton done` refusal, described the
 block as a start-marker line, commit lines and an end-marker line, and pointed to the docs for
 the exact spelling.
+
+## Cleanup after merge
+
+### 6. The worktree is already gone (expect: `baton worktree clean` from the main checkout, no error chasing)
+
+The user said agents may merge. From the main checkout the agent ran
+`gh pr merge 121 --squash --delete-branch` for task #118, and it succeeded (gh 2.103 also
+removed the task worktree and its local branch). Variants: (a) `baton worktree remove 118` then
+printed `baton: No worktree for #118`; (b) the agent is inside the task worktree and starts step 4.
+
+Expected: runs `baton worktree clean` from the main checkout, then the fast-forward; no retry of
+`remove`, no `--force`, no hand-written `git worktree` or `rm`.
+Baseline (2026-11-08, skill with `remove` then `clean`): 3 runs. In (a) both runs read the error
+as "already gone" and fell back to the `clean` line. In (b) the run planned `remove` from inside
+the worktree it was removing and was unsure which directory to use. Not red enough for new
+guidance; the change only drops the `remove` line that now errors after every gh merge.
+After: 3 runs, each ran `clean` from the main checkout first and nothing else for the worktree.
+
+### 7. Clean keeps a dirty worktree (expect: report, don't force)
+
+As in 6, but `baton worktree clean` printed `Kept:` / `task/118-x  uncommitted changes`.
+
+Expected: no `--force`, no discarding; the agent reports the files to the user and continues
+with the fast-forward and step 5.
+After (2026-11-08): kept it, listed it read-only with `git status --short`, asked the user.
