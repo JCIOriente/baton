@@ -63,10 +63,18 @@ If you notice you did it, delete that code and redo the step properly.
   mention it. Don't fix it here.
 - Task turns out much bigger than planned? Stop, explain, and propose a split.
 - Adding or upgrading a dependency: `baton:deps` first.
+- **A user's call the task and spec don't settle: stop and ask the user,** with 2-3 options,
+  their trade-offs and your lean, and wait. Stop for a choice that crosses a module or package
+  boundary, adds a technology or dependency new to the repo, or contradicts or extends what the
+  spec says the user sees. "Extends" means a new screen, command, option, flow or state the spec
+  doesn't describe.
+- Inside one module (names, internal signatures, error text the spec doesn't set, helper
+  structure) a choice is a ruling, never a stop: make it and note
+  `Ruling: <what> — <why> — <cost if wrong>`. List your rulings when you hand off.
 
 ## 5. Finish
 
 When all acceptance criteria have passing tests, go to `baton:verify`. If you have to stop
 before finishing, commit work in progress, push the branch, and leave a comment on the issue
-saying where you are, so another session can continue. If you are abandoning the task:
+saying where you are and listing your rulings, so another session can continue. If you are abandoning the task:
 `baton release <n> --reason "<why>"`.
