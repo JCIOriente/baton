@@ -3,6 +3,17 @@
 Generated from PR titles at release by release-please. Versions follow
 [semver](https://semver.org); before 1.0, minor versions may change behavior.
 
+## [0.7.0](https://github.com/JCIOriente/baton/compare/v0.6.0...v0.7.0) (2026-11-14)
+
+
+### Features
+
+* **context:** make the user's-call rule always on ([#144](https://github.com/JCIOriente/baton/issues/144)) ([6788446](https://github.com/JCIOriente/baton/commit/67884462a6d049232e65d22b145b32948cf79419))
+* **implement:** stop for a user's call and log every other choice as a ruling ([#148](https://github.com/JCIOriente/baton/issues/148)) ([664b17a](https://github.com/JCIOriente/baton/commit/664b17aa1c3163e8ab59c514632343ec160704fb))
+* **integrate:** list implementation rulings in the PR body ([#149](https://github.com/JCIOriente/baton/issues/149)) ([57989f7](https://github.com/JCIOriente/baton/commit/57989f7f97ebbef5c26480cee3c1d5f7245e4de8))
+* **plan:** ask to approve the plan and choose how to run it ([#146](https://github.com/JCIOriente/baton/issues/146)) ([c1e42ef](https://github.com/JCIOriente/baton/commit/c1e42ef5468a0c705e25830bbceddcde8e499cdb))
+* **spec:** ask the user to pick an approach before writing anything ([#147](https://github.com/JCIOriente/baton/issues/147)) ([c22ca65](https://github.com/JCIOriente/baton/commit/c22ca65a03b908361c62618536d49dc559b7978a))
+
 ## [0.6.0](https://github.com/JCIOriente/baton/compare/v0.5.0...v0.6.0) (2026-11-08)
 
 
