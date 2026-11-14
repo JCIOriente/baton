@@ -10,6 +10,7 @@ export const ALWAYS_RULES = [
   'Never work on a task you have not claimed (`baton start <n>`), and edit only inside its worktree.',
   'Every changed line traces back to the task: no drive-by refactors or reformatting; mention unrelated problems instead of fixing them.',
   'If a requirement is ambiguous or a simpler approach exists, say so and ask before building.',
+  "A technology, dependency or architecture new to the repo, or user-visible behavior, is the user's call even when the request only describes outcomes: present 2-3 options with your lean and wait. Never pick one and write it down as decided.",
   'Never say done, fixed or passing without fresh `baton verify` output from after your last change.',
   'Before adding, upgrading or replacing a dependency, load baton:deps. Never take a version from memory.',
 ];
