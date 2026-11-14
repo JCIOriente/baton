@@ -8,16 +8,18 @@
   `skills/subagent-driven-development/SKILL.md` at 22f0b46 (v7.0.2, baton's current baseline)
 
 ## TL;DR
-- Choosing technology, dependencies, architecture or user-visible behavior is the **user's call**
-  in every phase. The agent presents options with its lean and waits; it never decides these and
-  writes them down as defaults.
+- Choosing a technology, dependency or architecture new to the repo, or user-visible behavior, is
+  the **user's call** in every phase, even when the request only describes outcomes. The agent
+  presents options with its lean and waits; it never decides these and writes them down as
+  defaults. Building on what the repo already uses needs no question.
 - `baton:spec` gets back the order superpowers' brainstorming enforces and baton lost when it
   condensed the skill: approaches in a message of their own, the user picks, and only then a
   worktree, spec file, ADR or builder check.
 - `baton:plan` ends by asking the user to approve the plan **and** choose how to run it.
 - During implementation, a choice of that kind that the spec and plan don't settle stops the work
-  and goes to the user. Anything smaller is decided and logged as a **ruling**, which reaches the
-  user in the PR body.
+  and goes to the user. That includes any choice that crosses a module or package boundary, or
+  contradicts or extends what the spec says the user sees. Anything inside a module is decided
+  and logged as a **ruling**, which reaches the user in the PR body.
 - The rule is also an always-on line in the session context, so it holds when no skill is loaded.
 
 ## Change in a nutshell
@@ -42,8 +44,9 @@ Which way on each? Nothing is written until you pick.
 
 No worktree, file or subagent exists until the user answers. In general: a request that asks for
 recommendations, proposals or options, or that raises how something gets built, gets the options
-with a lean; a request that talks only about outcomes hands the agent the how, and each choice it
-makes is stated in one line and recorded as the author's call.
+with a lean. A request that talks only about outcomes hands the agent the internal design, never
+a technology, dependency or architecture new to the repo: those still get options with a lean.
+Each choice the agent makes is stated in one line and recorded as the author's call.
 
 ## Problem
 Agents in baton repos decide technology and architecture questions without the user and present
@@ -75,7 +78,8 @@ run it (`skills/plan/SKILL.md:50`); `baton:parallel` lets the controller settle 
 
 ## Non-goals
 - #133 (controller context budget, session handoffs): its own spec.
-- #135 (frontend stack preset and component-by-component design).
+- #135 (frontend stack preset and component-by-component design) and #137 (engineering standard:
+  stack presets, layout and quality gates). Both build on this rule.
 - Superpowers' visual companion and spikes: not ported here.
 - Any CLI enforcement (a hook that blocks writes before a pick). This is skill guidance plus one
   context line.
@@ -87,15 +91,23 @@ n/a: no roles. "The user" is whoever drives the session, usually the repo owner.
 n/a.
 
 ## Domain model
-- **User's call**: a choice of technology (library, tool, framework), a dependency (add, replace,
-  upgrade), architecture (structure across modules, a public interface or data shape) or
-  user-visible behavior. Only the user decides these; the agent proposes 2-3 options with
-  trade-offs and its lean.
-- **Author's call**: a choice the agent made that is not a user's call, or that the user handed
-  to the agent by talking only about outcomes. Stated out loud and marked as the agent's, never
-  as agreed.
+- **User's call**: a choice of technology (library, tool, framework) or a dependency (add,
+  replace, upgrade) new to the repo, architecture (structure across modules or packages, a public
+  interface or data shape between them) or user-visible behavior. It stays the user's even when
+  the request only describes outcomes. Only the user decides these; the agent proposes 2-3
+  options with trade-offs and its lean. Not a user's call: building on what the repo already
+  uses, meaning something in its manifest or lockfile, a module or package boundary it already
+  has, or a pattern its code already follows.
+- **Author's call**: a choice the agent made that is not a user's call, including the internal
+  design an outcome-only request hands over. Stated out loud and marked as the agent's, never as
+  agreed.
 - **Ruling**: an author's call made during implementation, recorded as
-  `Ruling: <what> — <why> — <cost if wrong>`.
+  `Ruling: <what> — <why> — <cost if wrong>`. The line with a user's call: a choice that crosses
+  a module or package boundary, or contradicts or extends what the spec says the user sees, is a
+  user's call; anything inside one module (names, internal signatures, error text the spec
+  doesn't set, helper structure) is a ruling. "Extends" means a new screen, command, option,
+  flow or state the spec doesn't describe; the wording of a message for a case the spec already
+  covers is not an extension.
 
 ## Interfaces
 Files that change and what each gains:
@@ -108,6 +120,8 @@ Files that change and what each gains:
      ask which way; when one is sensible say why the others don't fit and still wait.
    - The how rule from brainstorming lines 121-129, with #134's wording added: "recommend",
      "propose", "options", "for the owner to approve" in a request mean options with a lean.
+     Baton's limit on it: an outcome-only request hands over internal design only; a technology,
+     dependency or architecture new to the repo still gets options with a lean.
    - Step 3's process-steps sentence stays, now bounded by the order.
    - Step 5 gains brainstorming's play-back rule: only what the user said goes in as theirs;
      what the agent filled in goes in as its proposal with a reason.
@@ -125,8 +139,11 @@ Files that change and what each gains:
    mistake costs). If the user already named a method, only ask for approval.
 4. Execution stop rule:
    - `templates/implementer-brief.md`: a user's-call choice the task text and spec don't settle
-     ends the run with `STATUS: NEEDS_CONTEXT` and the options with a lean. Other judgements are
-     made and listed as rulings in the report, for every status that includes commits.
+     ends the run with `STATUS: NEEDS_CONTEXT` and the options with a lean. The brief states the
+     line from Domain model in one sentence: stop for a choice that crosses a module or package
+     boundary, adds a technology or dependency new to the repo, or contradicts or extends what the
+     spec says the user sees. Other judgements are made and listed as rulings in the report, for
+     every status that includes commits.
    - `skills/implement/SKILL.md`: the same rule for an agent implementing in its own session; it
      asks the user directly.
    - `skills/parallel/SKILL.md`: a `NEEDS_CONTEXT` question that is a user's call goes to the
@@ -135,8 +152,9 @@ Files that change and what each gains:
 5. `templates/pr-body.md` and `skills/integrate/SKILL.md` step 2: the first paragraph lists the
    rulings (the deviations it already mentions, made explicit). The two-paragraph limit stays.
 6. `cli/lib/context.mjs` `ALWAYS_RULES`: a new rule after the ambiguity rule:
-   "Choosing technology, dependencies, architecture or user-visible behavior is the user's call:
-   present 2-3 options with your lean and wait. Never pick one and write it down as decided."
+   "A technology, dependency or architecture new to the repo, or user-visible behavior, is the
+   user's call even when the request only describes outcomes: present 2-3 options with your lean
+   and wait. Never pick one and write it down as decided."
 7. `provenance.json`: no change; brainstorming → spec and writing-plans → plan are already
    mapped, and the baseline stays 22f0b46.
 
@@ -147,8 +165,15 @@ Files that change and what each gains:
 - **User says "just decide" / "your call":** the agent decides, states each choice in one line,
   and records them as author's calls. The order still holds: the line is said before writing.
 - **User explicitly skips the spec phase:** unchanged (`skills/workflow/SKILL.md:46-47`).
+- **Outcome-only request ("make the export faster"):** the agent designs the internals itself and
+  states them as author's calls; if the best route needs a library, tool or structure the repo
+  doesn't have yet, that one choice goes to the user with options and a lean. Reusing a
+  dependency already in the lockfile needs no question.
 - **Dependency choice inside a task:** `baton:deps` already governs adding one; picking *which*
   package when the plan didn't name it is a user's call under this rule.
+- **Choice inside one module during a task** (a name, an internal signature, error text the spec
+  doesn't set, how helpers are split): a ruling, never a stop. The same choice becomes a stop when
+  it changes a module's public interface used by another module or package.
 - **Subagent can't reach the user:** it never can; it returns `NEEDS_CONTEXT` and the controller
   asks. A controller running unattended (a Workflow) parks that task and continues others
   (author's call).
@@ -186,6 +211,17 @@ Settled with the owner on 2026-11-10 before this was written:
   at one line of context per session. Picked by the owner.
 - **Rulings in report + PR body vs issue comments:** report + PR body; no new machinery and the
   user sees them at review. Picked by the owner.
+
+Settled with the owner on 2026-11-14, from the builder check:
+- **Outcome-only requests: new technology still the user's, always the user's, or handed over:**
+  new to the repo stays the user's call; building on what the repo uses needs no question; the
+  request hands over internal design only. "Always" would stop routine work; "handed over" is
+  #134's failure whenever a request happens to be worded as outcomes. Picked by the owner.
+- **Where a stop ends and a ruling begins: boundaries and user-visible, anything public, or only
+  contradictions:** a module or package boundary, or a contradiction or extension of what the
+  spec says the user sees; everything inside a module is a ruling. "Anything public" stops on
+  every exported name; "only contradictions" lets structural choices reach the user first at PR
+  review. Picked by the owner.
 
 ## Decisions
 No ADR: only baton's own skills depend on this. New terms (user's call, author's call, ruling)
