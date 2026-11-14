@@ -241,4 +241,10 @@ itself, which guards nothing.
 None.
 
 ## Implementation status
-- [ ] plan and tasks (link once they exist)
+- [x] plan: [docs/plans/2026-11-14-decision-points.md](../plans/2026-11-14-decision-points.md)
+- [x] #139 `baton:spec`, spec template, eval (PR #147)
+- [x] #140 `baton:plan` step 9 (PR #146)
+- [x] #141 implementer brief, `baton:implement`, `baton:parallel` (PR #148)
+- [x] #142 PR body and `baton:integrate`, review's "decision" (PR #149)
+- [x] #143 always-on rule (PR #144)
+- [ ] `make evals` run once with the new `spec-recommendations` case
