@@ -1,6 +1,7 @@
 <!-- At most two paragraphs. No headings, no attribution or co-author lines.
 One Ruling line per ruling, directly under the first paragraph's sentences (no blank line), in
-the form below. When there are no rulings, the first paragraph is only the what and why. -->
+the form below; a deviation from the spec or plan is a ruling too. When there are no rulings,
+the first paragraph is only the what and why. -->
 What changes and why, in a few sentences.
 Ruling: <what> — <why> — <cost if wrong>
 

@@ -154,3 +154,4 @@ Baseline (2026-11-14): 3 runs, all read the comments (looking for the Reviewed-a
 "deviations"), all folded the rulings into prose as in 8.
 After: 3 runs, each read the comments naming the rulings as what it looked for, and listed both as
 `Ruling:` lines.
+Final wording (template names deviations as rulings): 1 run each of 8, 9 and 10, same results.
