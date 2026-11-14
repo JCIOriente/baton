@@ -67,7 +67,8 @@ If you notice you did it, delete that code and redo the step properly.
   their trade-offs and your lean, and wait. Stop for a choice that crosses a module or package
   boundary, adds a technology or dependency new to the repo, or contradicts or extends what the
   spec says the user sees. "Extends" means a new screen, command, option, flow or state the spec
-  doesn't describe.
+  doesn't describe. Building on what the repo already uses (its lockfile, its existing
+  boundaries and patterns) is not one.
 - Inside one module (names, internal signatures, error text the spec doesn't set, helper
   structure) a choice is a ruling, never a stop: make it and note
   `Ruling: <what> — <why> — <cost if wrong>`. List your rulings when you hand off.
