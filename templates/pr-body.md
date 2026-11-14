@@ -1,5 +1,9 @@
-<!-- At most two paragraphs. No headings, no attribution or co-author lines. -->
-What changes and why, in a few sentences. Mention anything that deviates from the spec or plan.
+<!-- At most two paragraphs. No headings, no attribution or co-author lines.
+One Ruling line per ruling, directly under the first paragraph's sentences (no blank line), in
+the form below; a deviation from the spec or plan is a ruling too. When there are no rulings,
+the first paragraph is only the what and why. -->
+What changes and why, in a few sentences.
+Ruling: <what> — <why> — <cost if wrong>
 
 How it was verified and what was not. Reviewers run, findings fixed, minor findings deferred
 (with issue links), and related work deliberately left out.

@@ -17,8 +17,8 @@ saved to a file), linked spec and plan, guide paths from `<baton>`, and briefs f
 `git rev-parse HEAD` before each dispatch.
 
 **Dispatch each brief, re-reviews too, as written with placeholders filled, plus focus files.
-Add nothing:** no "don't flag X", "at most minor" or "the plan chose". Rulings apply to returned
-findings.
+Add nothing:** no "don't flag X", "at most minor" or "the plan chose". Decide on findings after
+they return.
 
 ## 2. Stage one: spec compliance (gate)
 
@@ -26,9 +26,9 @@ Dispatch **only** the `spec-compliance` brief first, every placeholder filled, i
 pasted as the prompt. `CHANGES_REQUIRED` goes to the fix loop (step 4) before stage two.
 `APPROVE`: continue.
 
-Findings labelled `plan-mandated` wait outside the loop until ruled by the spec (spec beats
-plan); ask the user if the spec doesn't settle it. Ruled for the spec: an open finding. Ruled
-for the plan: record it in the PR body.
+Findings labelled `plan-mandated` wait outside the loop until settled by the spec (spec beats
+plan); ask the user for a decision if the spec doesn't settle it. Settled for the spec: an open
+finding. Settled for the plan: record it in the PR body's second paragraph.
 
 ## 3. Stage two: quality angles, in parallel
 
@@ -58,14 +58,14 @@ A round is one fix plus one scoped re-review. Stages one and two share **5 round
   `{{FIX_BASE}}` = the HEAD the previous review saw. Its `ROUND:` line says what stays open;
   its out-of-scope items are deferred.
 - **Round 5 ends `ROUND: OPEN`: stop.** No round on your own, no `baton done`, no PR. Ask the
-  user for a ruling per open finding (fix, defer, drop with reason), with the fix history. All
+  user for a decision per open finding (fix, defer, drop with reason), with the fix history. All
   defer or drop: the round counts as `ROUND: CLEAN`. Any fix: two more rounds, run as rounds
   4-5; open again, ask again.
 
 The task is reviewed at the HEAD every angle approved or, with later commits, the HEAD after the
-last clean re-review. Record angles run, findings fixed, deferred items and rulings in the PR
-body's second paragraph (`baton:integrate`), then `Reviewed-at: <that HEAD>`. `baton done`
-refuses a ready PR without it or with commits after it.
+last clean re-review. Record angles run, findings fixed, deferred items and the user's decisions
+in the PR body's second paragraph (`baton:integrate`), then `Reviewed-at: <that HEAD>`.
+`baton done` refuses a ready PR without it or with commits after it.
 
 ## Receiving human review on a PR
 
