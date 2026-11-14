@@ -85,6 +85,20 @@ test('context_always_rules_include_deps', async (t) => {
   assert.ok(always.split('\n').includes(`- ${deps[0]}`), text);
 });
 
+test('context_always_rules_include_users_call', async (t) => {
+  const { buildContext, ALWAYS_RULES } = await import('../lib/context.mjs');
+  const { rmSync } = await import('node:fs');
+  const root = mkdtempSync(join(tmpdir(), 'baton-ctx-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const rule = "A technology, dependency or architecture new to the repo, or user-visible behavior, is the user's call even when the request only describes outcomes: present 2-3 options with your lean and wait. Never pick one and write it down as decided.";
+  assert.equal(ALWAYS_RULES.filter((r) => r === rule).length, 1);
+  const ambiguity = ALWAYS_RULES.findIndex((r) => r.startsWith('If a requirement is ambiguous'));
+  assert.equal(ALWAYS_RULES[ambiguity + 1], rule);
+  const text = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
+  const always = text.split('Always, even without loading a skill:\n')[1]?.split('\n\n')[0] ?? '';
+  assert.ok(always.split('\n').includes(`- ${rule}`), text);
+});
+
 test('reviewersFor: skips stack reviewers the diff does not touch, fails open on unknown files', () => {
   const config = deepMerge(DEFAULT_CONFIG, { stacks: ['react', 'typescript', 'rust-tokio-postgres', 'postgres'] });
   const frontOnly = reviewersFor(config, ['apps/web/src/OrgList.tsx', 'README.md']);
