@@ -76,5 +76,5 @@ If you notice you did it, delete that code and redo the step properly.
 
 When all acceptance criteria have passing tests, go to `baton:verify`. If you have to stop
 before finishing, commit work in progress, push the branch, and leave a comment on the issue
-saying where you are and listing your rulings, so another session can continue. If you are abandoning the task:
-`baton release <n> --reason "<why>"`.
+saying where you are and listing your rulings, so another session can continue. If you are
+abandoning the task: `baton release <n> --reason "<why>"`.
