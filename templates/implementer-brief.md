@@ -13,7 +13,8 @@ Baseline before you start: {{"validation passes" | "<step> already fails before 
 
 ## Before you begin
 If anything about the requirements, the approach or the assumptions is unclear, **ask now**
-and stop. Don't guess. Asking is always acceptable.
+and stop. Don't guess. Asking before you start is always acceptable. Once you've started, stop
+only for a user's call (below); every other choice is a ruling.
 
 ## User's calls and rulings
 **A user's call the task text and spec don't settle ends the run with `STATUS: NEEDS_CONTEXT`
