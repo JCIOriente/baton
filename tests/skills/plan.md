@@ -229,3 +229,84 @@ After (rewrapped): green, the same shape:
 | Failure mode: required column header missing | T2: `test_parse_missing_email_column_reports_missing_columns` |
 | Failure mode: malformed email value | T2: `test_parse_malformed_email_reports_invalid_email` |
 ```
+
+## Step 9: approve the plan and choose how to run it (2026-11-14, task #140)
+
+Scenarios 4 and 5 give the agent `skills/plan/SKILL.md` with `templates/plan.md`, the scenario's
+opening request, and this finished plan, then ask: "You are at step 9. Write, in full, the exact
+message you send the user now. Then say in one or two lines what you do after they reply."
+
+````markdown
+The plan you just wrote, `docs/plans/2026-11-06-event-check-in.md` (spec
+`docs/specs/2026-11-06-event-check-in.md`), committed in the worktree `../app-worktrees/event-check-in-plan`:
+
+```markdown
+## Overview
+Three tasks. T1 defines the shared `CheckIn` record and the `check_ins` table (migration with a
+unique index on member and event). T2 (check-in API) and T3 (CSV export) both build on it and can
+run in parallel once T1 merges.
+
+## Impact
+- Schema: new `check_ins` table, additive migration; rollback drops the table.
+
+## Dependency graph
+T1 -> T2
+T1 -> T3
+
+### T1: CheckIn record and table
+- Owns: `shared/src/check-in.ts`, `server/migrations/0042_check_ins.sql`
+- Interfaces: Produces `CheckIn { id; memberId; eventId; checkedInAt }` from `shared/src/check-in.ts`
+### T2: Check-in API
+- Depends on: T1
+- Owns: `server/src/check-ins/**`
+- Interfaces: Consumes `CheckIn` from `shared/src/check-in.ts` (T1)
+### T3: CSV export
+- Depends on: T1
+- Owns: `server/src/exports/check-ins.ts`
+- Interfaces: Consumes `CheckIn` from `shared/src/check-in.ts` (T1)
+```
+
+The self-review (step 8) found nothing to fix. The spec's PR is merged.
+````
+
+### 4. Plan finished, no method named (expect: approval and method asked in one message)
+
+Opening request: "The check-in spec is approved. Plan it."
+
+Expected: one message asks for approval and for a run method, offering subagents in this session
+(`baton:parallel`), one task at a time in this session (`baton:implement`) and separate sessions
+or developers (`baton start <n>` each), and recommends one with a one-sentence reason from the
+plan (coupling, task count, cost of a mistake). After approval: push, PR, `baton:backlog`, as
+before. Red: only approval asked, the method left for later, or a recommendation with no reason.
+
+### 5. User already said run it with subagents (expect: only approval asked)
+
+Opening request: "The check-in spec is approved. Plan it, then run it with subagents in this
+session."
+
+Expected: the message asks only for approval and does not offer the run methods again. Red: the
+three methods offered again, or a question about how to run it.
+
+### Runs
+
+Same command as above (Claude Code 2.1.322), each run in a new empty directory, three runs per
+scenario. Baseline: step 9 as on `main` at 33500b9 ("Commit in that worktree and ask the user to
+approve."), run twice, six runs per scenario. After: step 9 with the run-method question.
+
+Scenario 4 baseline: red, 6 of 6. Every run asked only "Do you approve this plan?" and listed
+push, PR and `baton:backlog` as next; none mentioned how the tasks would run. Some added other
+questions instead (a filename date, a merge policy, gaps found on a reread).
+
+Scenario 4 after: green, 3 of 3. Each asked "Do you approve the plan, and how should it run?"
+with the three methods and recommended subagents, for example: "**I recommend option 1.** There
+are only three tasks and they're loosely coupled: T1 goes first, then T2 and T3 run side by side
+on separate files. A mistake is cheap to undo, because the only schema change is an additive
+table." After approval: push, `gh pr create`, `baton:backlog`, unchanged.
+
+Scenario 5 baseline: green, 6 of 6 (documents behavior). Each asked only for approval and said it
+would run subagents "as you asked at the start". One run (second batch) also asked who merges
+T1's PR.
+
+Scenario 5 after: green, 3 of 3. Each said "As you asked, I'll run it with subagents in this
+session (`baton:parallel`). **Do you approve the plan?**" or close to it, and did not offer the
+other methods.
