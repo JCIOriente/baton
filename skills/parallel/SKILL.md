@@ -49,11 +49,21 @@ Each implementer ends with one status:
 | Status | Your action |
 |---|---|
 | `DONE` | Go to review (step 5) |
-| `DONE_WITH_CONCERNS` | Read the concerns. If they're about correctness or scope, resolve them before review. If they're only notes, record them and review |
-| `NEEDS_CONTEXT` | Provide what's missing, then re-dispatch |
+| `DONE_WITH_CONCERNS` | Read the concerns. A concern that is a user's call goes to the user (below). If they're about correctness or scope, resolve them before review. If they're only notes, record them and review |
+| `NEEDS_CONTEXT` | A question that is a user's call goes to the user (below). Otherwise provide what's missing, then re-dispatch |
 | `BLOCKED` | Change something: more context, a more capable model, or split the task. If the plan is wrong, escalate to the user. Never re-dispatch unchanged |
 
-Questions from an implementer get complete answers before it continues.
+**A user's call is never answered by the controller.** It is a choice the spec and plan don't
+settle that crosses a module or package boundary, adds a technology or dependency new to the
+repo, or contradicts or extends what the spec says the user sees (a new screen, command, option,
+flow or state). Put it to the user with the implementer's options and lean, and re-dispatch with
+the answer; the other tasks go on meanwhile. Running unattended (no user in the session, e.g. a
+Workflow script): park that task, continue the others, and put the question, options and lean in
+your final report.
+
+Answer any other question completely before the implementer continues. A choice inside one
+module (names, internal signatures, error text the spec doesn't set, helper structure) is a
+ruling, never a stop: the implementer makes it and lists it in its report.
 
 ## 5. Verify and review each task
 
