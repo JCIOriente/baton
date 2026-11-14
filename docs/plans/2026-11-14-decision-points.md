@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-10-decision-points.md](../specs/2026-11-10-decision-points.md)
 - Date: 2026-11-14
-- Status: draft
+- Status: approved 2026-11-14
 
 ## Overview
 Five tasks, cut by file ownership, one per item group in the spec's Interfaces. None depends on
