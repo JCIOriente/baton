@@ -69,7 +69,7 @@ Updated by the PRs that implement this spec (link the plan and issues once they 
 <!-- Self-review before asking for approval (delete this comment):
 - no placeholders ("TBD", "etc.", "handle errors appropriately")
 - no sections that contradict each other
-- no requirement with two readings: pick one and say which
+- no requirement with two readings: choose one and say which
 - every choice the user didn't make is marked as the author's call
 - scope fits one plan; nothing beyond the success criteria (YAGNI); non-goals named
 - no unrelated refactors: targeted fixes only where the current structure blocks this work

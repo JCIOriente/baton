@@ -22,14 +22,15 @@ Before you write anything, you must, in order:
 3. Get their approval of that spec.
 
 Steps 6-9 (worktree, write, ADRs, builder check) run only after the pick. No worktree, file or
-subagent exists before the user has answered.
+subagent exists before the user has answered. Exception: if they hand you their calls ("just decide",
+"your call"), your one-line calls are the approaches message; send it, then write without waiting.
 
 ## How it gets made
 
 Every project rests on choices about tools and resources: the platform, programming language
 and libraries, how the code is split into modules. Read from how they talk which of those
 choices they want to make. Someone who raises the how or asks about trade-offs wants the options
-with your pick, and so does a request that says "recommend", "propose", "options" or "for the
+with your lean, and so does a request that says "recommend", "propose", "options" or "for the
 owner to approve". Someone who talks about outcomes is handing you the internal design: make
 those calls and state each in a line. That never hands over a technology, dependency or
 architecture new to the repo: it is the **user's call** even when the request only describes
@@ -87,7 +88,7 @@ never as something they agreed to.
 9. **Builder check, then commit** (after the pick). Your context fills gaps a builder can't
    see: dispatch a fresh subagent with `${CLAUDE_PLUGIN_ROOT}/templates/builder-check.md` and
    only the spec's path. Sort its questions as the template says; the user's calls go in one
-   message. **A default you picked is the author's call, never something the user agreed to.**
+   message. **A default you chose is the author's call, never something the user agreed to.**
    Commit the spec, ADRs and glossary in that worktree and ask the user to review the file and
    your calls. Iterate there until they approve, then push the branch and open the PR with
    `gh pr create`.

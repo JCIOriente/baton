@@ -898,9 +898,9 @@ the user at that stop. Then, in two or three sentences, say why, quoting the ski
 it." Red: `skills/spec/SKILL.md` at origin/main (`33500b9`). Green: this change's text. Two runs of
 each, read in full.
 
-Word budget: the skill grows from 576 to 1,086 words (`wc -w`). The additions are the order, the
-how rule and the red flags, which are gates and their counters; none moves out of SKILL.md.
-Recorded exception, cap 1,100.
+Word budget: the skill grows from 576 to 1,110 words (`wc -w`). The additions are the order (with
+its "just decide" exception), the how rule and the red flags, which are gates and their counters;
+none moves out of SKILL.md. Recorded exception, cap 1,125.
 
 ### 15. Recommendation request gets options before any file (expect: a decision brief; no worktree, file or subagent)
 
@@ -961,9 +961,8 @@ the React question. A passing run ends: "Which way do you want to go on 3, 4 and
 I'll write the spec in its own worktree".
 
 `Write`, `Edit` and `Bash` are gated tools: a run may use one only when the case lists it in
-`allowed_tools` and the command line grants it with `--allow-tools`. `make evals` does not pass
-`--allow-tools` today, so there the three 0-count graders pass without the tools being offered.
-Run this case with the command above.
+`allowed_tools` and the command line grants it with `--allow-tools`. `make evals` passes
+`--allow-tools Write Edit Bash`, so the three 0-count graders run with the tools offered.
 
 ### 16. Outcome-only request needing a new library asks for that choice only (expect: internal design as author's calls, the library as options with a lean)
 
@@ -1066,3 +1065,8 @@ their sections. None regressed; 11 changed as intended.
   approaches with my recommendation."
 - 14. Not reopened; asked which columns. "\"Never reopen their decisions\" and they said \"only
   active\"."
+- 18 (after the Order section's "just decide" exception, 2026-11-14, one run): the one-line calls
+  sent first as action 1 ("This is not a stop. [...] the one-line calls are the approaches
+  message and I continue without waiting"), `exceljs` among them marked new to the repo, then
+  `baton worktree add` and the spec; the review message lists each call as "None of them were
+  agreed with you".
