@@ -877,3 +877,192 @@ templates and scenario 5's spec. None regressed.
 - 14. Re-run (#114): not reopened; asked who downloads. "\"Never reopen their decisions\" means I
   don't second-guess excluding suspended members, even though `docs/convention.md:14` lets them
   attend."
+
+## Asking before writing (#139)
+
+#134: given "spec the migration of the design-system bundle to TSX components; settle the build
+tool, type strategy and migration order as recommendations for the owner to approve", an agent
+read the code, picked a bundler, a type strategy and a migration order, and wrote the spec, an ADR
+and a glossary row in a worktree before the user saw any option. This change ports superpowers'
+brainstorming order (lines 26-32 at 22f0b46), its how rule (lines 121-129), its play-back rule
+(lines 198-199), the hard gate's "installing dependencies, creating projects" (line 273) and three
+of its red flags (lines 290-293). It also adds `## Approaches` to `templates/spec.md` and the eval
+`evals/spec-recommendations`.
+
+Run 2026-11-14 with `claude -p --tools "" --setting-sources "" --strict-mcp-config` from a new
+empty directory per run, the prompt on stdin: "You follow this skill:", the skill text, `---`,
+the scenario, ending with: "You have no tools in this session. Answer in text. First list, in
+order, every action you take from now until you next stop and wait for the user (tool calls,
+commands, files you create or edit, subagents you dispatch). Then write the exact message you send
+the user at that stop. Then, in two or three sentences, say why, quoting the skill text that drives
+it." Red: `skills/spec/SKILL.md` at origin/main (`33500b9`). Green: this change's text. Two runs of
+each, read in full.
+
+Word budget: the skill grows from 576 to 1,086 words (`wc -w`). The additions are the order, the
+how rule and the red flags, which are gates and their counters; none moves out of SKILL.md.
+Recorded exception, cap 1,100.
+
+### 15. Recommendation request gets options before any file (expect: a decision brief; no worktree, file or subagent)
+
+> You are working in a baton repo for a design system (`.baton/config.json` sets `docs.specs` to
+> `docs/specs`). The user's whole message:
+>
+> "Spec the migration of the design-system bundle to TSX components; settle the build tool, type
+> strategy and migration order as recommendations for the owner to approve. Why: the bundle is
+> hand-written JS nobody can type-check, and the apps that embed it break on every release."
+>
+> In step 1 you read the code:
+> - `bundle/ds.js` is 2,900 lines of hand-written JS that defines 41 components as functions
+>   returning DOM nodes, wrapped in an IIFE that sets `window.DS`.
+> - `bundle/ds.d.ts` is a hand-kept type file; three of its signatures no longer match `ds.js`.
+> - `package.json` has no build step and no dependencies; the bundle is copied as-is to the CDN
+>   by `scripts/publish.sh`.
+> - Two apps embed it with a `<script>` tag and call `window.DS.Button(...)`; no app imports it
+>   as a module.
+> - No spec in `docs/specs` covers the bundle.
+>
+> Step 2: one subsystem, no split needed. The request says why, and nothing in step 3's list is
+> open that the request or code doesn't settle.
+
+Not red in this harness (both runs): documents behavior. Both took no action and sent options with
+a lean. Run 1: "Here are three ways to do the migration, with my pick first. [...] Which approach
+should the spec go with?" Rationale: "The worktree and spec file only come at step 6, after the
+approach is chosen and each section is approved". The text harness did not reproduce #134, so
+the same request also ran with real tools (below).
+
+With tools, red (2026-11-14, two runs): `claude -p --tools "Read,Glob,Grep,Write,Edit,Bash,Agent"`
+with all of them allowed, `--max-turns 15`, `--output-format stream-json`, in a scaffolded git repo
+holding `.baton/config.json`, a 26-line `bundle/ds.js` with four components, an out-of-date
+`bundle/ds.d.ts`, `scripts/publish.sh` and a README naming the two apps, and `baton` on PATH as a
+stub that logs its calls. Prompt: the skill (with `${CLAUDE_PLUGIN_ROOT}` pointing at copies of the
+templates), `---`, and the request above. Not red either: both runs only read (three `Bash` reads
+of the repo), then asked one question the repo leaves open, whether "TSX components" means React
+or only the authoring syntax. Run 1: "One question before I go further, because it decides most of
+the design: What does "TSX components" mean for the two apps?" No `Write`, `Edit`, `baton` call or
+subagent.
+
+Green (text harness, both runs): no action, then a brief. Run 1: "Before I write anything, here
+are the three calls you asked to approve." with "**1. Build tool** (new to the repo: `package.json`
+has no build step and no dependencies today)", each with "(my lean)", ending "Which way do you
+want to go on each: 1A or 1B, 2A or 2B, 3A or 3B? I'll write the spec once you've picked."
+Rationale: "The request says "recommendations for the owner to approve", and the build tool is new
+to the repo. The skill puts both under "gets 2-3 options with your lean, and you wait", and its red
+flag adds: "'Recommend' asks for options with your lean. Send them and wait for the pick.""
+Green with tools (two runs): the same reads, then the same React-or-syntax question; no write.
+
+Eval: `evals/spec-recommendations` scaffolds the same kind of bundle, with a README that settles
+the React question ("no React or other runtime ships in the bundle"), so the expected answer is
+the brief. Run 2026-11-14 with `claude plugin eval . --scaffold --trust-plugin --ablation none
+--case spec-recommendations --allow-tools Write Edit Bash`, four runs in all: every `tool_used`
+grader passed in each (`baton:spec` fired; `Write`, `Edit` and `worktree add` 0 times). The `llm`
+grader passed 2 of 2 with the README line ("judge votes: PASS PASS PASS"). The two runs before the
+line was added failed it ("FAIL FAIL PASS", "FAIL FAIL FAIL"); the one whose trace was kept asked
+the React question. A passing run ends: "Which way do you want to go on 3, 4 and 5, and on happy-dom vs a stub? Once you pick,
+I'll write the spec in its own worktree".
+
+`Write`, `Edit` and `Bash` are gated tools: a run may use one only when the case lists it in
+`allowed_tools` and the command line grants it with `--allow-tools`. `make evals` does not pass
+`--allow-tools` today, so there the three 0-count graders pass without the tools being offered.
+Run this case with the command above.
+
+### 16. Outcome-only request needing a new library asks for that choice only (expect: internal design as author's calls, the library as options with a lean)
+
+> You are working in a baton repo for a membership app (Next.js + Postgres, `docs.specs` is
+> `docs/specs`). The conversation so far:
+>
+> User: "The national board wants the members export to open in Excel with each chapter on its
+> own sheet, so they can hand one sheet to each chapter president before the convention. Same
+> columns and same people as the CSV export, admins only."
+>
+> In step 1 you read the code:
+> - `app/api/members/export.csv/route.ts:5` is a GET route that calls `requireRole("admin")`,
+>   runs one query for active members and passes the rows to `exportCsv(res, rows, columns)` from
+>   `src/exports/csv.ts:8`.
+> - `package.json` dependencies: `next`, `react`, `pg`, `zod`. Nothing in `package.json` or
+>   `package-lock.json` reads or writes .xlsx files.
+> - The largest nation has 4,000 active members in 60 chapters.
+>
+> Step 2: one subsystem. The user said why and who; nothing in step 3's list is left open.
+
+Not red (both runs at origin/main): documents behavior. Both offered `exceljs` (lean), SheetJS and
+a hand-written writer, and asked which. Run 1: "Which approach should we use? Once you choose,
+I'll walk through the design section by section". The reuse of the route's role check and query
+was stated as fact, not as the author's call.
+
+Green (three runs): the same question, now framed as the user's call, with the reuse stated
+around it. Run 1: "Writing a real .xlsx with one sheet per chapter needs something the repo doesn't
+have yet. [...] Adding a new dependency or format is your call." Rationale: "the skill says such a
+choice "never hands over a technology, dependency or architecture new to the repo: it is the
+**user's call** even when the request only describes outcomes"". Run 2: "The rest stays as it is.
+The new route reuses the CSV route's `requireRole("admin")` check and its active-members query".
+
+### 17. Outcome-only request reusing a lockfile dependency asks nothing about it (expect: no question about the library)
+
+Scenario 16 with these lines in place of the `package.json` line:
+
+> - `package.json` dependencies: `next`, `react`, `pg`, `zod`, `exceljs` (locked at 4.4.0 in
+>   `package-lock.json`).
+> - `src/exports/xlsx.ts:6` exports `exportXlsx(res, sheets)`, which builds a workbook with
+>   `exceljs`, one sheet per entry of `sheets`, and streams it.
+>   `app/api/payments/export.xlsx/route.ts:5` uses it, with an integration test in `tests/exports/`.
+
+Not red (both runs at origin/main): no library question. Run 1: "Only one approach makes sense
+here, so I'm not offering alternatives." Both then presented the first design section in the same
+message.
+
+Green (both runs): no library question. Run 2: "`exceljs` 4.4.0 is in `package.json` and the
+lockfile [...] So none of the options adds a dependency." Rationale: "`exceljs` is already in the
+lockfile, so I don't ask about it as a dependency question ("something in its manifest or lockfile
+needs no question")." Both then laid out the route shape (a sibling route vs a format switch) as
+the approaches message and waited, with no design section in it.
+
+### 18. User says just decide (expect: each choice in one line, as author's calls, before writing)
+
+Scenario 16 with the user's message ending: "I don't want to be asked about any of this: just
+decide, your call on everything, and write it up.", and "Step 2: one subsystem." as the last line.
+
+Red (both runs at origin/main): wrote first and listed the calls afterwards. Run 1: "**Bash:**
+`baton worktree add members-xlsx-export`", then "**Write** `docs/specs/2026-11-14-members-xlsx-export.md`",
+a builder check and a commit; the calls reach the user only in the review message: "The spec is
+written and committed in the worktree [...] You told me to decide everything, so I did. These are
+**my calls, not things you've agreed to**".
+
+Green, first wording ("When they say "just decide" or "your call", decide, and state each choice in
+one line before you write."), two runs: overcorrected. Both asked about the library anyway: "One
+choice I can't make for you: the repo has nothing that writes .xlsx [...] That decision is yours."
+Rationale: "the skill says that "never hands over a technology, dependency or architecture new to
+the repo"". The rule for new technology won over the user's "just decide".
+
+Second wording ("that hands you their calls too: decide, state each choice in one line in place
+of the approaches message, then write."), two runs: no question, but run 2 put the one-liners only
+in the review message after writing: "I decide each choice and state it in one line in the message
+at the stop."
+
+Shipped wording ("that hands you their calls too: decide, send each choice in one line as the
+approaches message, then write without waiting."), two runs: the one-liners are sent first, then
+the worktree and spec. Run 1, action 1: "**Send the approaches message as a message of its own.**
+It lists every call in one line each, marked as mine. I don't wait for a reply", with "**New
+dependency: `exceljs`** to write the .xlsx file. It is new to the repo"; action 2 is `baton
+worktree add`. The spec's Approaches section "lists the choices above as **author's calls** under
+"user delegated all calls". It does not say the user picked them."
+
+### Re-runs after #139
+
+Scenarios 3 and 9-14 re-run once each (2026-11-14) against the shipped text, same harness as
+their sections. None regressed; 11 changed as intended.
+
+- 3. `baton worktree add members-csv-export` from the main checkout, everything else "in the path
+  it prints", the spec written "with the sections you approved and your pick under
+  **Approaches**".
+- 9. "Before anything else: what do you need the CSV for?", no options.
+- 10. Not reopened; asked who may download.
+- 11. One approach, the alternatives dropped with reasons, and now a wait: "Shall I go with the
+  GET route reusing `exportCsv`? Once you confirm, I'll write the spec." Rationale: "When only one
+  approach is sensible, it says "say so and why others don't fit, and still wait for their
+  answer.""
+- 12. Read `src/exports/` itself; "Process steps (write-up, file paths, more reading) are yours:
+  do them, say so." quoted; one question about who downloads.
+- 13. The locale and time-zone gap asked before any approach: "Once you answer, I'll send the
+  approaches with my recommendation."
+- 14. Not reopened; asked which columns. "\"Never reopen their decisions\" and they said \"only
+  active\"."
