@@ -24,7 +24,11 @@ After any rebase, the earlier verification is stale. Run `baton verify` again.
 ## 2. Open the PR
 
 Fill `${CLAUDE_PLUGIN_ROOT}/templates/pr-body.md` into a temp file: at most two paragraphs, no
-headings. The first says what changes and why. The second says how it was verified and what was
+headings. The first says what changes and why, then lists each ruling on its own line as
+`Ruling: <what> — <why> — <cost if wrong>`, any deviation from the spec or plan included. Take the
+rulings from the implementer's report in this session, or, when implement ran in another session,
+from the handoff comment on the issue (`gh issue view <n> --comments`). When there are none, the
+first paragraph is only the what and why. The second says how it was verified and what was
 *not*, the review outcome (from `baton:review`) and related work left out. Don't add attribution
 or co-author lines; the commits carry those. Then:
 
