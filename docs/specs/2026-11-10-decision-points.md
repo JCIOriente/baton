@@ -1,6 +1,6 @@
 # Decision points — Spec
 
-- Status: draft
+- Status: approved 2026-11-14
 - Date: 2026-11-10
 - Owner: Arnold Gandarillas
 - Related: #134, #135 (builds on this), #133 (separate spec); upstream obra/superpowers
