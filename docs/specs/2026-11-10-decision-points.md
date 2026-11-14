@@ -247,4 +247,4 @@ None.
 - [x] #141 implementer brief, `baton:implement`, `baton:parallel` (PR #148)
 - [x] #142 PR body and `baton:integrate`, review's "decision" (PR #149)
 - [x] #143 always-on rule (PR #144)
-- [ ] `make evals` run once with the new `spec-recommendations` case
+- [x] `make evals` run once with the new `spec-recommendations` case (2026-11-14: all 21 cases pass; spec-recommendations 0.93, one run's options-with-lean judge split 1-2 on a message that did give options and leans)
