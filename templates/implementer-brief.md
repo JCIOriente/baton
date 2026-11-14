@@ -13,7 +13,20 @@ Baseline before you start: {{"validation passes" | "<step> already fails before 
 
 ## Before you begin
 If anything about the requirements, the approach or the assumptions is unclear, **ask now**
-and stop. Don't guess. Asking is always acceptable.
+and stop. Don't guess. Asking before you start is always acceptable. Once you've started, stop
+only for a user's call (below); every other choice is a ruling.
+
+## User's calls and rulings
+**A user's call the task text and spec don't settle ends the run with `STATUS: NEEDS_CONTEXT`
+and 2-3 options with their trade-offs and your lean:** stop for a choice that crosses a module or
+package boundary, adds a technology or dependency new to the repo, or contradicts or extends what
+the spec says the user sees. "Extends" means a new screen, command, option, flow or state the spec
+doesn't describe. Building on what the repo already uses (its lockfile, its existing boundaries
+and patterns) is not one.
+
+Every other choice is yours. Inside one module (names, internal signatures, error text the spec
+doesn't set, helper structure) it is a ruling, never a stop: make it, keep going, and list it in
+the report as `Ruling: <what> — <why> — <cost if wrong>`.
 
 ## Your job
 1. Read the guides that apply: {{GUIDE PATHS}}
@@ -35,9 +48,11 @@ stop and report. Bad work is worse than no work.
 End with exactly one status line, then details:
 - `STATUS: DONE`: commits (hashes and messages), the `baton verify` result, and per acceptance
   criterion: the test that proves it, RED (the test command and an excerpt of its failing output
-  before implementing) and GREEN (the same command's passing output after)
-- `STATUS: DONE_WITH_CONCERNS`: same as DONE, plus the concerns
-- `STATUS: NEEDS_CONTEXT`: the specific questions
+  before implementing) and GREEN (the same command's passing output after); then the rulings,
+  one `Ruling: <what> — <why> — <cost if wrong>` line each
+- `STATUS: DONE_WITH_CONCERNS`: same as DONE (rulings included), plus the concerns
+- `STATUS: NEEDS_CONTEXT`: the specific questions; for a user's call, the options with their
+  trade-offs and your lean
 - `STATUS: BLOCKED`: what blocks you and what you tried
 
 ## After review findings
