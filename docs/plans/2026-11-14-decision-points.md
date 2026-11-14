@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-10-decision-points.md](../specs/2026-11-10-decision-points.md)
 - Date: 2026-11-14
-- Status: approved 2026-11-14
+- Status: in backlog (#139-#143)
 
 ## Overview
 Five tasks, cut by file ownership, one per item group in the spec's Interfaces. None depends on
@@ -56,7 +56,7 @@ Can start immediately in parallel: T1, T2, T3, T4, T5
 
 ## Tasks
 
-### T1: `baton:spec` asks before it writes, plus the Approaches section and eval
+### T1: `baton:spec` asks before it writes, plus the Approaches section and eval  (#139)
 - Priority: 1
 - Depends on: none
 - Owns: `skills/spec/SKILL.md`, `templates/spec.md`, `tests/skills/spec.md`,
@@ -104,7 +104,7 @@ Can start immediately in parallel: T1, T2, T3, T4, T5
   `--allow-tools` for `Write`, `Edit` and `Bash`; a grader that counts 0 uses only means
   something if the tools were available.
 
-### T2: `baton:plan` asks to approve the plan and choose how to run it
+### T2: `baton:plan` asks to approve the plan and choose how to run it  (#140)
 - Priority: 1
 - Depends on: none
 - Owns: `skills/plan/SKILL.md`, `tests/skills/plan.md`
@@ -123,7 +123,7 @@ Can start immediately in parallel: T1, T2, T3, T4, T5
     recommendation and its reason.
   - `user already said run it with subagents`: expect only approval asked.
 
-### T3: implementers stop for a user's call and log everything else as rulings
+### T3: implementers stop for a user's call and log everything else as rulings  (#141)
 - Priority: 1
 - Depends on: none
 - Owns: `templates/implementer-brief.md`, `skills/implement/SKILL.md`,
@@ -155,7 +155,7 @@ Can start immediately in parallel: T1, T2, T3, T4, T5
     user, not answered.
 - Notes: `templates/implementer-brief.md` is filled by `baton:parallel`; keep its placeholders.
 
-### T4: rulings reach the user in the PR body
+### T4: rulings reach the user in the PR body  (#142)
 - Priority: 2
 - Depends on: none
 - Owns: `templates/pr-body.md`, `skills/integrate/SKILL.md`, `tests/skills/integrate.md`
@@ -173,7 +173,7 @@ Can start immediately in parallel: T1, T2, T3, T4, T5
   - `no rulings`: expect no mention and no empty heading.
   - `rulings only in the issue's handoff comment`: expect them taken from there.
 
-### T5: the user's-call rule is always in context
+### T5: the user's-call rule is always in context  (#143)
 - Priority: 1
 - Depends on: none
 - Owns: `cli/lib/context.mjs`, `cli/test/features.test.mjs`
