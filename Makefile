@@ -14,4 +14,4 @@ secrets:
 
 # Skill trigger evals: paid Claude runs (~$6), so not part of ci. See CONTRIBUTING.md.
 evals:
-	claude plugin eval . --scaffold --trust-plugin --ablation none --threshold 0.8 --no-publish
+	claude plugin eval . --scaffold --trust-plugin --ablation none --threshold 0.8 --no-publish --allow-tools Write Edit Bash

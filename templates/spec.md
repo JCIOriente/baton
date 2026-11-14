@@ -21,6 +21,11 @@ Who has what problem, and why it matters now. 2-5 sentences.
 ## Non-goals
 - What this explicitly does not do (yet).
 
+## Approaches
+The 2-3 ways of building it that were considered, what each trades off, the one the user picked
+and why. The user picks in the conversation, before this spec is written.
+- **<option A> vs <option B>:** <trade-offs>. Picked by the user: <option>, because <reason>.
+
 ## Users & permissions
 Who can do what; this feeds RBAC/permissions directly.
 
@@ -64,7 +69,8 @@ Updated by the PRs that implement this spec (link the plan and issues once they 
 <!-- Self-review before asking for approval (delete this comment):
 - no placeholders ("TBD", "etc.", "handle errors appropriately")
 - no sections that contradict each other
-- no requirement with two readings: pick one and say which
+- no requirement with two readings: choose one and say which
+- every choice the user didn't make is marked as the author's call
 - scope fits one plan; nothing beyond the success criteria (YAGNI); non-goals named
 - no unrelated refactors: targeted fixes only where the current structure blocks this work
 - writing: factual and brief, no promotional wording, concrete example first and the general rule second
