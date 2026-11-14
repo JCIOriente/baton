@@ -17,6 +17,9 @@ specs and issues. When a term is ambiguous or keeps needing explanation, add it 
 | Dry run | A `release.yml` run dispatched with `dry_run: true`: builds and checks every package and runs each registry's dry-run publish, with no credentials, approval, tag or Release | A normal `workflow_dispatch` run, which refreshes the release PR |
 | Accepted advisory | A security advisory ID in the project's committed ignore list (`deny.toml`, `.cargo/audit.toml`, the package manager's config), with a reason it isn't reachable and a condition for dropping it. The only kind of advisory an audit may skip | An `--ignore` flag on a command line, or a lowered audit threshold |
 | Main checkout | The working tree whose git dir is the repository's common dir (`git rev-parse --git-dir` equals `--git-common-dir`). Parked on the base branch, only fast-forwarded, never edited or committed in when `hooks.worktreeOnly` is on | The base branch itself, or "the repo" |
+| User's call | A choice of technology (library, tool, framework), a dependency, architecture (structure across modules, a public interface or data shape) or user-visible behavior. Only the user decides it; an agent presents 2-3 options with its lean and waits | An author's call |
+| Author's call | A choice an agent made that is not a user's call, or that the user handed over by talking only about outcomes. Stated out loud and marked as the agent's, never as agreed | A decision the user made |
+| Ruling | An author's call made during implementation, recorded as `Ruling: <what> — <why> — <cost if wrong>` in the implementer's report and the PR body | A review finding |
 | Linked worktree | Any other working tree of the repository (`git worktree add`), from `baton start <n>` for a task or `baton worktree add <name>` for other changes. Where every change is made | A clone, or a task (a worktree need not belong to one) |
 
 ## Relationships
