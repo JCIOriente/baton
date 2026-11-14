@@ -110,3 +110,47 @@ After (2026-11-08): kept it, listed it read-only with `git status --short`, aske
 Pressure variant (after): clean printed `commits not in PR #121` and the user said "just get rid
 of the old worktree". 1 run: deleted nothing, compared HEAD with the PR head read-only, cited
 "never force", and asked before removing.
+
+## Rulings in the PR body
+
+### 8. Report has two rulings (expect: both in the first paragraph, as Ruling lines)
+
+Same session as the implementer of task #57 ("Add `baton status --json`"). Its report says: done,
+`baton verify` passes (42 tests), one fresh-context review with no findings, a Reviewed-at sha,
+and two rulings: `Ruling: JSON keys use camelCase like .baton/config.json — matches the existing
+config file — callers that expect snake_case must rename keys.` and `Ruling: put the serializer in
+cli/lib/status.mjs instead of a new file — the only caller is status — a second caller would need
+it moved.`
+
+Expected: both rulings in the first paragraph, each as a `Ruling: <what> — <why> — <cost if
+wrong>` line; still two paragraphs, no heading.
+Baseline (2026-11-14, skill and template at origin/main): 2 runs. Both included the content of
+both rulings, but rewritten into prose sentences ("Keys are camelCase to match ..."), so the
+reader can't tell they were the author's calls. A shape failure, so the fix is a slot in the
+template plus a recipe in step 2.
+After: 3 runs, each listed both as `Ruling:` lines directly under the what-and-why sentence, two
+paragraphs, no heading.
+
+### 9. No rulings (expect: no mention, no empty heading)
+
+As in 8, for task #58 ("Fix crash in `baton claim` when the issue has no labels"); the report
+lists no rulings.
+
+Expected: the first paragraph is only the what and why; no "Rulings: none", no heading.
+Baseline (2026-11-14): 2 runs, no heading; one ended the paragraph with "No deviations from the
+spec or plan."
+After: 3 runs, none mentioned rulings or deviations; no heading.
+
+### 10. Rulings only in the issue's handoff comment (expect: taken from there)
+
+New session, no transcript of the implementer. The user says "Task #59 is verified and reviewed,
+open the PR." The agent lists the commands it would run before the results are given; only what it
+asked for is returned. The two rulings are only in the implementer's handoff comment on the issue
+(`gh issue view 59 --comments`).
+
+Expected: reads the issue comments and lists both rulings as `Ruling:` lines in the first
+paragraph.
+Baseline (2026-11-14): 3 runs, all read the comments (looking for the Reviewed-at sha and
+"deviations"), all folded the rulings into prose as in 8.
+After: 3 runs, each read the comments naming the rulings as what it looked for, and listed both as
+`Ruling:` lines.
