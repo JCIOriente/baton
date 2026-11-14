@@ -134,3 +134,21 @@ reviewer or the user instead of making and recording them.
 Word count: `skills/implement/SKILL.md` went from 578 to 694 words (`wc -w`), over the ~600
 budget. The added lines are a bold rule and its exit condition, which `writing-skills` says not
 to cut or move out for the budget; cap 700.
+
+### Re-run after review fixes
+
+2026-11-14, same setup, scenarios 1 and 2 once each (brief and session), after the implement
+skill got the brief's "Building on what the repo already uses ... is not one" sentence and the
+brief's "Before you begin" limited asking-and-stopping to before the work starts.
+
+- Scenario 1, brief: green. `STATUS: NEEDS_CONTEXT`, "a choice that crosses a package boundary
+  ... That makes it a user's call", three options, "**My lean: option 1.**"
+- Scenario 1, session: green. "That's the user's call, not a ruling"; three options, "**My lean
+  is option 1.**", waiting for the answer.
+- Scenario 2, brief: green. `STATUS: DONE` with three `Ruling:` lines (error text, row numbering,
+  `validateRow` split); "Nothing here needs the user ... So there's no `NEEDS_CONTEXT`."
+- Scenario 2, session: green. "they're rulings, not stops"; handoff lists two rulings (helper
+  split, error text).
+
+Word count: 711 with the added sentence, kept in SKILL.md so implement and the brief draw the
+line in the same words; cap 715.
