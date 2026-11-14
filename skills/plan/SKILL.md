@@ -47,5 +47,13 @@ spec and the stack guides, and nothing else.
    task lacks an acceptance criterion. Check for file-ownership overlaps between parallel
    tasks and for dependency cycles. For each input class or failure mode the spec implies,
    some task's tests exercise it; add the five most likely uncovered ones as coverage rows.
-9. Commit in that worktree and ask the user to approve. Then push and open the PR with
-   `gh pr create` (or update the spec's open PR), and hand off to `baton:backlog`.
+9. Commit in that worktree, then **ask the user, in one message, to approve the plan and choose
+   how to run it**:
+   - subagents in this session (`baton:parallel`)
+   - one task at a time in this session (`baton:implement`)
+   - separate sessions or developers (`baton start <n>` each)
+
+   Recommend one, with a one-sentence reason drawn from the plan: how coupled the tasks are, how
+   many there are, what a mistake costs. If the user already named a method, ask only for
+   approval. Then push and open the PR with `gh pr create` (or update the spec's open PR), and
+   hand off to `baton:backlog`.
