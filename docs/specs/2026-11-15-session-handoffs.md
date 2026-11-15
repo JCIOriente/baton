@@ -281,4 +281,4 @@ to copy the list blindly. They still print under "Other open work".
 None.
 
 ## Implementation status
-- [ ] Plan and issues
+- [ ] Plan: docs/plans/2026-11-15-session-handoffs.md; issues to come
