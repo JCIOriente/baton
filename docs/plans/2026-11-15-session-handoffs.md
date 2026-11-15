@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-15-session-handoffs.md](../specs/2026-11-15-session-handoffs.md)
 - Date: 2026-11-15
-- Status: approved
+- Status: in backlog (#152, #153, #154)
 
 ## Overview
 Three tasks, cut by file ownership. The pure core and the template come first, because the
@@ -48,7 +48,7 @@ Can start immediately in parallel: T1, T3
 
 ## Tasks
 
-### T1: handoff template and pure core  (#issue)
+### T1: handoff template and pure core  (#152)
 - Priority: 1
 - Depends on: none
 - Owns: `templates/handoff.md` (new), `cli/lib/handoff.mjs` (new), `cli/test/handoff.test.mjs` (new)
@@ -61,7 +61,7 @@ Can start immediately in parallel: T1, T3
     (present even with no tasks), then by spec path, "No spec" (`spec: null`) last, where
     `Group = { spec: string | null, tasks: Task[] }` and `Task` is a `summarize` row plus `body`
   - Produces: `linkPullRequests(tasks: Task[], prs: PullRequest[], issueOf: (branch: string) => number | null): { tasks: Task[], prsWithoutTask: PrRow[] }`;
-    `PullRequest` is a `listPullRequests()` row (T2), `PrRow` the spec's `prsWithoutTask` item. A PR
+    `PullRequest` is the `listPullRequests()` row shape fixed in spec Interface 1 (produced by T2), `PrRow` the spec's `prsWithoutTask` item. A PR
     whose issue is not an open task goes to `prsWithoutTask`; `release` is true for the label
     `autorelease: pending`; each linked task gets `pr` as in the spec's JSON
   - Produces: `clip(text: string, max: number): string`
@@ -108,7 +108,7 @@ Can start immediately in parallel: T1, T3
 - Notes: pure functions only (header of `cli/lib/tasks.mjs`); test style of
   `cli/test/tasks.test.mjs`. Path constant as `cli/lib/git-guard.mjs:7` does. No I/O in this module.
 
-### T2: `baton handoff` command  (#issue)
+### T2: `baton handoff` command  (#154)
 - Priority: 1
 - Depends on: T1
 - Owns: `cli/test/handoff-cli.test.mjs` (new); in `cli/baton.mjs` the new `handoff` command, its
@@ -156,7 +156,7 @@ Can start immediately in parallel: T1, T3
   inherit it, and `run` (`cli/lib/util.mjs:12`) is unchanged. T2 is at the top of the size range:
   linking and rendering stay in T1, add nothing more here. Fake `gh` on PATH as `cli/test/worktree-cli.test.mjs:32-65`.
 
-### T3: session-boundary rules in the skills  (#issue)
+### T3: session-boundary rules in the skills  (#153)
 - Priority: 1
 - Depends on: none
 - Owns: `skills/parallel/session-boundaries.md` (new), `skills/parallel/SKILL.md`,

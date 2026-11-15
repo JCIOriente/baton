@@ -291,4 +291,7 @@ to copy the list blindly. They still print under "Other open work".
 None.
 
 ## Implementation status
-- [ ] Plan: docs/plans/2026-11-15-session-handoffs.md; issues to come
+- [x] Plan: docs/plans/2026-11-15-session-handoffs.md
+- [ ] T1 handoff template and pure core (#152)
+- [ ] T2 `baton handoff` command (#154)
+- [ ] T3 session-boundary rules in the skills (#153)
