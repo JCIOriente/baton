@@ -144,25 +144,32 @@ New terms in `CONTEXT.md`:
    - **Grouping.** A task's spec is the first line outside a code fence matching
      `^\s*(?:[-*]\s*)?Spec:\s*`; the value ends at ` · ` or end of line, `./` and markdown-link forms
      are normalized, only values ending in `.md` count, later matches are ignored
-     (`templates/task.md:2` writes `Spec: <path> · Plan: <path>#t<N>`). Tasks without one go in a
-     "No spec" group.
+     (`templates/task.md:2` writes `Spec: <path> · Plan: <path>#t<N>`). Line endings are normalized
+     first (issues edited on the web arrive with `\r\n`). Tasks without one go in a "No spec" group.
    - **PRs.** A PR links to a task through `issueFromBranch` (`cli/lib/git.mjs:63`) and is shown on
-     that task. `checks` is summarized from `statusCheckRollup` to
+     that task. A PR whose issue is not an open task (closed, triage, or no issue in the branch) goes
+     to "Open PRs without a task". `checks` is summarized from `statusCheckRollup` to
      `passing | failing | pending | none`. PRs with no task go in "Open PRs without a task"; one
      labelled `autorelease: pending` is tagged `[release PR]`.
    - **Worktrees.** The rows `baton status` builds (`cli/baton.mjs:702-712`) plus an unpushed-commit
      count. A branch with no upstream prints `not pushed`; stale and detached worktrees print no
-     count. git runs with `GIT_OPTIONAL_LOCKS=0`.
+     count. git runs with `GIT_OPTIONAL_LOCKS=0` (set in the process environment, so every child
+     git inherits it).
    - **Base sync.** The base branch ahead/behind its remote-tracking ref, labelled "as of last
-     fetch"; "no remote-tracking ref" when there is none.
+     fetch"; "no remote-tracking ref" when there is none, and then `ahead` and `behind` are `null`.
    - **Untrusted text.** The repo may be public and PR titles are written by anyone. PR titles and
-     branch names are collapsed to one line (`oneLine`) and cut at 80 characters. Task titles are
+     branch names are collapsed to one line and cut at 80 characters (`clip` in `cli/lib/handoff.mjs`). Task titles are
      not printed.
    - **Leave-alone candidates**, in this order: (a) tasks with status in-progress or review outside
      the unit's group, "No spec" included; (b) their PRs and every PR without a task, the release PR
      included; (c) non-stale worktrees whose task is not in the unit, and named worktrees other than
      the current one. Ready, blocked and triage issues are never candidates. Without `--spec` the
-     slot reads `candidates: none (no --spec)`.
+     slot reads `candidates: none (no --spec)`. Rendered as `#N` for tasks, `PR #N` for PRs, and
+     `worktree <task number or branch>` for worktrees (JSON holds their paths).
+   - **Fixed lines.** When they apply, "Where things stand" also prints, exactly:
+     `No open tasks.` (no group has a task), `Implementation status: file not found` (in a group
+     whose spec file is missing), `No spec:` (the heading of that group), `Not listed: <n> triage
+     issues` (when the count is above 0) and `Lists cut at 1000; more exist.` (when truncated).
    - **Output.** The rendered `templates/handoff.md` on stdout. `--json` prints facts only, every key
      always present (empty arrays, never omitted):
      ```json
@@ -171,22 +178,25 @@ New terms in `CONTEXT.md`:
        "unit": { "spec": "docs/specs/…md", "found": true },
        "groups": [{ "spec": "docs/specs/…md", "tasks": [{ "number": 160, "title": "…", "status": "in-progress", "assignees": ["arnold"], "pr": { "number": 165, "draft": false, "reviewDecision": "REVIEW_REQUIRED", "checks": "passing" } }], "openStatusItems": ["Plan and issues"] }],
        "prsWithoutTask": [{ "number": 145, "title": "…", "branch": "…", "release": true }],
-       "worktrees": [{ "task": 160, "branch": "…", "path": "…", "current": false, "dirty": true, "unpushed": 2 }],
+       "worktrees": [{ "task": 160, "branch": "…", "path": "…", "current": false, "dirty": true, "stale": false, "unpushed": 2 }],
        "base": { "branch": "main", "ahead": 0, "behind": 0, "tracking": true },
        "leaveAloneCandidates": { "tasks": [160, 161], "prs": [165, 145], "worktrees": ["…/160"] },
        "triageCount": 3,
        "truncated": false
      }
      ```
-     `unit` is `null` without `--spec`. A group's `spec` is `null` for "No spec"; `openStatusItems`
-     is `null` when the file is not found, and `pr` is `null` for a task without one. In JSON, titles
+     `unit` is `null` without `--spec`. `groups` holds every group: the unit's first (present even
+     with no tasks), then by spec path, "No spec" last. A group's `spec` is `null` for "No spec";
+     `openStatusItems` is `null` when the file is not found, and `pr` is `null` for a task without
+     one. `unpushed` is `null` with no upstream, and for stale or detached worktrees. In JSON, titles
      are not shortened.
    - **Exit codes and streams.** 0 on success, including no open work; 1 for a `gh` failure and for
      an unknown `--spec` (the `BatonError` default); 2 for unexpected errors. On error, stdout is
      empty and the message goes to stderr, as other commands do.
 2. **`cli/lib/handoff.mjs`**: pure functions `parseSpecRef(body)`, `groupBySpec(tasks, specPath?)`,
-   `openStatusItems(specText)`, `summarizeChecks(rollup)`, `leaveAloneCandidates(facts)`,
-   `renderHandoff(template, facts)`, in the style of `cli/lib/tasks.mjs` ("pure functions only").
+   `linkPullRequests(tasks, prs, issueOf)`, `openStatusItems(specText)`, `summarizeChecks(rollup)`,
+   `leaveAloneCandidates(facts)`, `clip(text, max)`, `renderHandoff(template, facts, project)` and
+   the constant `HANDOFF_TEMPLATE_PATH`, in the style of `cli/lib/tasks.mjs` ("pure functions only").
 3. **`templates/handoff.md`**, generic for every repo: the first line
    `Continue {{project}} (this repo). Load baton:workflow.`; four slot sections (Goal, Stop at, Next
    steps, Leave alone) using the token `<FILL: what to write>`; a "Where things stand" section
@@ -213,7 +223,7 @@ New terms in `CONTEXT.md`:
 5. **`skills/parallel/SKILL.md`** gains at most 60 words: "One unit per controller session. When the
    context grows, after a compaction, or at a unit boundary, read `session-boundaries.md` in this
    skill's directory and follow it; end with a filled handoff prompt."
-6. **`skills/retro/SKILL.md`**: when the retro closes a unit (Domain model), offer to end the session
+6. **`skills/retro/SKILL.md`**: when `baton handoff --spec <spec>` shows no open tasks in the unit's group, offer to end the session
    and draft the session handoff (Interface 4).
 7. **`skills/workflow/SKILL.md` §4**: the second sentence becomes a pointer: when the user wants to
    continue in another session, or at a unit boundary, write a **session handoff** with
@@ -254,7 +264,7 @@ None. No config keys; the template path is fixed.
   known placeholders.
 - Skill text: writing-skills red/green scenarios in `tests/skills/parallel.md` (at a unit boundary
   the agent opens `session-boundaries.md` and ends with a filled prompt) and `tests/skills/retro.md`
-  (new; a retro that closes a unit offers the session handoff).
+  (new; a retro run when the unit's group has no open tasks offers the session handoff).
 - `make ci`.
 
 ## Decisions

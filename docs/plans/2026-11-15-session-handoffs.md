@@ -57,12 +57,17 @@ Can start immediately in parallel: T1, T3
   whitespace to one line and cuts at `max`
 - Interfaces:
   - Produces: `parseSpecRef(body: string): string | null`
-  - Produces: `groupBySpec(tasks: Task[], specPath?: string): { unit: Group | null, others: Group[] }`
-    where `Group = { spec: string | null, tasks: Task[] }` and `Task` is a `summarize` row plus
-    `body`
+  - Produces: `groupBySpec(tasks: Task[], specPath?: string): Group[]`, the unit's group first
+    (present even with no tasks), then by spec path, "No spec" (`spec: null`) last, where
+    `Group = { spec: string | null, tasks: Task[] }` and `Task` is a `summarize` row plus `body`
+  - Produces: `linkPullRequests(tasks: Task[], prs: PullRequest[], issueOf: (branch: string) => number | null): { tasks: Task[], prsWithoutTask: PrRow[] }`;
+    `PullRequest` is a `listPullRequests()` row (T2), `PrRow` the spec's `prsWithoutTask` item. A PR
+    whose issue is not an open task goes to `prsWithoutTask`; `release` is true for the label
+    `autorelease: pending`; each linked task gets `pr` as in the spec's JSON
+  - Produces: `clip(text: string, max: number): string`
   - Produces: `openStatusItems(specText: string | null): string[] | null`
   - Produces: `summarizeChecks(rollup: object[] | null): 'passing' | 'failing' | 'pending' | 'none'`
-  - Produces: `leaveAloneCandidates(facts: Facts): { tasks: number[], prs: number[], worktrees: string[] }`
+  - Produces: `leaveAloneCandidates(facts: Omit<Facts, 'leaveAloneCandidates'>): { tasks: number[], prs: number[], worktrees: string[] }`
   - Produces: `renderHandoff(template: string, facts: Facts, project: string): string`
   - Produces: `HANDOFF_TEMPLATE_PATH: string`
   - `Facts` is the spec's `--json` object (Interface 1) minus `schemaVersion`.
@@ -78,21 +83,28 @@ Can start immediately in parallel: T1, T3
   - [ ] `summarizeChecks` maps all-success to `passing`, any failure/error/cancelled/timed-out to
         `failing`, any queued or in-progress to `pending`, empty or null to `none`.
   - [ ] `leaveAloneCandidates` lists in-progress and review tasks outside the unit (No spec
-        included), their PRs and every PR without a task, and non-stale worktrees outside the unit
-        other than the current one; never ready, blocked or triage tasks; all empty without a unit.
+        included), their PRs and every PR without a task, non-stale worktrees whose task is not in
+        the unit, and named worktrees other than the current one; never ready, blocked or triage
+        tasks; all empty without a unit.
+  - [ ] `linkPullRequests` puts a PR whose branch names a closed or triage issue, or no issue, in
+        `prsWithoutTask`, and tags the release PR.
+  - [ ] `parseSpecRef` handles CRLF bodies.
   - [ ] `renderHandoff` fills `{{project}}` and `{{facts}}`, keeps every `<FILL:` slot, writes
         `candidates: none (no --spec)` in the Leave alone slot without a unit, collapses PR titles
         and branch names to one line cut at 80 characters, prints no task titles, and throws on any
         other `{{…}}`.
+  - [ ] `renderHandoff` on the nutshell's facts equals the spec's nutshell text byte for byte, and
+        prints each of the spec's fixed lines when it applies.
   - [ ] The template has the first line `Continue {{project}} (this repo). Load baton:workflow.`,
         the sections Goal, Where things stand, Stop at, Next steps, Rules, Leave alone, and the Rules
         text from the spec's nutshell.
 - Tests first: `parse_spec_ref_strips_plan_tail`, `parse_spec_ref_ignores_fenced_line`,
   `parse_spec_ref_first_match_wins`, `parse_spec_ref_rejects_non_md`, `group_by_spec_no_spec_group`,
-  `group_by_spec_unit_without_tasks`, `open_status_items_only_under_section`,
+  `group_by_spec_unit_without_tasks`, `group_by_spec_order`, `parse_spec_ref_handles_crlf`,
+  `link_prs_closed_issue_goes_to_without_task`, `link_prs_tags_release`, `open_status_items_only_under_section`,
   `summarize_checks_states`, `leave_alone_excludes_ready_and_blocked`,
   `leave_alone_empty_without_unit`, `render_keeps_slots`, `render_rejects_unknown_placeholder`,
-  `render_truncates_untrusted_text`, `template_has_slot_sections`
+  `render_truncates_untrusted_text`, `render_matches_nutshell`, `render_edge_lines`, `template_has_slot_sections`
 - Notes: pure functions only (header of `cli/lib/tasks.mjs`); test style of
   `cli/test/tasks.test.mjs`. Path constant as `cli/lib/git-guard.mjs:7` does. No I/O in this module.
 
@@ -109,7 +121,8 @@ Can start immediately in parallel: T1, T3
   - Consumes: `parseSpecRef`, `groupBySpec`, `openStatusItems`, `summarizeChecks`,
     `leaveAloneCandidates`, `renderHandoff`, `HANDOFF_TEMPLATE_PATH` from `cli/lib/handoff.mjs` (T1)
   - Produces: `GithubProvider.listPullRequests({ limit = 1000 } = {}): { number, title, headRefName, isDraft, reviewDecision, statusCheckRollup, labels }[]`
-  - Produces: `fromGithub(lookup, what = 'PR state')` with today's message and hint as the default
+  - Produces: `fromGithub(lookup, { what = 'PR state', hint } = {})`, today's message and hint as
+    the default
   - Produces: `baton handoff [--spec <path>] [--json]`, exit codes 0/1/2 as in the spec
 - Acceptance:
   - [ ] Against a fake `gh` with tasks in two specs, a No-spec task, a triage issue, a task PR and a
@@ -126,16 +139,22 @@ Can start immediately in parallel: T1, T3
         `--limit 1000`; at the limit, a stderr warning and `truncated: true`.
   - [ ] Worktrees show uncommitted, unpushed count, `not pushed` with no upstream, and no count for
         stale ones; base sync says "as of last fetch" or "no remote-tracking ref".
-  - [ ] The command writes nothing: the repo's `git status --porcelain` and the fake `gh` log show no
-        writes.
+  - [ ] The command writes nothing: the repo's `git status --porcelain`, a byte-identical
+        `.git/index`, and the fake `gh` log show no writes.
+  - [ ] A spec named by issues but missing in both places: its group prints with
+        `Implementation status: file not found`; in JSON `openStatusItems: null` and, as `--spec`,
+        `unit.found: false`.
   - [ ] `worktree clean`'s existing logged-out test still passes unchanged.
 - Tests first: `handoff_groups_by_spec`, `handoff_spec_from_base_branch`,
   `handoff_spec_from_working_tree`, `handoff_unknown_spec_fails`, `handoff_json_shape`,
   `handoff_logged_out_fails_cleanly`, `handoff_no_open_work`, `handoff_two_gh_calls`,
-  `handoff_truncation_warns`, `handoff_worktree_flags`, `handoff_is_read_only`
+  `handoff_truncation_warns`, `handoff_worktree_flags`, `handoff_is_read_only`,
+  `handoff_missing_spec_file_group_prints`
 - Notes: status through `summarize` (`cli/baton.mjs:246`), never labels directly. Worktree rows as
   `status` builds them (`cli/baton.mjs:702-712`); extract a shared helper inside `baton.mjs` rather
-  than copying. Fake `gh` on PATH as `cli/test/worktree-cli.test.mjs:32-65`.
+  than copying. Set `process.env.GIT_OPTIONAL_LOCKS = '0'` at the start of `handoff`; child processes
+  inherit it, and `run` (`cli/lib/util.mjs:12`) is unchanged. T2 is at the top of the size range:
+  linking and rendering stay in T1, add nothing more here. Fake `gh` on PATH as `cli/test/worktree-cli.test.mjs:32-65`.
 
 ### T3: session-boundary rules in the skills  (#issue)
 - Priority: 1
@@ -152,13 +171,13 @@ Can start immediately in parallel: T1, T3
         `${CLAUDE_PLUGIN_ROOT}/templates/handoff.md`, and updating any session memory.
   - [ ] `skills/parallel/SKILL.md` gains at most 60 words, pointing to the file (spec Interface 5).
   - [ ] `skills/retro/SKILL.md` offers to end the session and draft the session handoff when the
-        retro closes a unit, as the Domain model defines it.
+        `baton handoff --spec <spec>` shows no open tasks in the unit's group.
   - [ ] `skills/workflow/SKILL.md` §4's second sentence becomes the session-handoff pointer, with a
         net word change of zero or less.
   - [ ] `tests/skills/parallel.md` records a baseline and a green run: at a unit boundary the agent
         opens `session-boundaries.md` and ends with a filled prompt (no `<FILL`) instead of starting
         the next unit.
-  - [ ] `tests/skills/retro.md` records a baseline and a green run: a retro that closes a unit offers
+  - [ ] `tests/skills/retro.md` records a baseline and a green run: a retro run when the unit's group has no open tasks offers
         the session handoff.
   - [ ] `make ci` passes (plugin validation).
 - Tests first: the two scenarios' baseline runs, recorded before the edits.
@@ -174,7 +193,7 @@ Can start immediately in parallel: T1, T3
 | Spec files from base branch, then working tree | T2 |
 | Status through `summarize`, triage counted | T2 |
 | `Spec:` parsing rules | T1 |
-| PR linking, checks summary, release PR tag | T1 (pure), T2 (wiring) |
+| PR linking, checks summary, release PR tag | T1 (`linkPullRequests`, `summarizeChecks`), T2 (wiring) |
 | Worktree flags, unpushed count, `GIT_OPTIONAL_LOCKS=0` | T2 |
 | Base sync | T2 |
 | Untrusted text collapsed and cut, no task titles | T1 |
@@ -189,4 +208,4 @@ Can start immediately in parallel: T1, T3
 | Failure mode: PR title with a newline | T1: `render_truncates_untrusted_text` |
 | Failure mode: `--spec` file that exists only in a worktree | T2: `handoff_spec_from_working_tree` |
 | Failure mode: worktree branch with no upstream | T2: `handoff_worktree_flags` |
-| Failure mode: more than 1000 open issues | T2: `handoff_truncation_warns` |
+| Failure mode: issue body with CRLF line endings | T1: `parse_spec_ref_handles_crlf` |
