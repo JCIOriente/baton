@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-15-session-handoffs.md](../specs/2026-11-15-session-handoffs.md)
 - Date: 2026-11-15
-- Status: draft
+- Status: approved
 
 ## Overview
 Three tasks, cut by file ownership. The pure core and the template come first, because the

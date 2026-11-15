@@ -1,6 +1,6 @@
 # Controller context budget and session handoffs — Spec
 
-- Status: draft
+- Status: approved
 - Date: 2026-11-15
 - Owner: Arnold Gandarillas
 - Related: #133, docs/specs/2026-11-10-decision-points.md (the decision rules this builds on)
