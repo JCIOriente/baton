@@ -52,8 +52,9 @@ Can start immediately in parallel: T1, T3
 - Priority: 1
 - Depends on: none
 - Owns: `templates/handoff.md` (new), `cli/lib/handoff.mjs` (new), `cli/test/handoff.test.mjs` (new)
-- Touches (read-only or additive): `cli/lib/tasks.mjs` (read, for style), `cli/lib/util.mjs`
-  (read; reuse `oneLine` if it lives there, else import from where it is)
+- Touches (read-only or additive): `cli/lib/tasks.mjs` (read, for style). `oneLine` is private to
+  `cli/baton.mjs:688` (owned by T2), so `handoff.mjs` has its own `clip(text, max)` that collapses
+  whitespace to one line and cuts at `max`
 - Interfaces:
   - Produces: `parseSpecRef(body: string): string | null`
   - Produces: `groupBySpec(tasks: Task[], specPath?: string): { unit: Group | null, others: Group[] }`
