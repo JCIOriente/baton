@@ -21,6 +21,8 @@ specs and issues. When a term is ambiguous or keeps needing explanation, add it 
 | Author's call | A choice an agent made that is not a user's call, including the internal design an outcome-only request hands over. Stated out loud and marked as the agent's, never as agreed | A decision the user made |
 | Ruling | An author's call made during implementation, inside one module (a name, an internal signature, error text the spec doesn't set), recorded as `Ruling: <what> — <why> — <cost if wrong>` in the implementer's report and the PR body. A choice that crosses a module or package boundary, or contradicts or extends what the spec says the user sees, is a user's call instead | A review finding |
 | Linked worktree | Any other working tree of the repository (`git worktree add`), from `baton start <n>` for a task or `baton worktree add <name>` for other changes. Where every change is made | A clone, or a task (a worktree need not belong to one) |
+| Unit | The piece of work one controller session owns from start to end: one spec (each sub-project of a split spec has its own). It closes when `baton handoff --spec <spec>` shows no open tasks in its group and its retro is done | A task (a unit usually holds several) |
+| Session handoff | The self-contained prompt that starts the next session. Its facts come from `baton handoff`; its goal, stopping point, next steps and leave-alone list are filled by the agent. It never depends on chat history | A phase hand-off, or a task's handoff comment on its issue |
 
 ## Relationships
 A spec has one plan doc. A plan doc becomes one plan issue with tasks as its sub-issues. A task has
