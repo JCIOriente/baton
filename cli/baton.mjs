@@ -699,17 +699,22 @@ function fromGithub(lookup) {
   }
 }
 
-function status(argv) {
-  const { values } = opts(argv);
-  const { root, config } = requireConfig();
+/** The linked worktrees as `baton status` shows them: task ones by number, then named ones by branch. */
+function worktreeRows(root, config) {
   const here = currentTop();
-  const rows = listWorktrees(root)
+  return listWorktrees(root)
     .filter((w) => w.path !== root)
     .map((w) => {
       const stale = isStale(w);
       return { task: issueFromBranch(config, w.branch), branch: w.branch, path: w.path, current: w.path === here, dirty: !stale && hasUncommittedChanges(w.path), stale };
     })
     .sort((a, b) => (a.task && b.task ? a.task - b.task : a.task ? -1 : b.task ? 1 : (a.branch ?? '(detached)').localeCompare(b.branch ?? '(detached)')));
+}
+
+function status(argv) {
+  const { values } = opts(argv);
+  const { root, config } = requireConfig();
+  const rows = worktreeRows(root, config);
   if (values.json) return print(rows.map(({ stale, ...row }) => row));
   const note = (r) => (r.stale ? ' (missing; baton worktree prune)' : r.dirty ? ' (uncommitted)' : '');
   print(rows.length ? rows.map((r) => `${r.current ? '*' : ' '} ${r.task ? `#${r.task} ` : ''}${r.branch ?? '(detached)'}${note(r)}\n    ${r.path}`).join('\n') : 'No worktrees.');
