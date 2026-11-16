@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deepMerge, BatonError, isPlainObject } from './util.mjs';
 import { repoRoot } from './git.mjs';
+import { GATES, STAGES } from './gates.mjs';
 
 export const CONFIG_DIR = '.baton';
 export const CONFIG_FILE = 'config.json';
@@ -64,6 +65,8 @@ export const DEFAULT_CONFIG = {
   // Commands run in every new task worktree before work starts (e.g. dependency install).
   setup: [],
   validate: [],
+  // gates.skip: { "<gate>": "<reason>" } — catalog gates this repo deliberately doesn't run.
+  gates: { skip: {} },
   workflow: {
     phases: ['spec', 'plan', 'backlog', 'implement', 'verify', 'review', 'integrate'],
     // Project-defined phases: { "<phase>": "<path to instructions .md, relative to repo root>" }
@@ -136,6 +139,7 @@ export function validateConfig(config) {
       });
     }
   }
+  problems.push(...validateGates(config));
   if (!Array.isArray(config.workflow.phases) || config.workflow.phases.length === 0) {
     problems.push('workflow.phases must be a non-empty array');
   } else {
@@ -150,6 +154,55 @@ export function validateConfig(config) {
   }
   if (typeof config.hooks?.worktreeOnly !== 'boolean') problems.push('hooks.worktreeOnly must be a boolean');
   problems.push(...validateRelease(config));
+  return problems;
+}
+
+function validateGates(config) {
+  const problems = [];
+  let skip = config.gates?.skip;
+  if (!isPlainObject(skip)) {
+    problems.push('gates.skip must be an object');
+    skip = {};
+  }
+  for (const [gate, reason] of Object.entries(skip)) {
+    if (!GATES.includes(gate)) problems.push(`gates.skip key '${gate}' is not a known gate (known: ${GATES.join(', ')})`);
+    else if (typeof reason !== 'string' || !reason.trim()) problems.push(`gates.skip.${gate} must be a non-empty reason`);
+    else if (/[\r\n]/.test(reason)) problems.push(`gates.skip.${gate} reason must not contain a newline`);
+  }
+  if (!Array.isArray(config.validate)) return problems;
+  const seen = new Set();
+  config.validate.forEach((v, i) => {
+    if (!v || typeof v.run !== 'string') return;
+    const name = v.name ?? v.run;
+    const at = `validate[${i}] '${name}'`;
+    // Only explicit names must be unique; unnamed steps may share a run.
+    if (v.name !== undefined) {
+      if (seen.has(v.name)) problems.push(`${at}: duplicate step name`);
+      seen.add(v.name);
+    }
+    problems.push(...listProblems(at, 'gates', v.gates, GATES, 'gate'), ...listProblems(at, 'stages', v.stages, STAGES, 'stage'));
+    if (v.blocking !== undefined && typeof v.blocking !== 'boolean') problems.push(`${at}: blocking must be a boolean`);
+    if (v.blocking === false && (typeof v.reason !== 'string' || !v.reason.trim())) {
+      problems.push(`${at}: reason is required when blocking is false`);
+    }
+    if (Array.isArray(v.gates)) {
+      for (const g of v.gates) if (Object.hasOwn(skip, g)) problems.push(`${at}: gate '${g}' is both covered and skipped in gates.skip`);
+    }
+  });
+  return problems;
+}
+
+function listProblems(at, key, list, known, noun) {
+  if (list === undefined) return [];
+  if (!Array.isArray(list)) return [`${at}: ${key} must be an array`];
+  if (list.length === 0) return [`${at}: ${key} must be non-empty when present`];
+  const problems = [];
+  const seen = new Set();
+  for (const item of list) {
+    if (!known.includes(item)) problems.push(`${at}: unknown ${noun} '${item}' (known: ${known.join(', ')})`);
+    else if (seen.has(item)) problems.push(`${at}: duplicate ${noun} '${item}'`);
+    seen.add(item);
+  }
   return problems;
 }
 
