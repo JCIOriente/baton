@@ -22,6 +22,13 @@ specs and issues. When a term is ambiguous or keeps needing explanation, add it 
 | Ruling | An author's call made during implementation, inside one module (a name, an internal signature, error text the spec doesn't set), recorded as `Ruling: <what> — <why> — <cost if wrong>` in the implementer's report and the PR body. A choice that crosses a module or package boundary, or contradicts or extends what the spec says the user sees, is a user's call instead | A review finding |
 | Linked worktree | Any other working tree of the repository (`git worktree add`), from `baton start <n>` for a task or `baton worktree add <name>` for other changes. Where every change is made | A clone, or a task (a worktree need not belong to one) |
 | Unit | The piece of work one controller session owns from start to end: one spec (each sub-project of a split spec has its own). It closes when `baton handoff --spec <spec>` shows no open tasks in its group and its retro is done | A task (a unit usually holds several) |
+| Gate | A name from baton's fixed gate catalog (`secrets`, `format`, `lint`, `unit-tests`, ...) for one kind of check. Covered by the `validate` steps that list it, or skipped with a reason in `gates.skip` | A workflow gate (spec before plan, review before merge), or a step |
+| Gate catalog | The fixed, ordered list of gate names in `cli/lib/gates.mjs`. Static gates come first | A repo's `validate` list |
+| Step | One entry in `validate`: a command, the gates it covers, the stages it runs in, and whether it blocks | A gate (one step can cover several) |
+| Stage | When a step runs: `commit` (pre-commit hook), `local` (`baton verify`, `start`, `done`) or `ci` (`baton verify --stage ci`) | A workflow phase |
+| Advisory step | A step with `"blocking": false` and a `reason`: its failure is reported but doesn't stop the run or fail it | A skipped gate, which doesn't run at all |
+| Skipped gate | An applicable gate listed in `gates.skip` with its reason, so `baton doctor` doesn't report it as a gap | An advisory step |
+| Narrowed run | `baton verify --only <step or gate>`: part of a stage, never reported as a gate run | A stage run |
 | Session handoff | The self-contained prompt that starts the next session. Its facts come from `baton handoff`; its goal, stopping point, next steps and leave-alone list are filled by the agent. It never depends on chat history | A phase hand-off, or a task's handoff comment on its issue |
 
 ## Relationships
