@@ -3,7 +3,7 @@
 // Skills tell the agent *when* to do something; this CLI does it the same way every time.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, CONFIG_FILE, reviewerFocus, reviewersFor } from './lib/config.mjs';
@@ -11,6 +11,7 @@ import { buildContext } from './lib/context.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
 import { guardStatus, installGuard, isDisposableClone, isMainCheckout } from './lib/git-guard.mjs';
 import {
+  aheadBehind,
   branchName,
   currentBranch,
   currentTop,
@@ -19,8 +20,11 @@ import {
   issueFromBranch,
   listWorktrees,
   repoRoot,
+  showFile,
+  unpushedCount,
   worktreeBase,
 } from './lib/git.mjs';
+import { groupBySpec, HANDOFF_TEMPLATE_PATH, leaveAloneCandidates, linkPullRequests, normalizeSpecPath, openStatusItems, renderHandoff } from './lib/handoff.mjs';
 import { getProvider } from './lib/providers/github.mjs';
 import { factsVsInstalled, installedVersions, loadProvenance, upstreamFindings } from './lib/provenance.mjs';
 import {
@@ -73,6 +77,7 @@ Execution
                                    open, no-PR, dirty and the current one; --delete-branch drops merged
                                    local branches
   status                           Local task and named worktrees
+  handoff [--spec PATH] [--json]   Draft the next session's prompt from GitHub and git state (read-only)
 
 Integration
   verify [--only NAME]             Run the project's validation commands in the current checkout
@@ -107,6 +112,7 @@ const commands = {
   start,
   worktree,
   status,
+  handoff,
   verify,
   done,
   doctor,
@@ -718,6 +724,71 @@ function status(argv) {
   if (values.json) return print(rows.map(({ stale, ...row }) => row));
   const note = (r) => (r.stale ? ' (missing; baton worktree prune)' : r.dirty ? ' (uncommitted)' : '');
   print(rows.length ? rows.map((r) => `${r.current ? '*' : ' '} ${r.task ? `#${r.task} ` : ''}${r.branch ?? '(detached)'}${note(r)}\n    ${r.path}`).join('\n') : 'No worktrees.');
+}
+
+const GITHUB_LIST_LIMIT = 1000;
+
+/**
+ * `handoff`: the next session's prompt (or, with --json, its facts) from one issue list, one PR
+ * list and local git state. Reads only: git takes no optional locks, so not even the index changes.
+ */
+function handoff(argv) {
+  process.env.GIT_OPTIONAL_LOCKS = '0';
+  const { values } = opts(argv, { spec: { type: 'string' } });
+  const { root, config } = requireConfig();
+  const provider = getProvider(config, root);
+  const { issues, prs } = fromGithub(() => ({ issues: provider.list({ limit: GITHUB_LIST_LIMIT }), prs: provider.listPullRequests({ limit: GITHUB_LIST_LIMIT }) }), {
+    what: 'tasks and PRs',
+    hint: 'Install gh and run `gh auth login`, then retry.',
+  });
+  const truncated = issues.length >= GITHUB_LIST_LIMIT || prs.length >= GITHUB_LIST_LIMIT;
+  if (truncated) process.stderr.write(`warning: GitHub returned ${GITHUB_LIST_LIMIT} open issues or PRs, the most read; more exist and are left out.\n`);
+
+  const rows = issues.map((t) => ({ ...summarize(t, config.tasks.labels), body: t.body }));
+  const tasks = rows.filter((t) => t.status !== 'triage');
+  const linked = linkPullRequests(tasks, prs, (branch) => issueFromBranch(config, branch));
+  const unitSpec = values.spec === undefined ? null : normalizeSpecPath(values.spec);
+  const groups = groupBySpec(linked.tasks, unitSpec).map((g) => ({
+    spec: g.spec,
+    tasks: g.tasks.map((t) => ({ number: t.number, title: t.title, status: t.status, assignees: t.assignees, pr: t.pr })),
+    openStatusItems: g.spec === null ? null : openStatusItems(readSpec(config, g.spec)),
+  }));
+  let unit = null;
+  if (unitSpec !== null) {
+    // groupBySpec puts the unit's group first, even with no tasks.
+    const [group] = groups;
+    const found = group.openStatusItems !== null;
+    if (!found && !group.tasks.length) throw new BatonError(`No spec ${unitSpec} on ${config.git.remote}/${config.git.baseBranch} or in the working tree, and no open task names it`);
+    unit = { spec: unitSpec, found };
+  }
+  const worktrees = worktreeRows(root, config).map((w) => ({ ...w, unpushed: w.stale || w.branch === null ? null : unpushedCount(w.path) }));
+  const sync = aheadBehind(root, config.git.remote, config.git.baseBranch);
+  const facts = {
+    schemaVersion: 1,
+    unit,
+    groups,
+    prsWithoutTask: linked.prsWithoutTask,
+    worktrees,
+    base: { branch: config.git.baseBranch, remote: config.git.remote, ahead: sync?.ahead ?? null, behind: sync?.behind ?? null, tracking: sync !== null },
+    leaveAloneCandidates: null,
+    triageCount: rows.length - tasks.length,
+    truncated,
+  };
+  facts.leaveAloneCandidates = leaveAloneCandidates(facts);
+  if (values.json) return print(facts);
+  print(renderHandoff(readFileSync(HANDOFF_TEMPLATE_PATH, 'utf8'), facts, config.project ?? basename(root)));
+}
+
+/**
+ * A repo-relative spec's text from `<remote>/<baseBranch>`, else from the current checkout; null
+ * when neither has it. Paths come from issue bodies, so one that leaves the checkout is not read.
+ */
+function readSpec(config, path) {
+  const top = currentTop();
+  const fromBase = showFile(top, `${config.git.remote}/${config.git.baseBranch}`, path);
+  if (fromBase !== null) return fromBase;
+  const file = resolve(top, path);
+  return file.startsWith(top + sep) && existsSync(file) ? readFileSync(file, 'utf8') : null;
 }
 
 // --- Integration ----------------------------------------------------------
