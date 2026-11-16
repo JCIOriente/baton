@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { DEFAULT_CONFIG, validateConfig } from '../lib/config.mjs';
 import { deepMerge } from '../lib/util.mjs';
 
@@ -35,12 +34,15 @@ test('config rejects a non-boolean blocking', () => {
 test('config rejects an advisory step without a reason', () => {
   assert.match(problems(step({ blocking: false })).join(), /validate\[0\] 'a'.*reason/);
   assert.match(problems(step({ blocking: false, reason: '' })).join(), /validate\[0\] 'a'.*reason/);
+  assert.match(problems(step({ blocking: false, reason: '   ' })).join(), /validate\[0\] 'a'.*reason/);
   assert.deepEqual(problems(step({ blocking: false, reason: 'flaky' })), []);
 });
 
 test('config rejects duplicate step names', () => {
   const p = problems({ validate: [{ name: 'a', run: 'x' }, { name: 'a', run: 'y' }] });
   assert.match(p.join(), /validate\[1\] 'a'.*duplicate step name/);
+  assert.deepEqual(problems({ validate: [{ run: 'x' }, { run: 'x' }] }), ["validate[1] 'x': duplicate step name"]);
+  assert.deepEqual(problems({ validate: [{ run: 'x' }, { run: 'y' }] }), []);
 });
 
 test('config rejects a skip key outside the catalog', () => {
@@ -49,6 +51,7 @@ test('config rejects a skip key outside the catalog', () => {
 
 test('config rejects an empty skip reason', () => {
   assert.match(problems({ gates: { skip: { lint: '' } } }).join(), /gates\.skip\.lint/);
+  assert.match(problems({ gates: { skip: { lint: ' ' } } }).join(), /gates\.skip\.lint/);
 });
 
 test('config rejects a skip reason with a newline', () => {
@@ -61,9 +64,18 @@ test('config rejects a gate that is both skipped and covered', () => {
 });
 
 test('config accepts a config written before gates existed', () => {
-  const batonConfig = JSON.parse(readFileSync(new URL('../../.baton/config.json', import.meta.url), 'utf8'));
-  assert.deepEqual(validateConfig(deepMerge(DEFAULT_CONFIG, batonConfig)), []);
+  const legacy = { project: 'baton', stacks: ['javascript', 'node'], validate: [{ name: 'ci', run: 'make ci' }], release: { enabled: true, publish: [] } };
+  assert.deepEqual(validateConfig(deepMerge(DEFAULT_CONFIG, legacy)), []);
   assert.deepEqual(problems({ validate: [{ run: 'x' }] }), []);
+});
+
+test('config rejects a non-object gates.skip and a non-array gates, and keeps checking steps', () => {
+  assert.match(problems({ gates: { skip: [] } }).join(), /gates\.skip must be an object/);
+  assert.match(problems(step({ gates: 'lint' })).join(), /validate\[0\] 'a'.*gates must be an array/);
+  const p = problems({ gates: { skip: [] }, validate: [{ run: 'x', gates: ['nope'] }] });
+  assert.equal(p.length, 2);
+  assert.match(p.join(), /gates\.skip must be an object/);
+  assert.match(p.join(), /unknown gate 'nope'/);
 });
 
 test('config does not check setup steps against the gate rules', () => {

@@ -159,8 +159,11 @@ export function validateConfig(config) {
 
 function validateGates(config) {
   const problems = [];
-  const skip = config.gates?.skip;
-  if (!isPlainObject(skip)) return ['gates.skip must be an object'];
+  let skip = config.gates?.skip;
+  if (!isPlainObject(skip)) {
+    problems.push('gates.skip must be an object');
+    skip = {};
+  }
   for (const [gate, reason] of Object.entries(skip)) {
     if (!GATES.includes(gate)) problems.push(`gates.skip key '${gate}' is not a known gate (known: ${GATES.join(', ')})`);
     else if (typeof reason !== 'string' || !reason.trim()) problems.push(`gates.skip.${gate} must be a non-empty reason`);

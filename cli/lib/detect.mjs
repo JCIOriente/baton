@@ -37,7 +37,8 @@ function manifests(root, name) {
 export function hasDependencies(root) {
   if (manifests(root, 'Cargo.toml').length) return true;
   return manifests(root, 'package.json').some((p) => {
-    const pkg = readJson(p) ?? {};
+    const pkg = readJson(p);
+    if (pkg === null) return true; // unparseable: keep the dependency gates applicable
     return Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).length > 0;
   });
 }

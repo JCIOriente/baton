@@ -32,6 +32,10 @@ test('normalizeStep fills defaults', () => {
   assert.deepEqual(n, { name: 'n', run: 'x', cwd: 'a', gates: ['lint'], stages: ['local', 'ci'], blocking: false, reason: 'r' });
 });
 
+test('hasDependencies: an unparseable package.json counts as having dependencies', () => {
+  assert.equal(hasDependencies(repo({ 'package.json': '{oops' })), true);
+});
+
 test('hasDependencies', () => {
   assert.equal(hasDependencies(repo()), false);
   assert.equal(hasDependencies(repo({ 'package.json': '{}' })), false);
@@ -57,11 +61,17 @@ test('applicableGates: Cargo.toml one level down adds install, audit, unused-dep
 });
 
 test('applicableGates: stack rows', () => {
-  for (const s of ['typescript', 'rust', 'rust-tokio-postgres']) assert.ok(names(repo(), { stacks: [s] }).includes('types'), s);
-  assert.ok(names(repo(), { stacks: ['postgres'] }).includes('migrations'));
-  assert.ok(names(repo(), { stacks: ['e2e'] }).includes('e2e'));
-  assert.ok(names(repo(), { stacks: ['react'] }).includes('build'));
-  assert.ok(!names(repo(), { stacks: ['javascript', 'node'] }).some((g) => ['types', 'migrations', 'e2e', 'build'].includes(g)));
+  const rows = {
+    typescript: ['secrets', 'format', 'lint', 'types', 'unit-tests'],
+    rust: ['secrets', 'format', 'lint', 'types', 'unit-tests'],
+    'rust-tokio-postgres': ['secrets', 'format', 'lint', 'types', 'unit-tests'],
+    postgres: ['secrets', 'format', 'lint', 'migrations', 'unit-tests'],
+    e2e: ['secrets', 'format', 'lint', 'unit-tests', 'e2e'],
+    react: ['secrets', 'format', 'lint', 'unit-tests', 'build'],
+    javascript: BASE,
+    node: BASE,
+  };
+  for (const [stack, expected] of Object.entries(rows)) assert.deepEqual(names(repo(), { stacks: [stack] }), expected, stack);
 });
 
 test('applicableGates: release.publish non-empty adds publish', () => {
@@ -104,4 +114,14 @@ test('orderFindings: secrets after tests is reported', () => {
 test('orderFindings: static before non-static is fine', () => {
   const steps = [normalizeStep({ name: 'sec', run: 'y', gates: ['secrets'] }), normalizeStep({ name: 'test', run: 'x', gates: ['unit-tests'] })];
   assert.deepEqual(orderFindings(steps), []);
+});
+
+test('orderFindings: non-static after non-static is fine', () => {
+  const steps = [normalizeStep({ name: 'a', run: 'x', gates: ['unit-tests'] }), normalizeStep({ name: 'b', run: 'y', gates: ['build'] })];
+  assert.deepEqual(orderFindings(steps), []);
+});
+
+test('orderFindings: mixed gates report only the offending sides', () => {
+  const steps = [normalizeStep({ name: 'a', run: 'x', gates: ['lint', 'unit-tests'] }), normalizeStep({ name: 'b', run: 'y', gates: ['secrets', 'e2e'] })];
+  assert.deepEqual(orderFindings(steps), [{ kind: 'gates', message: "step 'b' runs secrets after 'a' (unit-tests)" }]);
 });
