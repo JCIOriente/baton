@@ -3,6 +3,7 @@ import { run, BatonError } from '../util.mjs';
 import { activeClaim, claimComment, labelNames, releaseComment } from '../tasks.mjs';
 
 const ISSUE_FIELDS = 'number,title,body,state,assignees,labels,url';
+const PR_FIELDS = 'number,title,headRefName,isDraft,reviewDecision,statusCheckRollup,labels';
 
 /** GitHub Issues task provider, implemented on top of the `gh` CLI. */
 export class GithubProvider {
@@ -141,6 +142,11 @@ export class GithubProvider {
   findPullRequest(branch) {
     const prs = this.ghJson(['pr', 'list', ...this.repoArgs, '--head', branch, '--state', 'open', '--json', 'number,url,title']);
     return prs[0] ?? null;
+  }
+
+  /** Open PRs with what `baton handoff` shows of them; a result of `limit` rows means more may exist. */
+  listPullRequests({ limit = 1000 } = {}) {
+    return this.ghJson(['pr', 'list', ...this.repoArgs, '--state', 'open', '--limit', String(limit), '--json', PR_FIELDS]);
   }
 
   /** The newest PR (highest number) from `branch` in any state, with its head commit, or null. */

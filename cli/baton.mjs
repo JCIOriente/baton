@@ -689,13 +689,13 @@ function oneLine(text) {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/** Runs a GitHub lookup for `worktree clean`, turning a gh failure into a hint to log in. */
-function fromGithub(lookup) {
+/** Runs a GitHub lookup, turning a gh failure into a hint to log in; the defaults are `worktree clean`'s. */
+function fromGithub(lookup, { what = 'PR state', hint = 'Install gh and run `gh auth login`, then retry. Nothing was changed.' } = {}) {
   try {
     return lookup();
   } catch (err) {
     if (!(err instanceof BatonError)) throw err;
-    throw new BatonError(`Could not read PR state from GitHub: ${err.message}`, { hint: 'Install gh and run `gh auth login`, then retry. Nothing was changed.' });
+    throw new BatonError(`Could not read ${what} from GitHub: ${err.message}`, { hint });
   }
 }
 
