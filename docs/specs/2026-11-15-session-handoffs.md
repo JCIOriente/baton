@@ -164,6 +164,7 @@ New terms in `CONTEXT.md`:
      git inherits it).
    - **Base sync.** The base branch ahead/behind its remote-tracking ref, labelled "as of last
      fetch"; "no remote-tracking ref" when there is none, and then `ahead` and `behind` are `null`.
+     `base.remote` is the configured remote's name, which the line prints (`origin/main`).
    - **Untrusted text.** The repo may be public and PR titles are written by anyone. PR titles and
      branch names are collapsed to one line and cut at 80 characters (`clip` in `cli/lib/handoff.mjs`). Task titles are
      not printed.
@@ -174,7 +175,8 @@ New terms in `CONTEXT.md`:
      slot reads `candidates: none (no --spec)`. Rendered as `#N` for tasks, `PR #N` for PRs, and
      `worktree <task number or branch>` for worktrees (JSON holds their paths).
    - **Fixed lines.** When they apply, "Where things stand" also prints, exactly:
-     `No open tasks.` (no group has a task), `Implementation status: file not found` (in a group
+     `No open tasks.` (no group has a task), `- no open tasks` (under the unit's heading when its
+     group has no tasks), `Implementation status: file not found` (in a group
      whose spec file is missing), `No spec:` (the heading of that group), `Not listed: <n> triage
      issues` (when the count is above 0) and `Lists cut at 1000; more exist.` (when truncated).
    - **Output.** The rendered `templates/handoff.md` on stdout. `--json` prints facts only, every key
@@ -186,7 +188,7 @@ New terms in `CONTEXT.md`:
        "groups": [{ "spec": "docs/specs/…md", "tasks": [{ "number": 160, "title": "…", "status": "in-progress", "assignees": ["arnold"], "pr": { "number": 165, "draft": false, "reviewDecision": "REVIEW_REQUIRED", "checks": "passing" } }], "openStatusItems": ["Plan and issues"] }],
        "prsWithoutTask": [{ "number": 145, "title": "…", "branch": "…", "release": true }],
        "worktrees": [{ "task": 160, "branch": "…", "path": "…", "current": false, "dirty": true, "stale": false, "unpushed": 2 }],
-       "base": { "branch": "main", "ahead": 0, "behind": 0, "tracking": true },
+       "base": { "branch": "main", "remote": "origin", "ahead": 0, "behind": 0, "tracking": true },
        "leaveAloneCandidates": { "tasks": [160, 161], "prs": [165, 145], "worktrees": ["…/160"] },
        "triageCount": 3,
        "truncated": false
