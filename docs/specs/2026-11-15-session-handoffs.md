@@ -318,7 +318,7 @@ None.
 
 ## Implementation status
 - [x] Plan: docs/plans/2026-11-15-session-handoffs.md
-- [ ] T1 handoff template and pure core (#152)
-- [ ] T2 `baton handoff` command (#154)
-- [ ] T3 session-boundary rules in the skills (#153)
-- [ ] T4 `baton:handoff` skill (#156)
+- [x] T1 handoff template and pure core (#152)
+- [x] T2 `baton handoff` command (#154)
+- [x] T3 session-boundary rules in the skills (#153)
+- [x] T4 `baton:handoff` skill (#156)
