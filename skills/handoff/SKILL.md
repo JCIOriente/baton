@@ -20,8 +20,8 @@ still stale. Update any session memory you keep.
 
 1. The argument, if given.
 2. Else, mid-unit: the unit this session is working on.
-3. When that unit has no open tasks (`No open tasks.` in its group), ask the user which spec is
-   next and wait. If none is chosen yet, run without `--spec`.
+3. When that unit lists no open tasks (`- no open tasks` under it, or `No open tasks.`), ask the
+   user which spec is next and wait. If none is chosen, run without `--spec`.
 
 ## 3. Draft and fill
 
