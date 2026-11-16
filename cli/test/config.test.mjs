@@ -41,7 +41,9 @@ test('config rejects an advisory step without a reason', () => {
 test('config rejects duplicate step names', () => {
   const p = problems({ validate: [{ name: 'a', run: 'x' }, { name: 'a', run: 'y' }] });
   assert.match(p.join(), /validate\[1\] 'a'.*duplicate step name/);
-  assert.deepEqual(problems({ validate: [{ run: 'x' }, { run: 'x' }] }), ["validate[1] 'x': duplicate step name"]);
+  assert.deepEqual(problems({ validate: [{ run: 'x' }, { run: 'x' }] }), []);
+  assert.deepEqual(problems({ validate: [{ run: 'npm test', cwd: 'apps/a' }, { run: 'npm test', cwd: 'apps/b' }] }), []);
+  assert.deepEqual(problems({ validate: [{ name: 'x', run: 'y' }, { run: 'x' }] }), []);
   assert.deepEqual(problems({ validate: [{ run: 'x' }, { run: 'y' }] }), []);
 });
 

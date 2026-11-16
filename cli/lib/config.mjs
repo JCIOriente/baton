@@ -175,8 +175,11 @@ function validateGates(config) {
     if (!v || typeof v.run !== 'string') return;
     const name = v.name ?? v.run;
     const at = `validate[${i}] '${name}'`;
-    if (seen.has(name)) problems.push(`${at}: duplicate step name`);
-    seen.add(name);
+    // Only explicit names must be unique; unnamed steps may share a run.
+    if (v.name !== undefined) {
+      if (seen.has(v.name)) problems.push(`${at}: duplicate step name`);
+      seen.add(v.name);
+    }
     problems.push(...listProblems(at, 'gates', v.gates, GATES, 'gate'), ...listProblems(at, 'stages', v.stages, STAGES, 'stage'));
     if (v.blocking !== undefined && typeof v.blocking !== 'boolean') problems.push(`${at}: blocking must be a boolean`);
     if (v.blocking === false && (typeof v.reason !== 'string' || !v.reason.trim())) {
