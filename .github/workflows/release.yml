@@ -79,7 +79,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "26"
+          node-version: "24"
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - name: Check the version matches the tag
@@ -129,7 +129,7 @@ jobs:
     steps:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "26"
+          node-version: "24"
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -223,7 +223,7 @@ jobs:
       # Trusted publishing needs npm >= 11.5.1 and Node >= 22.14.0; Node 26 ships both.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "26"
+          node-version: "24"
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - name: Check npm supports trusted publishing
