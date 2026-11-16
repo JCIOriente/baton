@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-16-gates-core.md](../specs/2026-11-16-gates-core.md)
 - Date: 2026-11-16
-- Status: draft
+- Status: in backlog (#166, #167, #168, #169, #170, #171, #172)
 
 ## Overview
 Seven tasks, cut by file ownership. `cli/baton.mjs` is shared by `verify`, `start`, `done`,
@@ -72,7 +72,7 @@ Can start immediately in parallel: T1, T4, T5, T6
 
 ## Tasks
 
-### T1: Gate catalog, applicability and config validation
+### T1: Gate catalog, applicability and config validation  (#166)
 - Priority: 1
 - Depends on: none
 - Owns: `cli/lib/gates.mjs` (new), `cli/lib/config.mjs`, `cli/test/config.test.mjs` (new),
@@ -129,7 +129,7 @@ Can start immediately in parallel: T1, T4, T5, T6
     passed in or called once.
   - Message texts are the spec's (Interfaces, `baton doctor`).
 
-### T2: Stage runs, advisory steps and the PR body in `verify`, `start` and `done`
+### T2: Stage runs, advisory steps and the PR body in `verify`, `start` and `done`  (#170)
 - Priority: 1
 - Depends on: T1
 - Owns:
@@ -190,7 +190,7 @@ Can start immediately in parallel: T1, T4, T5, T6
   - Follow `worktree-cli.test.mjs` for black-box runs in temporary repos.
   - Keep stderr step lines (`▶`, `✔`, `✖`) unchanged; tests elsewhere may match them.
 
-### T3: `doctor` gate findings, context lines and `init` suggestions
+### T3: `doctor` gate findings, context lines and `init` suggestions  (#171)
 - Priority: 2
 - Depends on: T1, T2, T4
 - Owns:
@@ -226,7 +226,7 @@ Can start immediately in parallel: T1, T4, T5, T6
   - `context prints gates, non-default stages and advisory reasons`
   - `init suggestions carry gates`
 
-### T4: Commit-gates hook, install and upgrade
+### T4: Commit-gates hook, install and upgrade  (#167)
 - Priority: 1
 - Depends on: none
 - Owns:
@@ -274,7 +274,7 @@ Can start immediately in parallel: T1, T4, T5, T6
   - Detect "too old" from the exit status and stderr of that unknown-option error. The real
     CLI's `opts` error text is in `cli/baton.mjs` (read it; don't change it).
 
-### T5: Claude Code hook refusing `--no-verify`
+### T5: Claude Code hook refusing `--no-verify`  (#168)
 - Priority: 2
 - Depends on: none
 - Owns: `hooks/no-verify-guard.mjs` (new), `hooks/hooks.json`,
@@ -312,7 +312,7 @@ Can start immediately in parallel: T1, T4, T5, T6
   - Within a segment, find `git` followed by optional global options (`-C <path>`,
     `-c <k=v>`), then the subcommand.
 
-### T6: Publish the CLI to npm as `@jcioriente/baton`, and the CI template
+### T6: Publish the CLI to npm as `@jcioriente/baton`, and the CI template  (#169)
 - Priority: 2
 - Depends on: none
 - Owns:
@@ -350,7 +350,7 @@ Can start immediately in parallel: T1, T4, T5, T6
   - A trial release with `dry_run: true` (the release skill's dry run) is the owner's step
     after merge, not this task's.
 
-### T7: baton's own repo on the new shape, with Biome
+### T7: baton's own repo on the new shape, with Biome  (#172)
 - Priority: 3
 - Depends on: T2, T3, T5, T6
 - Owns:

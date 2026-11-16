@@ -1,6 +1,6 @@
 # Engineering standard, core: gate catalog, config shape and CLI — Spec
 
-- Status: draft
+- Status: approved 2026-11-16
 - Date: 2026-11-16
 - Owner: Arnold Gandarillas
 - Related: #137 (umbrella; this is its spec 1 of 4), #136 (spec 2), #135 and #134 (spec 3),
@@ -465,4 +465,11 @@ already forbids it; the hook makes the rule hold.
 None.
 
 ## Implementation status
-- [ ] plan
+- [x] plan: [docs/plans/2026-11-16-gates-core.md](../plans/2026-11-16-gates-core.md)
+- [ ] #166 gate catalog, applicability and config validation
+- [ ] #167 commit-gates hook, install and upgrade
+- [ ] #168 Claude Code hook refusing `--no-verify`
+- [ ] #169 npm package `@jcioriente/baton` and CI template
+- [ ] #170 stage runs, advisory steps and PR body in `verify`, `start` and `done`
+- [ ] #171 `doctor` gate findings, context lines and `init` suggestions
+- [ ] #172 baton's own repo on the new shape, with Biome
