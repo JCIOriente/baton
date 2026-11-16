@@ -65,8 +65,7 @@ add gates, so the shape they plug into has to exist first.
 2. A config written before this spec loads and behaves exactly as today: every step blocks and
    runs locally and in CI. `baton doctor` reports each step with no `gates`.
 3. `baton doctor` lists every applicable gate (Applicability table) that no step covers and no
-   `gates.skip` entry explains, and every step that runs a static gate after a test, build or
-   e2e step.
+   `gates.skip` entry explains, and every step that runs a static gate after a non-static step.
 4. `baton verify`:
    - runs the `local` stage by default, or the stage given by `--stage`;
    - continues past a failing advisory step and exits 0 when only advisory steps failed;
@@ -211,7 +210,7 @@ A `validate` step:
 
 | Field | Type | Default | Rule |
 |---|---|---|---|
-| `name` | string | `run` | step names are unique within `validate` (author's call: needed for `--only`) |
+| `name` | string | `run` | explicit names are unique within `validate`; unnamed steps may share a `run` (owner's call, so old configs keep loading) |
 | `run` | string | required | unchanged |
 | `cwd` | string | repo root | unchanged |
 | `gates` | array of catalog names | none | non-empty when present; no duplicates |
@@ -466,10 +465,10 @@ None.
 
 ## Implementation status
 - [x] plan: [docs/plans/2026-11-16-gates-core.md](../plans/2026-11-16-gates-core.md)
-- [ ] #166 gate catalog, applicability and config validation
-- [ ] #167 commit-gates hook, install and upgrade
-- [ ] #168 Claude Code hook refusing `--no-verify`
-- [ ] #169 npm package `@jcioriente/baton` and CI template
+- [x] #166 gate catalog, applicability and config validation
+- [x] #167 commit-gates hook, install and upgrade
+- [x] #168 Claude Code hook refusing `--no-verify`
+- [x] #169 npm package `@jcioriente/baton` and CI template
 - [ ] #170 stage runs, advisory steps and PR body in `verify`, `start` and `done`
 - [ ] #171 `doctor` gate findings, context lines and `init` suggestions
 - [ ] #172 baton's own repo on the new shape, with Biome
