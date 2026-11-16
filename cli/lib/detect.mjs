@@ -33,6 +33,15 @@ function manifests(root, name) {
   return found;
 }
 
+/** True when a package.json (with dependencies or devDependencies) or a Cargo.toml exists at the root or one level down. */
+export function hasDependencies(root) {
+  if (manifests(root, 'Cargo.toml').length) return true;
+  return manifests(root, 'package.json').some((p) => {
+    const pkg = readJson(p) ?? {};
+    return Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).length > 0;
+  });
+}
+
 /** Guess stacks and a package manager from manifests. Used only to seed `baton init`. */
 export function detectStacks(root) {
   const stacks = new Set();
