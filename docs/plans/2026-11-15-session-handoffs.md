@@ -5,15 +5,19 @@
 - Status: in backlog (#152, #153, #154)
 
 ## Overview
-Three tasks, cut by file ownership. The pure core and the template come first, because the
+Four tasks, cut by file ownership. The pure core and the template come first, because the
 command renders the template and calls the core. The skill text needs only the command's name,
-flags and slot token, which the spec fixes, so it runs in parallel with both CLI tasks.
+flags and slot token, and the skill name `baton:handoff`, which the spec fixes, so T3 and T4 run in
+parallel with both CLI tasks.
 
 - T1: `templates/handoff.md` and the pure functions in `cli/lib/handoff.mjs`, with unit tests
 - T2: the `baton handoff` command, the provider's `listPullRequests()`, `fromGithub`'s `what`
   parameter, and end-to-end tests with a fake `gh`
-- T3: the session-boundary rules (`skills/parallel/session-boundaries.md`), the pointers in
-  `baton:parallel`, `baton:retro` and `baton:workflow` §4, and their writing-skills scenarios
+- T3: the context-budget rules (`skills/parallel/session-boundaries.md`), the pointers to
+  `baton:handoff` in `baton:parallel`, `baton:retro` and `baton:workflow` §4, and their
+  writing-skills scenarios
+- T4: the `baton:handoff` skill (`/baton:handoff`), its scenario, a trigger eval and the README line
+  (added 2026-11-15, picked by the user)
 
 `CONTEXT.md` (Unit, Session handoff) merges with the spec.
 
@@ -34,7 +38,8 @@ No API. Fixed by the spec and used as written:
   `baton:retro` and `baton:workflow` reach every baton repo on the next release.
 - **Data and migrations:** none.
 - **Tests that must stay green:** `make ci` (all of `cli/test`, plugin validation); the trigger
-  evals `parallel-backlog`, `retro-after-merge` and `workflow-refactor` (run with `make evals`
+  evals `parallel-backlog`, `retro-after-merge`, `workflow-refactor` and the new `handoff-request`
+  (the new skill's triggers must not take `retro-after-merge`'s prompt) (run with `make evals`
   before the release, not per task).
 - **Rollout and rollback:** shipped in the next release; each task reverts on its own. Nothing is
   gated by config.
@@ -43,8 +48,9 @@ No API. Fixed by the spec and used as written:
 ```
 T1 ──> T2
 T3 (independent)
+T4 (independent)
 ```
-Can start immediately in parallel: T1, T3
+Can start immediately in parallel: T1, T3, T4
 
 ## Tasks
 
@@ -162,28 +168,51 @@ Can start immediately in parallel: T1, T3
 - Owns: `skills/parallel/session-boundaries.md` (new), `skills/parallel/SKILL.md`,
   `skills/retro/SKILL.md`, `skills/workflow/SKILL.md`, `tests/skills/parallel.md`,
   `tests/skills/retro.md` (new)
-- Touches (read-only or additive): `CONTEXT.md` (read), `templates/handoff.md` (read once T1 lands;
-  the spec fixes its shape)
-- Interfaces: none (skill text)
+- Touches (read-only or additive): `CONTEXT.md` (read), `skills/handoff/SKILL.md` (read, T4's)
+- Interfaces: none (skill text). Points to the skill name `baton:handoff`, which T4 creates.
 - Acceptance:
-  - [ ] `skills/parallel/session-boundaries.md` holds every rule in spec Interface 4, including
-        "never give a prompt containing `<FILL`", the manual path through
-        `${CLAUDE_PLUGIN_ROOT}/templates/handoff.md`, and updating any session memory.
-  - [ ] `skills/parallel/SKILL.md` gains at most 60 words, pointing to the file (spec Interface 5).
-  - [ ] `skills/retro/SKILL.md` offers to end the session and draft the session handoff when the
-        `baton handoff --spec <spec>` shows no open tasks in the unit's group.
-  - [ ] `skills/workflow/SKILL.md` §4's second sentence becomes the session-handoff pointer, with a
-        net word change of zero or less.
-  - [ ] `tests/skills/parallel.md` records a baseline and a green run: at a unit boundary the agent
-        opens `session-boundaries.md` and ends with a filled prompt (no `<FILL`) instead of starting
-        the next unit.
-  - [ ] `tests/skills/retro.md` records a baseline and a green run: a retro run when the unit's group has no open tasks offers
-        the session handoff.
+  - [ ] `skills/parallel/session-boundaries.md` holds every context-budget rule in spec Interface 4,
+        and for the unit boundary says only to load `baton:handoff`.
+  - [ ] `skills/parallel/SKILL.md` gains at most 60 words, as spec Interface 5.
+  - [ ] `skills/retro/SKILL.md` offers to end the session and write the session handoff with
+        `baton:handoff` when `baton handoff --spec <spec>` shows no open tasks in the unit's group.
+  - [ ] `skills/workflow/SKILL.md` §4's second sentence becomes the `baton:handoff` pointer and
+        `baton:handoff` joins the supporting skills, with a net word change of zero or less.
+  - [ ] `tests/skills/parallel.md` records a baseline and a green run: when the context grows the
+        agent opens `session-boundaries.md`; at a unit boundary it loads `baton:handoff` instead of
+        starting the next unit.
+  - [ ] `tests/skills/retro.md` records a baseline and a green run: a retro run when the unit's group
+        has no open tasks offers the session handoff.
   - [ ] `make ci` passes (plugin validation).
 - Tests first: the two scenarios' baseline runs, recorded before the edits.
 - Notes: follow the repo's `writing-skills` skill; use "session handoff" (not "hand-off" or
-  "handoff comment"). Until T2 merges, the scenarios may stub `baton handoff` output from the spec's
-  nutshell.
+  "handoff comment"). Until T4 merges, `baton:handoff` may not exist yet; the pointers name it as the
+  spec fixes it.
+
+### T4: `baton:handoff` skill  (#issue)
+- Priority: 1
+- Depends on: none
+- Owns: `skills/handoff/SKILL.md` (new), `tests/skills/handoff.md` (new), `evals/handoff-request/`
+  (new), `README.md` (the skills list line)
+- Touches (read-only or additive): `templates/handoff.md` (read; T1's, its shape fixed by the spec),
+  `evals/retro-after-merge/` (read, for the case layout)
+- Interfaces: none (skill text). The skill name `baton:handoff`, `argument-hint: "[spec path]"`.
+- Acceptance:
+  - [ ] `skills/handoff/SKILL.md` has every step and rule in spec Interface 9 and stays at or under
+        ~400 words.
+  - [ ] Its description triggers on asking for a prompt to continue in another session, to hand
+        off, wrap up or start fresh, and on a closed unit.
+  - [ ] `tests/skills/handoff.md` records a baseline and a green run: the agent runs
+        `baton handoff --spec <spec>` and gives a prompt with no `<FILL`; without `gh` access it fills
+        the template by hand and says the facts were not read from GitHub.
+  - [ ] `evals/handoff-request/` (case.yaml, prompt.md, scaffold.sh, graders/fired.md matching
+        `(?:baton:)?handoff`) in the layout of `evals/retro-after-merge/`.
+  - [ ] `README.md` lists `/baton:handoff [spec]` with a one-line comment, next to `/baton:retro`.
+  - [ ] `make ci` passes (plugin validation).
+- Tests first: the scenario's baseline run, recorded before the skill exists.
+- Notes: follow the repo's `writing-skills` skill. Until T1/T2 merge, the scenario stubs
+  `baton handoff` output from the spec's nutshell. The eval is paid and runs with `make evals` before
+  the release, not per task.
 
 ## Coverage check
 | Spec requirement | Task(s) |
@@ -202,7 +231,8 @@ Can start immediately in parallel: T1, T3
 | Generic template, two placeholders, slot token | T1 |
 | Read-only | T2: `handoff_is_read_only` |
 | `fromGithub` `what` parameter, `worktree clean` unchanged | T2 |
-| Session-boundary rules, pointers, retro offer | T3 |
+| Context-budget rules, pointers, retro offer | T3 |
+| `baton:handoff` skill, trigger eval, README line | T4 |
 | Unit, Session handoff terms | spec PR (`CONTEXT.md`) |
 | Failure mode: issue body with a `Spec:` line inside a code fence | T1: `parse_spec_ref_ignores_fenced_line` |
 | Failure mode: PR title with a newline | T1: `render_truncates_untrusted_text` |
