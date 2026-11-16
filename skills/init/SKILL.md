@@ -25,6 +25,10 @@ disable-model-invocation: true
      **Keep local and CI checks identical** by giving them one entry point: put the checks in a
      single script (`make ci`, `just ci` or a `ci` package script), have `validate` run that
      script, and have the CI workflow run the same script. Two separate lists drift apart.
+     Offer `${CLAUDE_PLUGIN_ROOT}/templates/ci.yml` as `.github/workflows/ci.yml` (replace
+     `<base-branch>` with `git.baseBranch` and `{{version}}` with `version` from
+     `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`; uncomment the tool-install slot for
+     what `validate` needs). It runs `baton verify`, so CI uses the same entry point.
      Modules that others depend on can add their own downstream checks here.
    - **workflow**: phases and gates (`requireSpec`, `requireTdd`, `requireReview`,
      `baselineOnStart`). For a project-specific phase, add it to `phases` and point
