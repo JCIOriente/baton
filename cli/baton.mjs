@@ -2,8 +2,8 @@
 // baton: deterministic operations for the baton workflow.
 // Skills tell the agent *when* to do something; this CLI does it the same way every time.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, CONFIG_FILE, reviewerFocus, reviewersFor } from './lib/config.mjs';
@@ -24,7 +24,7 @@ import {
   unpushedCount,
   worktreeBase,
 } from './lib/git.mjs';
-import { groupBySpec, HANDOFF_TEMPLATE_PATH, leaveAloneCandidates, linkPullRequests, normalizeSpecPath, openStatusItems, renderHandoff } from './lib/handoff.mjs';
+import { groupBySpec, HANDOFF_TEMPLATE_PATH, leaveAloneCandidates, linkPullRequests, normalizeSpecPath, openStatusItems, parseSpecRef, renderHandoff } from './lib/handoff.mjs';
 import { getProvider } from './lib/providers/github.mjs';
 import { factsVsInstalled, installedVersions, loadProvenance, upstreamFindings } from './lib/provenance.mjs';
 import {
@@ -736,6 +736,7 @@ function handoff(argv) {
   process.env.GIT_OPTIONAL_LOCKS = '0';
   const { values } = opts(argv, { spec: { type: 'string' } });
   const { root, config } = requireConfig();
+  const unitSpec = values.spec === undefined ? null : canonicalSpec(values.spec);
   const provider = getProvider(config, root);
   const { issues, prs } = fromGithub(() => ({ issues: provider.list({ limit: GITHUB_LIST_LIMIT }), prs: provider.listPullRequests({ limit: GITHUB_LIST_LIMIT }) }), {
     what: 'tasks and PRs',
@@ -747,7 +748,6 @@ function handoff(argv) {
   const rows = issues.map((t) => ({ ...summarize(t, config.tasks.labels), body: t.body }));
   const tasks = rows.filter((t) => t.status !== 'triage');
   const linked = linkPullRequests(tasks, prs, (branch) => issueFromBranch(config, branch));
-  const unitSpec = values.spec === undefined ? null : normalizeSpecPath(values.spec);
   const groups = groupBySpec(linked.tasks, unitSpec).map((g) => ({
     spec: g.spec,
     tasks: g.tasks.map((t) => ({ number: t.number, title: t.title, status: t.status, assignees: t.assignees, pr: t.pr })),
@@ -788,7 +788,25 @@ function readSpec(config, path) {
   const fromBase = showFile(top, `${config.git.remote}/${config.git.baseBranch}`, path);
   if (fromBase !== null) return fromBase;
   const file = resolve(top, path);
-  return file.startsWith(top + sep) && existsSync(file) ? readFileSync(file, 'utf8') : null;
+  return file.startsWith(top + sep) && statSync(file, { throwIfNoEntry: false })?.isFile() ? readFileSync(file, 'utf8') : null;
+}
+
+/**
+ * `--spec` as the repo-relative path task bodies use, so any spelling of the same file finds its
+ * tasks: resolved against the checkout (with the disk's own case when the file is there), POSIX
+ * separators. Throws for a path outside the checkout or not in the `Spec:` line's form.
+ */
+function canonicalSpec(value) {
+  const spec = normalizeSpecPath(value);
+  if (!spec) throw new BatonError('--spec needs a path');
+  const top = realpathSync.native(currentTop());
+  const file = resolve(top, spec);
+  const onDisk = existsSync(file) ? realpathSync.native(file) : file;
+  const rel = relative(top, onDisk);
+  if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new BatonError(`--spec ${value} is outside this checkout`);
+  const path = rel.split(sep).join(posix.sep);
+  if (parseSpecRef(`Spec: ${path}`) !== path) throw new BatonError(`--spec ${value} is not a spec path`, { hint: 'Name a .md file, e.g. docs/specs/<name>.md.' });
+  return path;
 }
 
 // --- Integration ----------------------------------------------------------

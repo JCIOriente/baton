@@ -367,3 +367,79 @@ test('handoff_uses_configured_remote', (t) => {
   assert.deepEqual(json.base, { branch: 'main', remote: 'upstream', ahead: 0, behind: 0, tracking: true });
   assert.deepEqual(json.unit, { spec: 'docs/specs/next.md', found: true });
 });
+
+test('handoff_canonicalizes_spec', (t) => {
+  const { dir, root } = repo(t, { [SPEC_A]: SPEC_TEXT });
+  const gh = withFakeGh(dir, { issues: [issue(160, { labels: ['status:in-progress'], spec: SPEC_A })] });
+  const spellings = [join(root, SPEC_A), `docs/../${SPEC_A}`, `docs/specs//a.md`];
+  // On a case-insensitive disk the working tree also answers to another case.
+  if (existsSync(join(root, 'docs/specs/A.md'))) spellings.push('docs/specs/A.md', 'Docs/Specs/a.md');
+  for (const spelling of spellings) {
+    const res = gh.run(root, 'handoff', '--spec', spelling, '--json');
+    assert.equal(res.status, 0, `${spelling}: ${res.stderr}`);
+    const json = JSON.parse(res.stdout);
+    assert.deepEqual(json.unit, { spec: SPEC_A, found: true }, spelling);
+    assert.deepEqual(json.groups[0].tasks.map((task) => task.number), [160], spelling);
+    assert.deepEqual(json.leaveAloneCandidates.tasks, [], spelling);
+  }
+});
+
+test('handoff_rejects_spec_that_is_not_a_spec_path', (t) => {
+  const { dir, root } = repo(t, { 'docs/specs/dir.md/x.md': SPEC_TEXT });
+  mkdirSync(join(root, 'docs/specs/local.md'));
+  const gh = withFakeGh(dir, BACKLOG);
+  for (const spelling of ['', '  ', 'docs/specs', '.baton', 'docs/specs/dir.md', 'docs/specs/local.md', 'docs/specs/a b.md']) {
+    const res = gh.run(root, 'handoff', '--spec', spelling);
+    assert.equal(res.status, 1, `${JSON.stringify(spelling)}: ${res.stdout}${res.stderr}`);
+    assert.equal(res.stdout, '', spelling);
+    assert.match(res.stderr, /^baton: /, spelling);
+    assert.doesNotMatch(res.stderr, /unexpected error/, spelling);
+  }
+  assert.match(gh.run(root, 'handoff', '--spec', '').stderr, /^baton: --spec needs a path$/m);
+});
+
+test('handoff_never_reads_outside_checkout', (t) => {
+  const { dir, root } = repo(t);
+  writeFileSync(join(dir, 'outside.md'), '# Outside\n\n## Implementation status\n- [ ] secret\n');
+  const gh = withFakeGh(dir, { issues: [issue(160, { labels: ['status:ready'], spec: '../outside.md' })] });
+  const res = gh.run(root, 'handoff');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(standing(res.stdout), /^- \.\.\/outside\.md: ready: #160 · Implementation status: file not found$/m);
+  assert.doesNotMatch(res.stdout, /secret/);
+  const json = gh.run(root, 'handoff', '--json');
+  assert.equal(JSON.parse(json.stdout).groups[0].openStatusItems, null);
+  assert.doesNotMatch(json.stdout, /secret/);
+  for (const spelling of ['../outside.md', join(dir, 'outside.md')]) {
+    const unit = gh.run(root, 'handoff', '--spec', spelling);
+    assert.equal(unit.status, 1, spelling);
+    assert.equal(unit.stdout, '', spelling);
+    assert.match(unit.stderr, /outside\.md/, spelling);
+    assert.doesNotMatch(unit.stderr, /secret/, spelling);
+  }
+});
+
+test('handoff_without_local_base_branch_names_it', (t) => {
+  const { dir, root } = repo(t);
+  git(root, 'checkout', '-qb', 'work');
+  git(root, 'branch', '-qD', 'main');
+  const res = withFakeGh(dir).run(root, 'handoff');
+  assert.equal(res.status, 1);
+  assert.equal(res.stdout, '');
+  assert.match(res.stderr, /^baton: No local base branch main$/m);
+  assert.doesNotMatch(res.stderr, /rev-list/);
+});
+
+test('handoff_counts_unpushed_after_upstream_is_gone', (t) => {
+  const { dir, root, base } = repo(t);
+  const wt = join(base, '160');
+  git(root, 'worktree', 'add', '-q', '-b', 'task/160-merged', wt, 'main');
+  git(wt, 'commit', '-q', '--allow-empty', '-m', 'one');
+  git(wt, 'push', '-q', '-u', 'origin', 'task/160-merged');
+  git(wt, 'commit', '-q', '--allow-empty', '-m', 'two');
+  // The PR merged and its branch was deleted on the remote; the fetch prunes it here.
+  git(root, 'push', '-q', 'origin', '--delete', 'task/160-merged');
+  git(root, 'fetch', '-q', '--prune', 'origin');
+  const json = JSON.parse(withFakeGh(dir).run(root, 'handoff', '--json').stdout);
+  // Commit "one" stays on no remote ref either, so both count; the branch is not shown as never pushed.
+  assert.equal(json.worktrees[0].unpushed, 2);
+});
