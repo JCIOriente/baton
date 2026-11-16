@@ -180,7 +180,7 @@ function validateGates(config) {
       problems.push(`${at}: reason is required when blocking is false`);
     }
     if (Array.isArray(v.gates)) {
-      for (const g of v.gates) if (Object.hasOwn(skip, g)) problems.push(`${at}: gate '${g}' is covered but also listed in gates.skip`);
+      for (const g of v.gates) if (Object.hasOwn(skip, g)) problems.push(`${at}: gate '${g}' is both covered and skipped in gates.skip`);
     }
   });
   return problems;
