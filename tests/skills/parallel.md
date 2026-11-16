@@ -118,8 +118,8 @@ Same command as above. The prompt is `skills/parallel/SKILL.md` inside `<skill>`
 scenario up to its Expected line inside `<scenario>` tags, and: "Answer as the controller: what
 you do next, in order, which files you read and which skills you load, and what you tell the
 user, quoting your reasoning. You can't run anything; the scenario says what already happened."
-Scenario 5 also gets `skills/parallel/session-boundaries.md` inside `<reference>` tags (in the
-baseline, which has no such file, nothing). Baseline: the text on `main` before #153. After: the
+Scenario 5 is run with that prompt alone and again with `skills/parallel/session-boundaries.md`
+inside `<reference>` tags (in the baseline, which has no such file, nothing). Baseline: the text on `main` before #153. After: the
 text with the #153 changes.
 
 ## 4. The context has grown (expect: opens session-boundaries.md)
@@ -171,9 +171,15 @@ files and kept #64 and #65 in this session.
 Baseline: red, 2 of 2. Both loaded the planning skill and went on to imports: "Nobody has told
 me to stop, so that instruction still holds and I don't ask again whether to continue."
 
-After: green, 3 of 3. Each loaded `baton:handoff` for the imports spec and stopped: "The user's
-instruction ('then the imports spec is next') tells me what comes next. It doesn't tell me to do
-it in this context."
+After, `skills/parallel/SKILL.md` only (no `<reference>`): green, 3 of 3. Each loaded
+`baton:handoff` for the imports spec and did not plan or start imports: "One unit (one spec) per
+controller session. ... at a unit boundary, load `baton:handoff`." Run on 2026-11-16 after round 1
+review, because the runs below had the reference text, which a controller at a boundary with no
+context growth never opens.
+
+After, with `session-boundaries.md` in `<reference>` tags as well: green, 3 of 3. Each loaded
+`baton:handoff` for the imports spec and stopped: "The user's instruction ('then the imports spec
+is next') tells me what comes next. It doesn't tell me to do it in this context."
 
 Word count: `skills/parallel/SKILL.md` went from 749 to 782 words (`wc -w`); cap 809 (749 plus
 the 60 words spec Interface 5 allows).
