@@ -103,6 +103,8 @@ function fakeBaton(dir, body) {
 const PASSING = 'echo "✔ lint" >&2; exit 0';
 const FAILING = 'echo "✖ lint failed (exit 1)" >&2; exit 1';
 // What a baton older than `--stage` prints: `opts` in cli/baton.mjs turns parseArgs' error into this.
+// Before 0.6.0, the parseArgs error escaped as an unexpected error with its stack.
+const TOO_OLD_PRE_0_6 = "printf '%s\\n' 'baton: unexpected error' \"TypeError [ERR_PARSE_ARGS_UNKNOWN_OPTION]: Unknown option '--stage'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \\\"--stage\\\"\" '    at parseArgs (node:internal/util/parse_args/parse_args:1:1)' >&2; exit 2";
 const TOO_OLD = "printf '%s\\n' \"baton: Unknown option '--stage'\" 'hint: Run `baton help`.' >&2; exit 1";
 
 /** An installed repo and a linked worktree of it. */
@@ -182,11 +184,37 @@ test('commit fails with the upgrade hint when baton rejects --stage', (t) => {
   const res = commit(wt, fakeBaton(dir, TOO_OLD));
   assert.equal(res.status, 1, res.stderr);
   assert.ok(res.stderr.includes(UPGRADE_HINT), res.stderr);
+  const older = commit(wt, fakeBaton(dir, TOO_OLD_PRE_0_6));
+  assert.equal(older.status, 1, older.stderr);
+  assert.ok(older.stderr.includes(UPGRADE_HINT), older.stderr);
 
   // A step whose own output mentions the option is a plain failure, not an old baton.
   const step = commit(wt, fakeBaton(dir, "echo \"lint: Unknown option '--stage'\" >&2; exit 1"));
   assert.equal(step.status, 1, step.stderr);
   assert.ok(!step.stderr.includes(UPGRADE_HINT), step.stderr);
+});
+
+test('commit gates stand down in a worktree without a baton config', (t) => {
+  // A branch from before the repo adopted baton: no .baton/config.json in its checkout.
+  const { dir, root } = repo(t);
+  install(root);
+  git(root, 'checkout', '-q', '--orphan', 'old');
+  git(root, 'rm', '-rq', '--cached', '.baton');
+  rmSync(join(root, '.baton'), { recursive: true });
+  git(root, 'commit', '-qm', 'before baton');
+  git(root, 'checkout', '-q', 'main');
+  const wt = join(dir, 'acme-worktrees/old');
+  git(root, 'worktree', 'add', '-q', wt, 'old');
+  const res = commit(wt, fakeBaton(dir, FAILING));
+  assert.equal(res.status, 0, res.stderr);
+  assert.throws(() => statSync(join(dir, 'baton-calls')), 'baton is not run without a config');
+
+  const bin = join(dir, 'bin');
+  mkdirSync(bin);
+  symlinkSync(join(git(wt, '--exec-path'), 'git'), join(bin, 'git'));
+  symlinkSync('/bin/sh', join(bin, 'sh'));
+  const noBaton = commit(wt, { PATH: bin });
+  assert.equal(noBaton.status, 0, noBaton.stderr);
 });
 
 test('commit gates stand down in CI and in the main checkout', (t) => {
@@ -391,6 +419,9 @@ test('commitGatesStatus is not-needed without a commit step', (t) => {
   assert.equal(commitGatesStatus(root, {}), 'not-needed');
   assert.equal(commitGatesStatus(root, { validate: [{ name: 'ci', run: 'make ci' }] }), 'not-needed');
   assert.equal(commitGatesStatus(root, { validate: [{ name: 'ci', run: 'make ci', stages: ['local', 'ci'] }] }), 'not-needed');
+  // An unvalidated config: stages that aren't an array name no commit stage.
+  assert.equal(commitGatesStatus(root, { validate: [{ name: 'ci', run: 'make ci', stages: 'precommit' }] }), 'not-needed');
+  assert.equal(commitGatesStatus(root, { validate: [{ name: 'ci', run: 'make ci', stages: { commit: true } }] }), 'not-needed');
 });
 
 test('commitGatesStatus follows a hook manager config and husky', (t) => {
@@ -423,6 +454,17 @@ test('install_is_idempotent', (t) => {
   assert.ok(second.stdout.includes(stub), second.stdout);
   assert.equal(guardStatus(root), 'installed');
   assert.equal(commit(root).status, 1);
+  assert.match(install(root).stdout, /already installed; behavior is unchanged/);
+});
+
+test('install rewrites a stale commit-gates script', (t) => {
+  const { root } = repo(t);
+  const first = JSON.parse(install(root, '--json').stdout);
+  assert.equal(first.gates, gatesPath(root));
+  writeFileSync(gatesPath(root), '# baton commit-gates v0\nexit 0\n');
+  const res = install(root);
+  assert.equal(readFileSync(gatesPath(root), 'utf8'), readFileSync(gatesTemplate, 'utf8'));
+  assert.doesNotMatch(res.stdout, /already installed; behavior is unchanged/);
   assert.match(install(root).stdout, /already installed; behavior is unchanged/);
 });
 
