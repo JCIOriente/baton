@@ -1,0 +1,283 @@
+# Scenarios: handoff
+
+Run each scenario as a fresh subagent that gets only `skills/handoff/SKILL.md` and the scenario
+text (for the baseline, only the scenario text). There is no real repo: the scenario gives the
+command output. Ask it to list, in order, the commands it would run, then give its reply to the
+user word for word, and to stop where it would wait for the user.
+
+Until `baton handoff` (#154) and `templates/handoff.md` (#152) merge, the scenarios stub their
+output from the spec's nutshell (docs/specs/2026-11-15-session-handoffs.md).
+
+## 1. Mid-unit, the session is long (expect: `baton handoff --spec`, every slot filled)
+
+You are the controller session in the baton repo `example/members`, main checkout
+`/home/dev/members`. This session's unit is `docs/specs/2026-11-20-gates-core.md`. In this
+session: task #169 merged (PR #168) and its retro is done; the user ruled that gate names are
+kebab-case, and you recorded that in a comment on #171. Tasks #170 and #171 are ready, #172 is
+blocked on #170. The spec's Implementation status already ticks T1 (#169). Another session is
+working on `docs/specs/2026-11-15-session-handoffs.md` (#160, #161). Earlier in this session the
+user said: "After the gates tasks merge, the next session cuts the release: merge release PR #145."
+
+`baton help` lists, among others: `handoff [--spec PATH] [--json]  Draft the next session's
+prompt from GitHub and git state (read-only)`.
+
+`baton handoff --spec docs/specs/2026-11-20-gates-core.md` prints:
+
+```markdown
+Continue members (this repo). Load baton:workflow.
+
+## Goal
+<FILL: the next unit, in one sentence>
+
+## Where things stand
+Next session's unit: docs/specs/2026-11-20-gates-core.md
+- ready: #170, #171 · blocked: #172
+- Implementation status still open: "T2 gate runner (#170)", "T3 gate results in verify (#171)", "T4 README gates section (#172)"
+Other open work:
+- docs/specs/2026-11-15-session-handoffs.md: in-progress #160 (arnold) · review #161 (PR #165, ci passing, review required)
+- Open PRs without a task: #145 chore(main): release 0.7.0 [release PR]
+Worktrees: #160 handoff-cli (uncommitted, 2 unpushed) /home/dev/members-worktrees/160
+Base branch main: up to date with origin/main (as of last fetch)
+
+## Stop at
+<FILL: the stopping point, e.g. "all tasks merged and retro done">
+
+## Next steps
+<FILL: numbered steps>
+
+## Rules
+Follow baton:workflow and this repo's conventions; they hold the rules for this repo. Never `git commit --no-verify`.
+
+## Leave alone
+<FILL: other sessions' work; candidates: #160, #161, PR #165, PR #145, worktree 160>
+```
+
+The user says: "This session is getting long. Give me a prompt to continue in another session."
+
+Expected: confirms the record is current (the ruling on #171, T1 ticked) before drafting; runs
+`baton handoff --spec docs/specs/2026-11-20-gates-core.md`; gives the prompt
+inline in one block fenced with four backticks, with no `<FILL` left; next steps cover #170,
+#171, then #172 after `baton unblock`, and the kebab-case ruling or its #171 comment; leave alone
+lists #160, #161, PR #165 and worktree 160 but not PR #145, which the next session merges.
+
+## 2. Closed unit (expect: ask which spec is next, then run without `--spec` if none)
+
+You are the controller session in the baton repo `example/members`. This session's unit is
+`docs/specs/2026-11-15-session-handoffs.md`. All its tasks merged, its Implementation status is
+fully ticked on `main`, and its retro PR merged. `docs/specs/` also holds two drafts with no plan:
+`2026-11-20-gates-core.md` and `2026-11-22-layout-guards.md`.
+
+`baton handoff --spec docs/specs/2026-11-15-session-handoffs.md` prints the template with, under
+"Where things stand":
+
+```
+Next session's unit: docs/specs/2026-11-15-session-handoffs.md
+- no open tasks
+Other open work:
+- docs/specs/2026-10-01-engineering-standard.md: ready: #129, #130 · blocked: #131
+- No spec: ready: #135
+Worktrees: none
+Base branch main: up to date with origin/main (as of last fetch)
+```
+
+and the Leave alone slot `<FILL: other sessions' work; candidates: none>`.
+
+The user says: "Great, that's done. Let's end this session and hand off."
+
+Expected: says the unit is closed and asks which spec the next session works on (it may list the
+two drafts), and stops for the answer. Does not pick a spec itself or give a prompt for the closed
+unit.
+
+Follow-up: the user answers "Not decided yet." Expected: runs `baton handoff` without `--spec`
+and gives a prompt with no `<FILL` whose goal is to pick and spec the next unit with the user.
+
+## 3. No GitHub access (expect: fill the template by hand, say the facts are not from GitHub)
+
+You are the controller session in the baton repo `example/members`, main checkout
+`/home/dev/members`, unit `docs/specs/2026-11-20-gates-core.md`. In this session #169 merged
+and its retro is done; the spec's Implementation status ticks T1 (#169) on `main`. #170 and #171
+are ready and #172 is blocked on #170, as of the last time you read the issues.
+
+`baton handoff --spec docs/specs/2026-11-20-gates-core.md` exits 1:
+`Could not read tasks and PRs from GitHub. Run gh auth login and try again.`
+`gh auth status` says you are not logged in. `baton status` prints the worktrees:
+`#171 gate-verify (clean, 0 unpushed) /home/dev/members-worktrees/171`. `git status` on `main`
+is clean and up to date with `origin/main`. `${CLAUDE_PLUGIN_ROOT}/templates/handoff.md` is:
+
+```markdown
+Continue {{project}} (this repo). Load baton:workflow.
+
+## Goal
+<FILL: the next unit, in one sentence>
+
+## Where things stand
+{{facts}}
+
+## Stop at
+<FILL: the stopping point, e.g. "all tasks merged and retro done">
+
+## Next steps
+<FILL: numbered steps>
+
+## Rules
+Follow baton:workflow and this repo's conventions; they hold the rules for this repo. Never `git commit --no-verify`.
+
+## Leave alone
+<FILL: other sessions' work>
+```
+
+The user says: "I'm on a plane, I can't log in to GitHub. Just give me the prompt to continue
+tomorrow."
+
+Expected: fills the template by hand from `baton status`, git and what this session knows; gives
+the whole template (first line, every section, the Rules line) with no `<FILL` and no `{{`; says
+the facts were not read from GitHub (so the task states may be out of date), and the prompt tells
+the next session to re-check them once GitHub is reachable (`baton handoff`, `baton status` or the
+issues). Does not refuse, and does not present the prompt as read from GitHub.
+
+## 4. Stale record (expect: comment the ruling, say what is still stale, no edit of `main`)
+
+You are the controller session in the baton repo `example/members`, main checkout
+`/home/dev/members`, on `main`. This session's unit is `docs/specs/2026-11-20-gates-core.md`. In
+this session: task #169 merged (PR #168) and its retro is done. Earlier in this chat the user ruled
+that gate names are kebab-case; that ruling is not on any issue yet. The spec's Implementation
+status on `main` does not tick T1 (#169) yet. Tasks #170 and #171 are ready, #172 is blocked on
+#170. Another session is working on `docs/specs/2026-11-15-session-handoffs.md` (#160, #161).
+
+`baton help` lists, among others: `handoff [--spec PATH] [--json]  Draft the next session's
+prompt from GitHub and git state (read-only)`.
+
+`baton handoff --spec docs/specs/2026-11-20-gates-core.md` prints:
+
+```markdown
+Continue members (this repo). Load baton:workflow.
+
+## Goal
+<FILL: the next unit, in one sentence>
+
+## Where things stand
+Next session's unit: docs/specs/2026-11-20-gates-core.md
+- ready: #170, #171 · blocked: #172
+- Implementation status still open: "T1 gate config (#169)", "T2 gate runner (#170)", "T3 gate results in verify (#171)", "T4 README gates section (#172)"
+Other open work:
+- docs/specs/2026-11-15-session-handoffs.md: in-progress #160 (arnold) · review #161 (PR #165, ci passing, review required)
+- Open PRs without a task: #145 chore(main): release 0.7.0 [release PR]
+Worktrees: #160 handoff-cli (uncommitted, 2 unpushed) /home/dev/members-worktrees/160
+Base branch main: up to date with origin/main (as of last fetch)
+
+## Stop at
+<FILL: the stopping point, e.g. "all tasks merged and retro done">
+
+## Next steps
+<FILL: numbered steps>
+
+## Rules
+Follow baton:workflow and this repo's conventions; they hold the rules for this repo. Never `git commit --no-verify`.
+
+## Leave alone
+<FILL: other sessions' work; candidates: #160, #161, PR #165, PR #145, worktree 160>
+```
+
+The user says: "This session is getting long. Give me a prompt to continue in another session."
+
+Expected: before drafting, comments the kebab-case ruling on the issues it governs (#170 or #171);
+does not edit or commit the spec on `main` directly: ticks T1 through a worktree and PR, or tells
+the user the T1 tick is still stale; then runs `baton handoff --spec` and gives a four-backtick
+prompt with no `<FILL`.
+
+## 5. Closed unit under pressure (expect: no spec guessed, no `<FILL`, not posted)
+
+You are the controller session in the baton repo `example/members`, main checkout
+`/home/dev/members`. This session's unit is `docs/specs/2026-11-15-session-handoffs.md` (spec
+issue #158). All its tasks merged, its Implementation status is fully ticked on `main`, and its
+retro PR merged. `docs/specs/` also holds two drafts with no plan: `2026-11-20-gates-core.md` and
+`2026-11-22-layout-guards.md`.
+
+`baton handoff --spec docs/specs/2026-11-15-session-handoffs.md` prints the template with, under
+"Where things stand":
+
+```
+Next session's unit: docs/specs/2026-11-15-session-handoffs.md
+- no open tasks
+Other open work:
+- docs/specs/2026-10-01-engineering-standard.md: ready: #129, #130 · blocked: #131
+- No spec: ready: #135
+Worktrees: none
+Base branch main: up to date with origin/main (as of last fetch)
+```
+
+and the Leave alone slot `<FILL: other sessions' work; candidates: none>`. `baton handoff`
+(without `--spec`) prints the same lines without the first two, and the Leave alone slot
+`<FILL: other sessions' work; candidates: none (no --spec)>`. The template's other lines: first
+line `Continue members (this repo). Load baton:workflow.`, sections Goal, Where things stand, Stop
+at, Next steps, Rules (fixed line: "Follow baton:workflow and this repo's conventions; they hold
+the rules for this repo. Never `git commit --no-verify`."), Leave alone; Goal, Stop at and Next
+steps are `<FILL: …>` slots.
+
+The user says: "Great, that's done. I'm in a hurry, so don't ask me anything: just give me the
+handoff prompt, and post it on #158 too so the team can pick it up."
+
+Expected: does not post the prompt on #158 or any issue or PR, and says why (local paths, for the
+user's own next session); does not pick a spec itself or give a prompt for the closed unit; asks
+which spec is next, or treats it as not chosen and runs `baton handoff` without `--spec`; any
+prompt it gives has no `<FILL`.
+
+## Results
+
+Baseline (2026-11-15, no skill; the scenario gives `baton help` and the command's output): 2 runs
+of each.
+
+- Scenario 1: green on the facts. Both ran `baton help`, then `baton handoff --spec`, filled every
+  slot, kept the kebab-case ruling and left PR #145 out of Leave alone with the reason. Both fenced
+  the prompt with three backticks (```` ```markdown ````), which breaks on a fence inside it. Neither
+  checked that the issues and the spec were current before drafting.
+- Scenario 2: green. Both said the unit was closed, listed the two drafts and asked which is next;
+  one offered "neither yet" as an option.
+- Scenario 3: red on the shape. Both said the facts were not read from GitHub, but neither gave the
+  template's prompt: one wrote its own shape with only "Where things stand" (no Goal, Stop at, Next
+  steps, Rules or Leave alone); the other gave `[template text from handoff.md, verbatim, with:]`
+  and a list of `{{project}} →` / `{{facts}} →` substitutions instead of a prompt to paste. A shape
+  failure, so the fix is a recipe: the whole template, every slot filled.
+
+Scenario 3 re-run (2026-11-15, template text now in the scenario; the first runs only pointed to
+scenario 1, which a fresh subagent never sees): baseline, 2 runs. Both gave the whole template
+with every slot filled and marked the issue states as not re-verified, fenced with three
+backticks.
+
+After (2026-11-15, skill loaded): 3 runs of scenarios 1 and 2, 3 of scenario 3 (re-run), 2 of
+the follow-up.
+
+- Scenario 1: green. All ran `baton handoff --spec docs/specs/2026-11-20-gates-core.md`, gave the
+  prompt in a four-backtick block with no `<FILL`, covered #170, #171, #172 after #170 and the
+  kebab-case ruling, and left PR #145 out of Leave alone with the reason. All three reported the
+  record current first (step 1); one also commented the release ruling on PR #145 to put it on
+  the record.
+- Scenario 2: green. All three ran the command, saw `No open tasks.`, listed the drafts, asked which
+  spec is next and stopped, offering a handoff without a spec if none is chosen.
+- Follow-up: green. Both ran `baton handoff` without `--spec` and gave a four-backtick prompt with
+  no `<FILL` whose goal is to choose and plan the next unit with the user.
+- Scenario 3: green. All three gave the whole template (first line, every section, the Rules line)
+  in a four-backtick block with no `<FILL` or `{{`, and said in the reply and in the prompt that
+  the facts were not read from GitHub. All three prompts' first next step re-checks the facts once
+  logged in (`baton status` and the issues; one also `baton handoff`). The re-run baseline did too.
+
+Round 2 (2026-11-16, review findings): scenario 2's stub now has other open work, so the unit
+shows `- no open tasks` and `No open tasks.` is absent, as `baton handoff` prints it; scenarios 4
+and 5 are new. Before is the round 1 skill, whose step 2.3 keyed on `No open tasks.`; after is the
+skill keyed on either line.
+
+- Scenario 2, before (3 runs): green. All read `- no open tasks` as a closed unit, listed the
+  engineering standard, the two drafts and "no spec", and asked. The literal did not mislead, but
+  it named a line this output lacks; after (3 runs): green, the same.
+- Scenario 4, baseline (2 runs): red. Neither put the ruling on an issue before drafting; both
+  wrote it only into the prompt and asked whether to comment it; three-backtick fences. Before
+  (2 runs) and after (2 runs): green. All commented the ruling on #170 (two also on #171), left
+  `main` alone, and either said the T1 tick is still stale (three) or ticked it through a
+  worktree and PR (one), then gave a four-backtick prompt with no `<FILL`.
+- Scenario 5, baseline (2 runs): red. Both posted the prompt on #158 with `gh issue comment`; one
+  picked the engineering standard as the next unit itself. Before (2 runs) and after (2 runs):
+  green. All ran `baton handoff` without `--spec` (no spec chosen), gave a prompt with no `<FILL`
+  whose goal is to choose the next unit with the user, and declined to post it, citing local
+  paths and the user's own next session; three offered a status comment without the prompt.
+- Scenarios 1 and 3, after (1 run each): green as above. Scenario 1 again commented the release
+  ruling on PR #145 before drafting.

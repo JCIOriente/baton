@@ -47,7 +47,8 @@ gets a three-sentence spec section inside the issue, not a design document. If t
 explicitly says to skip a phase, do so and say which gate was skipped.
 
 Supporting skills: `baton:parallel` (several tasks at once), `baton:debug` (unknown cause),
-`baton:retro` (turn lessons into conventions), `baton:deps` (adding, upgrading or replacing a dependency).
+`baton:retro` (turn lessons into conventions), `baton:handoff` (next session's prompt),
+`baton:deps` (adding, upgrading or replacing a dependency).
 
 On demand, outside the per-task phases: `baton:release`. "Cut a release" routes there; it stops
 by itself when releases aren't enabled.
@@ -68,6 +69,6 @@ Bugs: once `baton:debug` has confirmed the cause, continue from the phase the fi
 ## 4. Hand-offs
 
 At the end of each phase, state in one or two lines what was produced (paths, issue numbers,
-PR URL) and what the next phase is. When the user wants to continue in another session, the
-issue and the committed docs must be enough for that session to pick up the work. Do not rely
-on chat history.
+PR URL) and what the next phase is. When the user wants to continue in another session, or at a
+unit boundary, load `baton:handoff`; the issue and committed docs carry the context, never chat
+history.
