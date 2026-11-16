@@ -38,6 +38,7 @@ Requirements: Node >= 20, `git`, and `gh` (authenticated) for backlog commands. 
 /baton:debug                # root cause before fixes
 /baton:deps <package>       # vet a dependency add/upgrade: registry version, audit, lockfile
 /baton:retro                # lessons -> conventions/ADRs via reviewed PRs
+/baton:handoff <spec>      # prompt that starts the next session: facts from GitHub and git
 ```
 
 `baton:workflow` is the router. When a session starts in a configured repo, a hook tells
