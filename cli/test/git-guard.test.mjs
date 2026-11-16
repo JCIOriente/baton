@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { guardStatus, MANAGER_LINE } from '../lib/git-guard.mjs';
+import { dirname, join } from 'node:path';
+import { COMMIT_GATES_LINE, COMMIT_GATES_PATH, commitGatesStatus, guardStatus, MANAGER_LINE } from '../lib/git-guard.mjs';
 
 const cli = new URL('../baton.mjs', import.meta.url).pathname;
 const template = new URL('../../templates/git-hooks/worktree-guard.sh', import.meta.url).pathname;
+const gatesTemplate = new URL('../../templates/git-hooks/commit-gates.sh', import.meta.url).pathname;
 
 // Isolated from the user's git config (signing, hooks), with a fixed identity. GitHub CI sets
 // CI=true, and the guard stands down there, so CI and CLAUDE_CODE_REMOTE are removed.
@@ -78,6 +79,40 @@ function install(root, ...args) {
 
 const commonDir = (root) => join(root, '.git');
 const scriptPath = (root) => join(commonDir(root), 'baton/worktree-guard.sh');
+const gatesPath = (root) => join(commonDir(root), COMMIT_GATES_PATH);
+const BOTH_LINES = `${MANAGER_LINE}\n${COMMIT_GATES_LINE}`;
+const INSTALL_HINT = 'npm install -g @jcioriente/baton';
+const UPGRADE_HINT = 'npm install -g @jcioriente/baton@latest';
+// The stub `baton hooks install` wrote in 0.7.0, before commit gates.
+const STUB_0_7_0 = `#!/bin/sh
+# baton:worktree-guard
+# Written by \`baton hooks install\`. Delete this file to remove the hook.
+${MANAGER_LINE}
+`;
+
+/**
+ * A PATH whose first entry holds a fake `baton` running `body`, standing in for the CLI. The fake
+ * records its arguments and working directory in `<dir>/baton-calls`.
+ */
+function fakeBaton(dir, body) {
+  const bin = mkdtempSync(join(dir, 'fake-baton-'));
+  const calls = join(dir, 'baton-calls');
+  writeFileSync(join(bin, 'baton'), `#!/bin/sh\necho "$* @ $(pwd)" >> '${calls}'\n${body}\n`, { mode: 0o755 });
+  return { PATH: `${bin}:${env.PATH}` };
+}
+const PASSING = 'echo "✔ lint" >&2; exit 0';
+const FAILING = 'echo "✖ lint failed (exit 1)" >&2; exit 1';
+// What a baton older than `--stage` prints: `opts` in cli/baton.mjs turns parseArgs' error into this.
+const TOO_OLD = "printf '%s\\n' \"baton: Unknown option '--stage'\" 'hint: Run `baton help`.' >&2; exit 1";
+
+/** An installed repo and a linked worktree of it. */
+function linked(t, config = {}) {
+  const { dir, root } = repo(t, config);
+  install(root);
+  const wt = join(dir, 'acme-worktrees/feat');
+  git(root, 'worktree', 'add', '-q', '-b', 'feat', wt);
+  return { dir, root, wt };
+}
 
 test('git_guard_refuses_commit_in_main_checkout', (t) => {
   const { root } = repo(t);
@@ -101,8 +136,70 @@ test('git_guard_allows_linked_worktree', (t) => {
   install(root);
   const wt = join(dir, 'acme-worktrees/docs');
   git(root, 'worktree', 'add', '-q', '-b', 'docs', wt);
-  const res = commit(wt);
+  const res = commit(wt, fakeBaton(dir, PASSING));
   assert.equal(res.status, 0, res.stderr);
+});
+
+test('commit in a linked worktree fails on a failing blocking commit step', (t) => {
+  const { dir, wt } = linked(t);
+  const res = commit(wt, fakeBaton(dir, FAILING));
+  assert.equal(res.status, 1, res.stderr);
+  assert.ok(res.stderr.includes('✖ lint failed (exit 1)'), res.stderr);
+  assert.equal(readFileSync(join(dir, 'baton-calls'), 'utf8'), `verify --stage commit @ ${wt}\n`);
+});
+
+test('commit passes when only an advisory commit step fails', (t) => {
+  // verify exits 0 when only advisory steps fail; the script trusts its exit status.
+  const { dir, wt } = linked(t);
+  const res = commit(wt, fakeBaton(dir, 'echo "✖ lint failed (exit 1, advisory)" >&2; exit 0'));
+  assert.equal(res.status, 0, res.stderr);
+  assert.ok(res.stderr.includes('advisory'), res.stderr);
+});
+
+test('commit passes when there are no commit steps', (t) => {
+  const { dir, wt } = linked(t);
+  const res = commit(wt, fakeBaton(dir, "echo \"No validation steps in stage 'commit'.\" >&2"));
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(readFileSync(join(dir, 'baton-calls'), 'utf8'), `verify --stage commit @ ${wt}\n`);
+});
+
+test('commit fails with the install hint when baton is not on PATH', (t) => {
+  const { dir, wt } = linked(t);
+  // git, sh and node only: the worktree guard still runs, and there is no baton to find.
+  const bin = join(dir, 'bin');
+  mkdirSync(bin);
+  symlinkSync(join(git(wt, '--exec-path'), 'git'), join(bin, 'git'));
+  symlinkSync('/bin/sh', join(bin, 'sh'));
+  symlinkSync(process.execPath, join(bin, 'node'));
+  const res = commit(wt, { PATH: bin });
+  assert.equal(res.status, 1, res.stderr);
+  assert.ok(res.stderr.includes(INSTALL_HINT), res.stderr);
+  assert.ok(!res.stderr.includes(UPGRADE_HINT), res.stderr);
+});
+
+test('commit fails with the upgrade hint when baton rejects --stage', (t) => {
+  const { dir, wt } = linked(t);
+  const res = commit(wt, fakeBaton(dir, TOO_OLD));
+  assert.equal(res.status, 1, res.stderr);
+  assert.ok(res.stderr.includes(UPGRADE_HINT), res.stderr);
+
+  // A step whose own output mentions the option is a plain failure, not an old baton.
+  const step = commit(wt, fakeBaton(dir, "echo \"lint: Unknown option '--stage'\" >&2; exit 1"));
+  assert.equal(step.status, 1, step.stderr);
+  assert.ok(!step.stderr.includes(UPGRADE_HINT), step.stderr);
+});
+
+test('commit gates stand down in CI and in the main checkout', (t) => {
+  const { dir, wt } = linked(t);
+  const failing = fakeBaton(dir, FAILING);
+  assert.equal(commit(wt, { ...failing, CI: 'true' }).status, 0);
+
+  // In the main checkout the guard decides: off here, so the commit goes through without baton.
+  const { dir: offDir, root: off } = repo(t, { hooks: { worktreeOnly: false } });
+  install(off);
+  const res = commit(off, fakeBaton(offDir, FAILING));
+  assert.equal(res.status, 0, res.stderr);
+  assert.throws(() => statSync(join(offDir, 'baton-calls')), 'baton is not run in the main checkout');
 });
 
 test('git_guard_allows_when_ci_or_no_node_or_unborn', (t) => {
@@ -160,6 +257,8 @@ test('install_writes_stub_into_empty_hooks_dir', (t) => {
   const stubText = readFileSync(stub, 'utf8');
   assert.ok(stubText.includes('# baton:worktree-guard'));
   assert.ok(stubText.includes(MANAGER_LINE));
+  assert.ok(stubText.indexOf(COMMIT_GATES_LINE) > stubText.indexOf(MANAGER_LINE), 'commit gates run after the guard');
+  assert.equal(readFileSync(gatesPath(root), 'utf8'), readFileSync(gatesTemplate, 'utf8'));
   assert.ok(statSync(stub).mode & 0o100, 'stub is executable');
   assert.ok(res.stdout.includes(scriptPath(root)) && res.stdout.includes(stub), res.stdout);
   assert.match(res.stdout, /remove/i);
@@ -177,7 +276,7 @@ test('install_leaves_foreign_hook_untouched', (t) => {
   writeFileSync(hook, foreign, { mode: 0o755 });
   const res = install(root);
   assert.equal(readFileSync(hook, 'utf8'), foreign);
-  assert.ok(res.stdout.split('\n').includes(MANAGER_LINE), res.stdout);
+  assert.ok(res.stdout.includes(BOTH_LINES), res.stdout);
   assert.ok(res.stdout.includes(scriptPath(root)), res.stdout);
   assert.match(res.stdout, /remove/i);
   assert.equal(readFileSync(scriptPath(root), 'utf8'), readFileSync(template, 'utf8'));
@@ -190,7 +289,7 @@ test('install_leaves_foreign_hook_untouched', (t) => {
 
   const json = JSON.parse(install(root, '--json').stdout);
   assert.equal(json.stub, null);
-  assert.equal(json.managerLine, MANAGER_LINE);
+  assert.equal(json.managerLine, BOTH_LINES);
 });
 
 test('install_respects_core_hooks_path_in_worktree', (t) => {
@@ -200,7 +299,7 @@ test('install_respects_core_hooks_path_in_worktree', (t) => {
     writeFileSync(join(root, dirName, 'commit-msg'), '#!/bin/sh\n', { mode: 0o755 });
     git(root, 'config', 'core.hooksPath', dirName);
     const res = install(root);
-    assert.ok(res.stdout.split('\n').includes(MANAGER_LINE), res.stdout);
+    assert.ok(res.stdout.includes(BOTH_LINES), res.stdout);
     assert.deepEqual(spawnSync('/bin/ls', ['-A', join(root, dirName)], { encoding: 'utf8' }).stdout.trim().split('\n'), ['commit-msg'], dirName);
     assert.equal(readFileSync(join(root, dirName, 'commit-msg'), 'utf8'), '#!/bin/sh\n');
     assert.equal(git(root, 'status', '--porcelain', '--untracked-files=all'), `?? ${dirName}/commit-msg`);
@@ -218,7 +317,7 @@ test('install_defers_to_hook_manager_config', (t) => {
     const hook = join(commonDir(root), 'hooks/pre-commit');
     writeFileSync(join(root, file), 'repos: []\n');
     const res = install(root);
-    assert.ok(res.stdout.split('\n').includes(MANAGER_LINE), res.stdout);
+    assert.ok(res.stdout.includes(BOTH_LINES), res.stdout);
     assert.ok(res.stdout.includes(file) && res.stdout.includes(installCmd), res.stdout);
     assert.throws(() => statSync(hook), file);
     assert.equal(guardStatus(root), 'missing');
@@ -238,7 +337,7 @@ test('install_points_husky_v9_at_its_own_hook', (t) => {
   writeFileSync(join(root, '.husky/_/pre-commit'), '#!/usr/bin/env sh\n. "$(dirname "$0")/h"\n', { mode: 0o755 });
   git(root, 'config', 'core.hooksPath', '.husky/_');
   const res = install(root);
-  assert.ok(res.stdout.split('\n').includes(MANAGER_LINE), res.stdout);
+  assert.ok(res.stdout.includes(BOTH_LINES), res.stdout);
   assert.ok(res.stdout.includes(join(root, '.husky/pre-commit')), res.stdout);
   assert.equal(guardStatus(root), 'missing');
   writeFileSync(join(root, '.husky/pre-commit'), `${MANAGER_LINE}\n`);
@@ -255,6 +354,62 @@ test('install_keeps_lines_added_to_the_stub', (t) => {
   assert.equal(readFileSync(stub, 'utf8'), edited);
   assert.match(res.stdout, /not written by baton|other lines/);
   assert.equal(guardStatus(root), 'installed');
+});
+
+test('install rewrites a 0.7.0 stub', (t) => {
+  const { root } = repo(t);
+  const stub = join(commonDir(root), 'hooks/pre-commit');
+  mkdirSync(dirname(stub), { recursive: true });
+  writeFileSync(stub, STUB_0_7_0, { mode: 0o755 });
+  const res = install(root);
+  assert.ok(res.stdout.includes(`Wrote ${stub}`), res.stdout);
+  assert.ok(readFileSync(stub, 'utf8').includes(COMMIT_GATES_LINE));
+
+  // A 0.7.0 stub with a user's line is still left alone.
+  const edited = `${STUB_0_7_0}gitleaks protect --staged || exit 1\n`;
+  writeFileSync(stub, edited);
+  assert.match(install(root).stdout, /other lines/);
+  assert.equal(readFileSync(stub, 'utf8'), edited);
+});
+
+test('commitGatesStatus is missing when the stub lacks commit-gates', (t) => {
+  const { root } = repo(t);
+  const config = { validate: [{ name: 'lint', run: 'make lint', stages: ['commit', 'local'] }] };
+  assert.equal(commitGatesStatus(root, config), 'missing', 'nothing installed');
+  const stub = join(commonDir(root), 'hooks/pre-commit');
+  mkdirSync(dirname(stub), { recursive: true });
+  writeFileSync(stub, STUB_0_7_0, { mode: 0o755 });
+  assert.equal(commitGatesStatus(root, config), 'missing', 'a 0.7.0 stub');
+  install(root);
+  assert.equal(commitGatesStatus(root, config), 'installed');
+  rmSync(gatesPath(root));
+  assert.equal(commitGatesStatus(root, config), 'missing', 'the stub calls a script that is gone');
+});
+
+test('commitGatesStatus is not-needed without a commit step', (t) => {
+  const { root } = repo(t);
+  assert.equal(commitGatesStatus(root, {}), 'not-needed');
+  assert.equal(commitGatesStatus(root, { validate: [{ name: 'ci', run: 'make ci' }] }), 'not-needed');
+  assert.equal(commitGatesStatus(root, { validate: [{ name: 'ci', run: 'make ci', stages: ['local', 'ci'] }] }), 'not-needed');
+});
+
+test('commitGatesStatus follows a hook manager config and husky', (t) => {
+  const config = { validate: [{ name: 'lint', run: 'make lint', stages: ['commit'] }] };
+  const { root } = repo(t);
+  writeFileSync(join(root, 'lefthook.yml'), `pre-commit:\n  commands:\n    guard:\n      run: ${MANAGER_LINE}\n`);
+  install(root);
+  writeFileSync(join(commonDir(root), 'hooks/pre-commit'), '#!/bin/sh\ncall_lefthook run "pre-commit" "$@"\n', { mode: 0o755 });
+  assert.equal(commitGatesStatus(root, config), 'missing', 'the manager runs the guard only');
+  writeFileSync(join(root, 'lefthook.yml'), `pre-commit:\n  commands:\n    gates:\n      run: ${COMMIT_GATES_LINE}\n`);
+  assert.equal(commitGatesStatus(root, config), 'installed');
+
+  const { root: husky } = repo(t);
+  mkdirSync(join(husky, '.husky/_'), { recursive: true });
+  git(husky, 'config', 'core.hooksPath', '.husky/_');
+  install(husky);
+  assert.equal(commitGatesStatus(husky, config), 'missing');
+  writeFileSync(join(husky, '.husky/pre-commit'), `${BOTH_LINES}\n`);
+  assert.equal(commitGatesStatus(husky, config), 'installed');
 });
 
 test('install_is_idempotent', (t) => {
