@@ -6,11 +6,13 @@ import { labelNames } from './tasks.mjs';
 export const HANDOFF_TEMPLATE_PATH = fileURLToPath(new URL('../../templates/handoff.md', import.meta.url));
 
 const SPEC_LINE = /^\s*(?:[-*]\s*)?Spec:\s*(.*)$/;
-const FENCE = /^\s*(```|~~~)/;
+const FENCE = /^\s*(`{3,}|~{3,})(.*)$/;
+/** Spec paths are repo-relative file paths; anything else in a `Spec:` value is not printed. */
+const SPEC_PATH = /^[\w./-]+\.md$/;
 const STATUS_HEADING = /^##\s+Implementation status\s*$/;
 const UNCHECKED = /^\s*[-*]\s+\[ \]\s+(.+?)\s*$/;
 const RELEASE_LABEL = 'autorelease: pending';
-/** PR titles and branch names are written by anyone with access to the repo; this bounds what reaches the prompt. */
+/** PR titles, branch names and spec paths are written by anyone with access to the repo; this bounds what reaches the prompt. */
 const UNTRUSTED_MAX = 80;
 const LIST_LIMIT = 1000;
 const ANY_PLACEHOLDER = /\{\{[^}]*\}\}/g;
@@ -20,8 +22,8 @@ const LEAVE_ALONE_SLOT = /^## Leave alone\n<FILL: [^>\n]*>/m;
 const FILL_POINTS = /\{\{(project|facts)\}\}|^(## Leave alone\n<FILL: [^>\n]*)>/gm;
 const ACTIVE = ['in-progress', 'review'];
 const LISTED = ['ready', 'blocked'];
-const FAILED = new Set(['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE']);
-const PENDING = new Set(['PENDING', 'EXPECTED', 'QUEUED', 'IN_PROGRESS', 'WAITING', 'REQUESTED']);
+const FAILED = new Set(['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'STALE']);
+const PASSED = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const REVIEW_DECISIONS = { REVIEW_REQUIRED: 'review required', APPROVED: 'approved', CHANGES_REQUESTED: 'changes requested' };
 
 /** Issues edited on the web arrive with `\r\n`. */
@@ -29,27 +31,36 @@ function lines(text) {
   return text.replace(/\r\n?/g, '\n').split('\n');
 }
 
+/** The lines outside code fences; a fence closes only on its own marker character, at least as long. */
+function unfencedLines(text) {
+  const out = [];
+  let open = null;
+  for (const line of lines(text)) {
+    const m = line.match(FENCE);
+    if (open) {
+      if (m && m[1][0] === open[0] && m[1].length >= open.length && !m[2].trim()) open = null;
+    } else if (m) open = m[1];
+    else out.push(line);
+  }
+  return out;
+}
+
 /** `./docs/x.md` and `[x](docs/x.md)` -> `docs/x.md`. */
-function normalizeSpecPath(value) {
+export function normalizeSpecPath(value) {
   const link = value.trim().match(/^\[[^\]]*\]\(([^)]+)\)$/);
   return (link ? link[1] : value).trim().replace(/^\.\//, '');
 }
 
 /**
  * The spec path a task body names: the first `Spec:` line outside a code fence, up to ` · `.
- * Later `Spec:` lines are ignored. Returns null when there is none or its value is not a `.md` path.
+ * Later `Spec:` lines are ignored. Returns null when there is none or its value is not a `.md` file path.
  */
 export function parseSpecRef(body = '') {
-  let fenced = false;
-  for (const line of lines(body)) {
-    if (FENCE.test(line)) {
-      fenced = !fenced;
-      continue;
-    }
-    const m = !fenced && line.match(SPEC_LINE);
+  for (const line of unfencedLines(body)) {
+    const m = line.match(SPEC_LINE);
     if (!m) continue;
     const spec = normalizeSpecPath(m[1].split(' · ')[0]);
-    return spec.endsWith('.md') ? spec : null;
+    return SPEC_PATH.test(spec) ? spec : null;
   }
   return null;
 }
@@ -73,13 +84,15 @@ export function groupBySpec(tasks, specPath) {
     .sort((a, b) => rank(a.spec) - rank(b.spec) || (rank(a.spec) === 1 ? a.spec.localeCompare(b.spec) : 0));
 }
 
-/** One state for a PR's `statusCheckRollup` (check runs and status contexts): failing beats pending beats passing. */
+/**
+ * One state for a PR's `statusCheckRollup` (check runs and status contexts): failing beats pending
+ * beats passing, and a state that is not known to have passed counts as pending.
+ */
 export function summarizeChecks(rollup) {
   if (!rollup?.length) return 'none';
   const states = rollup.map((c) => (c.status && c.status !== 'COMPLETED' ? c.status : c.conclusion || c.state || ''));
   if (states.some((s) => FAILED.has(s))) return 'failing';
-  if (states.some((s) => PENDING.has(s))) return 'pending';
-  return 'passing';
+  return states.every((s) => PASSED.has(s)) ? 'passing' : 'pending';
 }
 
 /**
@@ -102,10 +115,10 @@ export function linkPullRequests(tasks, prs, issueOf) {
   return { tasks: tasks.map((t) => ({ ...t, pr: linked.get(t.number) ?? null })), prsWithoutTask };
 }
 
-/** Collapse untrusted text to one line, cut at `max` characters (the last one an ellipsis when cut). */
+/** Collapse untrusted text to one line, cut at `max` code points (the last one an ellipsis when cut). */
 export function clip(text, max) {
-  const flat = text.replace(/\s+/g, ' ').trim();
-  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+  const flat = Array.from(text.replace(/\s+/g, ' ').trim());
+  return flat.length > max ? `${flat.slice(0, max - 1).join('')}…` : flat.join('');
 }
 
 /** Unchecked `- [ ]` items under the spec's `## Implementation status`; null when the spec was not found. */
@@ -113,10 +126,7 @@ export function openStatusItems(specText) {
   if (specText === null) return null;
   const items = [];
   let inSection = false;
-  let fenced = false;
-  for (const line of lines(specText)) {
-    if (FENCE.test(line)) fenced = !fenced;
-    if (fenced) continue;
+  for (const line of unfencedLines(specText)) {
     if (/^#{1,2}\s/.test(line)) inSection = STATUS_HEADING.test(line);
     const m = inSection && line.match(UNCHECKED);
     if (m) items.push(m[1]);
@@ -128,19 +138,27 @@ export function openStatusItems(specText) {
  * Work another session may own: (a) in-progress and review tasks outside the unit, "No spec" included;
  * (b) their PRs and every PR without a task; (c) non-stale worktrees whose task is not in the unit,
  * and named worktrees other than the current one. Ready, blocked and triage tasks never are.
- * All empty without a unit.
+ * All empty without a unit; throws when `facts.unit` is set and no group is the unit's.
  */
 export function leaveAloneCandidates(facts) {
   if (!facts.unit) return { tasks: [], prs: [], worktrees: [] };
-  const isUnit = (g) => g.spec === facts.unit.spec;
-  const inUnit = new Set(facts.groups.filter(isUnit).flatMap((g) => g.tasks.map((t) => t.number)));
-  const active = facts.groups.filter((g) => !isUnit(g)).flatMap((g) => g.tasks.filter((t) => ACTIVE.includes(t.status)));
+  const unit = unitGroup(facts);
+  const inUnit = new Set(unit.tasks.map((t) => t.number));
+  const active = facts.groups.filter((g) => g !== unit).flatMap((g) => g.tasks.filter((t) => ACTIVE.includes(t.status)));
   const worktrees = facts.worktrees.filter((w) => !w.stale && (w.task !== null ? !inUnit.has(w.task) : w.branch !== null && !w.current));
   return {
     tasks: active.map((t) => t.number),
     prs: [...active.filter((t) => t.pr).map((t) => t.pr.number), ...facts.prsWithoutTask.map((p) => p.number)],
     worktrees: worktrees.map((w) => w.path),
   };
+}
+
+/** The unit's group, matched on the normalized `facts.unit.spec`; `groupBySpec` always makes one. */
+function unitGroup(facts) {
+  const spec = normalizeSpecPath(facts.unit.spec);
+  const group = facts.groups.find((g) => g.spec === spec);
+  if (!group) throw new Error(`No group for the unit's spec ${spec}; build the groups with groupBySpec(tasks, unit spec).`);
+  return group;
 }
 
 function prNotes(pr) {
@@ -181,7 +199,7 @@ function otherWorkLines(groups, prsWithoutTask) {
     const segments = taskSegments(group.tasks);
     if (!segments.length) continue;
     if (group.spec !== null && group.openStatusItems === null) segments.push('Implementation status: file not found');
-    out.push(`- ${group.spec ?? 'No spec'}: ${segments.join(' · ')}`);
+    out.push(`- ${group.spec === null ? 'No spec' : clip(group.spec, UNTRUSTED_MAX)}: ${segments.join(' · ')}`);
   }
   if (prsWithoutTask.length) {
     const prs = prsWithoutTask.map((p) => `#${p.number} ${clip(p.title, UNTRUSTED_MAX)}${p.release ? ' [release PR]' : ''}`);
@@ -214,10 +232,10 @@ function baseLine(base) {
 }
 
 function factsText(facts) {
-  const unitGroup = facts.unit ? facts.groups.find((g) => g.spec === facts.unit.spec) : null;
-  const out = unitGroup ? unitLines(unitGroup) : [];
+  const unit = facts.unit ? unitGroup(facts) : null;
+  const out = unit ? unitLines(unit) : [];
   if (!facts.groups.some((g) => g.tasks.length)) out.push('No open tasks.');
-  out.push(...otherWorkLines(facts.groups.filter((g) => g !== unitGroup), facts.prsWithoutTask));
+  out.push(...otherWorkLines(facts.groups.filter((g) => g !== unit), facts.prsWithoutTask));
   if (facts.triageCount > 0) out.push(`Not listed: ${facts.triageCount} triage issues`);
   if (facts.truncated) out.push(`Lists cut at ${LIST_LIMIT}; more exist.`);
   out.push(worktreeLine(facts.worktrees), baseLine(facts.base));
@@ -238,9 +256,11 @@ function candidatesText(facts) {
 /**
  * Fill the handoff template: `{{project}}`, `{{facts}}` (the "Where things stand" lines) and the
  * candidates in the Leave alone slot. Every `<FILL:` slot stays for the agent to fill.
- * Throws on any other `{{…}}` in the template, or when the Leave alone slot is missing.
+ * Throws on any other `{{…}}` in the template, when the Leave alone slot is missing, or when
+ * `facts.unit` is set and no group is the unit's.
  */
-export function renderHandoff(template, facts, project) {
+export function renderHandoff(rawTemplate, facts, project) {
+  const template = rawTemplate.replace(/\r\n?/g, '\n');
   const unknown = (template.match(ANY_PLACEHOLDER) ?? []).filter((t) => !KNOWN_PLACEHOLDERS.has(t));
   if (unknown.length) throw new Error(`Unknown placeholder in the handoff template: ${unknown.join(', ')}`);
   if (!LEAVE_ALONE_SLOT.test(template)) throw new Error('The handoff template has no <FILL: …> slot under "## Leave alone".');
