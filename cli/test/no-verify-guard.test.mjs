@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { refusal } from '../../hooks/no-verify-guard.mjs';
@@ -26,13 +26,13 @@ function project(withConfig) {
 const bash = (command) => ({ tool_name: 'Bash', tool_input: { command } });
 
 test('refuses git commit -n', () => {
-  for (const cmd of ['git commit --no-verify -m x', 'git commit -n -m x', 'git commit -anm x', 'git -C x commit -n']) {
+  for (const cmd of ['git commit --no-verify -m x', 'git commit -n -m x', 'git commit -anm x', 'git -C x commit -n', 'git -c core.x=y commit -n', 'git --git-dir x commit -n', 'git --work-tree x commit -n', 'git commit --no-verif', 'git commit --no-v']) {
     assert.match(refusal(cmd), /fix the failing gate/, cmd);
   }
 });
 
 test('refuses git push --no-verify', () => {
-  assert.match(refusal('git push --no-verify'), /fix the failing gate/);
+  for (const cmd of ['git push --no-verify', 'git push --no-ver']) assert.match(refusal(cmd), /fix the failing gate/, cmd);
 });
 
 test('allows git push -n', () => {
@@ -40,11 +40,11 @@ test('allows git push -n', () => {
 });
 
 test('allows -n inside a quoted message', () => {
-  for (const cmd of ['git commit -m "-n"', "git commit -m 'skip --no-verify'"]) assert.equal(refusal(cmd), null, cmd);
+  for (const cmd of ['git commit -m "-n"', "git commit -m 'skip --no-verify'", 'git commit -m "fix -n flag"', "git commit -m 'skip --no-verify now'", 'echo "a && git commit -n"', 'git commit -uno -m x', 'git commit -mnew', 'git commit -mfixing']) assert.equal(refusal(cmd), null, cmd);
 });
 
 test('refuses git commit -n after a semicolon', () => {
-  for (const cmd of ['cd x && git commit -n', 'true; git commit -n', 'a || git commit -n', 'a | git commit -n', 'a\ngit commit -n']) {
+  for (const cmd of ['cd x && git commit -n', 'true; git commit -n', 'a || git commit -n', 'a | git commit -n', 'a\ngit commit -n', '(git commit -n)', '$(git commit -n)', '`git commit -n`', '{ git commit -n; }', 'git status & git commit -n']) {
     assert.match(refusal(cmd), /fix the failing gate/, cmd);
   }
 });
@@ -80,4 +80,10 @@ test('malformed input passes through', () => {
   } finally {
     rmSync(dir, { recursive: true });
   }
+});
+
+test('hooks_json_registers_the_no_verify_guard', () => {
+  const hooks = JSON.parse(readFileSync(new URL('../../hooks/hooks.json', import.meta.url), 'utf8')).hooks.PreToolUse;
+  const entry = hooks.find((h) => h.matcher === 'Bash');
+  assert.ok(entry.hooks.some((h) => h.command.includes('hooks/no-verify-guard.mjs')));
 });

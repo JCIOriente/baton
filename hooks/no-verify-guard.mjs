@@ -4,6 +4,9 @@
 // Active only in projects with .baton/config.json. Standalone (no imports from cli/), and any
 // failure allows the call: this guard must never wedge a session.
 
+// Known limits: text inside quotes isn't inspected (so `sh -c "git commit -n"` passes, per the
+// spec's quote rule), and git aliases and absolute paths to git aren't matched.
+
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
@@ -15,21 +18,40 @@ function stripQuotes(command) {
   return command.replace(/"(?:\\.|[^"\\])*"|'[^']*'/g, 'Q');
 }
 
+const GLOBAL_WITH_VALUE = new Set(['--git-dir', '--work-tree', '--namespace', '--exec-path', '--super-prefix', '--config-env']);
+// Short options of `git commit` that take a value; the rest of the cluster is that value.
+const VALUE_OPTIONS = new Set(['m', 'F', 'C', 'c', 'u', 'S', 't']);
+
+/** `--no-verify` or an unambiguous abbreviation of it (git accepts prefixes). */
+function isNoVerify(arg) {
+  return arg.length >= '--no-v'.length && '--no-verify'.startsWith(arg);
+}
+
+/** A short-option cluster with `n` before any option that takes a value. */
+function hasShortN(arg) {
+  if (!/^-[^-]/.test(arg)) return false;
+  for (const ch of arg.slice(1)) {
+    if (ch === 'n') return true;
+    if (VALUE_OPTIONS.has(ch)) return false;
+  }
+  return false;
+}
+
 /** The refusal message for `command`, or null when it is allowed. */
 export function refusal(command) {
-  const segments = stripQuotes(command).split(/;|&&|\|\||\||\n/);
+  const segments = stripQuotes(command).split(/;|&|\||\n|\$\(|[(){}`]/);
   for (const segment of segments) {
     const words = segment.trim().split(/\s+/);
     const at = words.indexOf('git');
     if (at === -1) continue;
     let i = at + 1;
     while (i < words.length && words[i].startsWith('-')) {
-      i += words[i] === '-C' || words[i] === '-c' ? 2 : 1;
+      i += words[i] === '-C' || words[i] === '-c' || GLOBAL_WITH_VALUE.has(words[i]) ? 2 : 1;
     }
     const sub = words[i];
     const args = words.slice(i + 1);
-    if (sub === 'commit' && args.some((a) => a === '--no-verify' || /^-[^-]*n/.test(a))) return MESSAGE;
-    if (sub === 'push' && args.includes('--no-verify')) return MESSAGE;
+    if (sub === 'commit' && args.some((a) => isNoVerify(a) || hasShortN(a))) return MESSAGE;
+    if (sub === 'push' && args.some(isNoVerify)) return MESSAGE;
   }
   return null;
 }
