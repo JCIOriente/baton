@@ -80,6 +80,12 @@ Use `baton:integrate` for each approved task. Each later task rebases on the ear
 and re-verifies. If two tasks turn out to conflict, integrate the higher-priority one first;
 the other rebases and adapts.
 
+## Session boundaries
+
+One unit (one spec) per controller session. When the context grows or after a compaction, read
+`session-boundaries.md` in this skill's directory and follow it; at a unit boundary, load
+`baton:handoff`.
+
 ## Failure handling
 
 - An implementer went out of bounds or produced unusable work: don't merge partial work.

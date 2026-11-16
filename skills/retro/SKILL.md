@@ -51,3 +51,9 @@ if it isn't merged yet), titled `docs: lessons from #<n>`. Commit them in the ta
 in one from `baton worktree add lessons-<n>`, never in the main checkout. The user or a reviewer
 approves it like any other change. For baton-level lessons, draft the issue text and ask the
 user before filing it on the baton repo.
+
+## 5. Close the unit
+
+Run `baton handoff --spec <spec>` for the task's spec. When it shows no open tasks in the unit's
+group, the unit is done: offer to end the session and write the session handoff with
+`baton:handoff`.
