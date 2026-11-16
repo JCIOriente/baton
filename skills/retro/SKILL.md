@@ -54,6 +54,7 @@ user before filing it on the baton repo.
 
 ## 5. Close the unit
 
-Run `baton handoff --spec <spec>` for the task's spec. When it shows no open tasks in the unit's
-group, the unit is done: offer to end the session and write the session handoff with
-`baton:handoff`.
+When the task's issue has a `Spec:` line, run `baton handoff --spec <spec>` for that spec; otherwise
+skip this step and make no offer (a task with no spec closes no unit). When no task is listed under
+"Next session's unit" (that heading only repeats the spec you passed), the unit is done: offer to
+end the session and write the session handoff with `baton:handoff`.
