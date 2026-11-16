@@ -86,23 +86,36 @@ else { console.error('unexpected call'); process.exit(1); }
   };
 }
 
-/** A clone of a bare "origin" whose main holds a baton config and `files` ({ path: text }). */
-function repo(t, files = {}) {
+/**
+ * A clone (directory `acme`, remote named `remote`) of a bare repo whose main holds a baton
+ * config (`config`) and `files` ({ path: text }).
+ */
+function repo(t, files = {}, { remote = 'origin', config = { project: 'Acme Toolkit' } } = {}) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'baton-handoff-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const origin = join(dir, 'origin.git');
   const root = join(dir, 'acme');
   git(dir, 'init', '-q', '--bare', '-b', 'main', origin);
-  git(dir, 'clone', '-q', origin, root);
+  git(dir, 'clone', '-q', '-o', remote, origin, root);
   git(root, 'checkout', '-qb', 'main');
   writeFileSync(join(root, 'README.md'), 'acme\n');
   mkdirSync(join(root, '.baton'));
-  writeFileSync(join(root, '.baton/config.json'), JSON.stringify({ project: 'acme' }));
+  writeFileSync(join(root, '.baton/config.json'), JSON.stringify(config));
   for (const [path, text] of Object.entries(files)) writeAt(root, path, text);
   git(root, 'add', '-A');
   git(root, 'commit', '-qm', 'init');
-  git(root, 'push', '-q', '-u', 'origin', 'main');
+  git(root, 'push', '-q', '-u', remote, 'main');
   return { dir, root, base: join(dir, 'acme-worktrees') };
+}
+
+/** Commits `files` to main of the bare repo from a second clone, as another session would. */
+function pushFromElsewhere(dir, files) {
+  const other = join(dir, 'other');
+  git(dir, 'clone', '-q', join(dir, 'origin.git'), other);
+  for (const [path, text] of Object.entries(files)) writeAt(other, path, text);
+  git(other, 'add', '-A');
+  git(other, 'commit', '-qm', 'elsewhere');
+  git(other, 'push', '-q', 'origin', 'main');
 }
 
 function writeAt(root, path, text) {
@@ -119,7 +132,7 @@ test('handoff_groups_by_spec', (t) => {
   const { dir, root } = repo(t, { [SPEC_A]: SPEC_TEXT, [SPEC_B]: SPEC_TEXT });
   const res = withFakeGh(dir, BACKLOG).run(root, 'handoff');
   assert.equal(res.status, 0, res.stderr);
-  assert.ok(res.stdout.startsWith('Continue acme (this repo). Load baton:workflow.\n'), res.stdout);
+  assert.ok(res.stdout.startsWith('Continue Acme Toolkit (this repo). Load baton:workflow.\n'), res.stdout);
   assert.equal(
     standing(res.stdout),
     [
@@ -139,17 +152,17 @@ test('handoff_groups_by_spec', (t) => {
 test('handoff_spec_from_base_branch', (t) => {
   const { dir, root } = repo(t);
   // The spec reaches origin/main from another clone; the main checkout only fetches it.
-  const other = join(dir, 'other');
-  git(dir, 'clone', '-q', join(dir, 'origin.git'), other);
-  writeAt(other, 'docs/specs/next.md', SPEC_TEXT);
-  git(other, 'add', '-A');
-  git(other, 'commit', '-qm', 'spec');
-  git(other, 'push', '-q', 'origin', 'main');
+  pushFromElsewhere(dir, { 'docs/specs/next.md': SPEC_TEXT });
   git(root, 'fetch', '-q', 'origin');
   assert.ok(!existsSync(join(root, 'docs/specs/next.md')));
   const res = withFakeGh(dir).run(root, 'handoff', '--spec', './docs/specs/next.md');
   assert.equal(res.status, 0, res.stderr);
   assert.match(standing(res.stdout), /^Next session's unit: docs\/specs\/next\.md\n- no open tasks\n- Implementation status still open: "Plan and issues"$/m);
+  // The base branch's copy wins over a local edit of the same file.
+  writeAt(root, 'docs/specs/next.md', SPEC_TEXT.replace('Plan and issues', 'Local only'));
+  const edited = withFakeGh(dir).run(root, 'handoff', '--spec', 'docs/specs/next.md');
+  assert.match(edited.stdout, /"Plan and issues"/);
+  assert.doesNotMatch(edited.stdout, /Local only/);
   const json = JSON.parse(withFakeGh(dir).run(root, 'handoff', '--spec', 'docs/specs/next.md', '--json').stdout);
   assert.deepEqual(json.unit, { spec: 'docs/specs/next.md', found: true });
   assert.deepEqual(json.groups[0].openStatusItems, ['Plan and issues']);
@@ -329,4 +342,28 @@ test('handoff_missing_spec_file_group_prints', (t) => {
   assert.equal(json.groups.find((g) => g.spec === SPEC_B).openStatusItems, null);
   const unit = gh.run(root, 'handoff', '--spec', SPEC_A);
   assert.match(standing(unit.stdout), /^- Implementation status: file not found$/m);
+});
+
+test('handoff_project_name_falls_back_to_the_directory', (t) => {
+  const { dir, root } = repo(t, {}, { config: {} });
+  const res = withFakeGh(dir).run(root, 'handoff');
+  assert.equal(res.status, 0, res.stderr);
+  assert.ok(res.stdout.startsWith('Continue acme (this repo). Load baton:workflow.\n'), res.stdout);
+});
+
+test('handoff_uses_configured_remote', (t) => {
+  const { dir, root } = repo(t, {}, { remote: 'upstream', config: { project: 'acme', git: { remote: 'upstream' } } });
+  pushFromElsewhere(dir, { 'docs/specs/next.md': SPEC_TEXT });
+  git(root, 'fetch', '-q', 'upstream');
+  git(root, 'merge', '-q', '--ff-only', 'upstream/main');
+  rmSync(join(root, 'docs'), { recursive: true });
+  const gh = withFakeGh(dir);
+  const res = gh.run(root, 'handoff', '--spec', 'docs/specs/next.md');
+  assert.equal(res.status, 0, res.stderr);
+  const lines = standing(res.stdout).split('\n');
+  assert.ok(lines.includes('Base branch main: up to date with upstream/main (as of last fetch)'), lines.join('\n'));
+  assert.ok(lines.includes('- Implementation status still open: "Plan and issues"'), lines.join('\n'));
+  const json = JSON.parse(gh.run(root, 'handoff', '--spec', 'docs/specs/next.md', '--json').stdout);
+  assert.deepEqual(json.base, { branch: 'main', remote: 'upstream', ahead: 0, behind: 0, tracking: true });
+  assert.deepEqual(json.unit, { spec: 'docs/specs/next.md', found: true });
 });
