@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-15-session-handoffs.md](../specs/2026-11-15-session-handoffs.md)
 - Date: 2026-11-15
-- Status: in backlog (#152, #153, #154)
+- Status: in backlog (#152, #153, #154, #156; #153's body updated from the rewritten T3 when #156 was created)
 
 ## Overview
 Four tasks, cut by file ownership. The pure core and the template come first, because the
@@ -177,7 +177,7 @@ Can start immediately in parallel: T1, T3, T4
   - [ ] `skills/retro/SKILL.md` offers to end the session and write the session handoff with
         `baton:handoff` when `baton handoff --spec <spec>` shows no open tasks in the unit's group.
   - [ ] `skills/workflow/SKILL.md` §4's second sentence becomes the `baton:handoff` pointer and
-        `baton:handoff` joins the supporting skills, with a net word change of zero or less.
+        `baton:handoff` joins the Supporting skills line; `wc -w skills/workflow/SKILL.md` is at most 677.
   - [ ] `tests/skills/parallel.md` records a baseline and a green run: when the context grows the
         agent opens `session-boundaries.md`; at a unit boundary it loads `baton:handoff` instead of
         starting the next unit.
@@ -189,7 +189,7 @@ Can start immediately in parallel: T1, T3, T4
   "handoff comment"). Until T4 merges, `baton:handoff` may not exist yet; the pointers name it as the
   spec fixes it.
 
-### T4: `baton:handoff` skill  (#issue)
+### T4: `baton:handoff` skill  (#156)
 - Priority: 1
 - Depends on: none
 - Owns: `skills/handoff/SKILL.md` (new), `tests/skills/handoff.md` (new), `evals/handoff-request/`
@@ -198,16 +198,20 @@ Can start immediately in parallel: T1, T3, T4
   `evals/retro-after-merge/` (read, for the case layout)
 - Interfaces: none (skill text). The skill name `baton:handoff`, `argument-hint: "[spec path]"`.
 - Acceptance:
-  - [ ] `skills/handoff/SKILL.md` has every step and rule in spec Interface 9 and stays at or under
-        ~400 words.
-  - [ ] Its description triggers on asking for a prompt to continue in another session, to hand
-        off, wrap up or start fresh, and on a closed unit.
+  - [ ] `skills/handoff/SKILL.md` has every step and rule in spec Interface 9, at most 400 words by
+        `wc -w`.
+  - [ ] Its description is exactly: "Use when the user asks for a prompt to continue in another session or a fresh session, or to hand off or end this session, or when baton:retro or baton:parallel sends you here at a unit boundary, in a baton repo."
   - [ ] `tests/skills/handoff.md` records a baseline and a green run: the agent runs
-        `baton handoff --spec <spec>` and gives a prompt with no `<FILL`; without `gh` access it fills
-        the template by hand and says the facts were not read from GitHub.
-  - [ ] `evals/handoff-request/` (case.yaml, prompt.md, scaffold.sh, graders/fired.md matching
-        `(?:baton:)?handoff`) in the layout of `evals/retro-after-merge/`.
-  - [ ] `README.md` lists `/baton:handoff [spec]` with a one-line comment, next to `/baton:retro`.
+        `baton handoff --spec <spec>` and gives a prompt with no `<FILL`; at a closed unit it asks which
+        spec is next; without `gh` access it fills the template by hand and says the facts were not
+        read from GitHub.
+  - [ ] `evals/handoff-request/` in the layout of `evals/retro-after-merge/`: `case.yaml` with
+        `name: handoff-request`; `prompt.md` with front matter `tags: [trigger, positive]`,
+        `max_turns: 8`, `allowed_tools: [Read, Glob, Grep, Skill]` and the text "Give me a prompt to
+        continue this in another session."; `scaffold.sh` calling `../_fixtures/baton-repo.sh`;
+        `graders/fired.md` with `input_match: '"skill"\s*:\s*"(?:baton:)?(?:handoff)"'`.
+  - [ ] `README.md` has, directly after the `/baton:retro` line,
+        `/baton:handoff <spec>      # prompt that starts the next session: facts from GitHub and git`.
   - [ ] `make ci` passes (plugin validation).
 - Tests first: the scenario's baseline run, recorded before the skill exists.
 - Notes: follow the repo's `writing-skills` skill. Until T1/T2 merge, the scenario stubs

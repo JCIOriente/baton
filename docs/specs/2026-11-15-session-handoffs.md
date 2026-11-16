@@ -16,7 +16,8 @@
   the agent fills before giving the prompt to the user. A prompt with `<FILL` never reaches the
   user.
 - New skill **`baton:handoff`** (`/baton:handoff [spec path]`): runs the command, fills the slots
-  and gives the finished prompt. It also triggers on "continue in another session" and similar.
+  and gives the finished prompt. It also loads when the user asks in words for a prompt to
+  continue in another session, or when `baton:retro` or `baton:parallel` sends the agent there.
 - One generic template, `templates/handoff.md`, used by the CLI and by the skill's manual path.
 - `baton:retro` offers the session handoff when a unit ends; `baton:parallel` and `baton:workflow`
   §4 point to `baton:handoff`.
@@ -233,19 +234,21 @@ New terms in `CONTEXT.md`:
    supporting skills. Net word change zero or less.
 8. **`CONTEXT.md`**: the Unit and Session handoff rows.
 9. **`skills/handoff/SKILL.md`** (new skill `baton:handoff`, `argument-hint: "[spec path]"`):
-   - description triggers: the user asks for a prompt to continue in another session, to hand off,
-     wrap up or start fresh, or a unit has closed;
-   - steps: update the repo status (issues, the spec's Implementation status) and any session memory
-     the agent has; pick the next session's spec (the argument, else the unit being worked on, else
-     ask); run `baton handoff --spec <spec>`; fill every `<FILL:` slot from the issues, the spec and
-     this session's decisions, choosing leave-alone items from the printed candidates; give the
-     prompt inline in one fenced block;
+   - description, exactly: "Use when the user asks for a prompt to continue in another session or a fresh session, or to hand off or end this session, or when baton:retro or baton:parallel sends you here at a unit boundary, in a baton repo.";
+   - steps: make sure the issues and the spec's Implementation status are current (changes to
+     committed files go through a worktree and PR as always; say what is still stale) and update any
+     session memory the agent has; pick the next session's spec: the argument; else, mid-unit, the
+     unit being worked on; when that unit has no open tasks, ask which spec is next, and run without
+     `--spec` if none is chosen yet; run `baton handoff [--spec <spec>]`; fill every `<FILL:` slot
+     from the issues, the spec and this session's decisions, choosing leave-alone items from the
+     printed candidates; give the prompt inline in one block fenced with four backticks;
    - rules: never give a prompt containing `<FILL`; never treat candidates as decided without checking
      them; without `gh` access, fill `${CLAUDE_PLUGIN_ROOT}/templates/handoff.md` by hand from
      `baton status` and git and say the facts were not read from GitHub; the prompt holds absolute
      local paths and is for the user's own next session;
-   - at most ~400 words (the writing-skills cap is ~600).
-10. **`README.md`**: a `/baton:handoff` line in the skills list.
+   - at most 400 words by `wc -w` (the writing-skills cap is ~600).
+10. **`README.md`**: directly after the `/baton:retro` line,
+    `/baton:handoff <spec>      # prompt that starts the next session: facts from GitHub and git`.
 
 ## Behavior & edge cases
 - `gh` missing, logged out or offline: exit 1 with "Could not read tasks and PRs from GitHub" and
@@ -282,7 +285,8 @@ None. No config keys; the template path is fixed.
   grows the agent opens `session-boundaries.md`; at a unit boundary it loads `baton:handoff` instead
   of starting the next unit), `tests/skills/retro.md` (new; a retro run when the unit's group has no
   open tasks offers the session handoff) and `tests/skills/handoff.md` (new; the prompt has no
-  `<FILL`, and the manual path says the facts were not read from GitHub).
+  `<FILL`; at a closed unit it asks which spec is next; the manual path says the facts were not
+  read from GitHub).
 - Trigger eval `evals/handoff-request/` (paid, `make evals`, not in ci): "give me a prompt to continue
   in another session" loads `baton:handoff`.
 - `make ci`.
@@ -315,4 +319,4 @@ None.
 - [ ] T1 handoff template and pure core (#152)
 - [ ] T2 `baton handoff` command (#154)
 - [ ] T3 session-boundary rules in the skills (#153)
-- [ ] T4 `baton:handoff` skill (#issue)
+- [ ] T4 `baton:handoff` skill (#156)
