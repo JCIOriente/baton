@@ -74,7 +74,7 @@ export function buildContext({ root, found, config }, { pluginRoot, cwd = proces
     lines.push('', `Known recurring bug patterns in this repo. Check before coding: ${issues}`);
   }
   if (config.validate.length) {
-    lines.push('', 'Validation (`baton verify` runs all of them):');
+    lines.push('', 'Validation (`baton verify` runs the local stage; stages other than the default local, ci are shown):');
     for (const v of config.validate) lines.push(validationLine(normalizeStep(v)));
   }
 

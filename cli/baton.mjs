@@ -243,10 +243,9 @@ function hooks(argv) {
     lines.push(res.changed ? 'Commits in the main checkout are now refused while hooks.worktreeOnly is on.' : 'It was already installed; behavior is unchanged.');
     lines.push(`To remove the guard, delete ${res.script}, ${res.gates} and ${res.stub}.`);
   } else {
-    const isPlural = res.managerLine.includes('\n');
-    lines.push(`Left the hooks unchanged: ${res.reason}. Add ${isPlural ? 'these lines' : 'this line'} to that pre-commit hook or hook manager:`);
+    lines.push(`Left the hooks unchanged: ${res.reason}. Add these lines to that pre-commit hook or hook manager:`);
     lines.push(res.managerLine);
-    lines.push(`To remove the guard, delete ${res.script}, ${res.gates} and ${isPlural ? 'those lines' : 'that line'}.`);
+    lines.push(`To remove the guard, delete ${res.script}, ${res.gates} and those lines.`);
   }
   print(lines.join('\n'));
 }

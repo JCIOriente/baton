@@ -587,6 +587,7 @@ async function gatesRepo(t, config, files = {}) {
   const baton = (...args) => spawnSync(process.execPath, [cli, ...args], { cwd: root, env, encoding: 'utf8' });
   const doctor = () => {
     const res = baton('doctor', '--json');
+    assert.ok(res.stdout.trim(), res.stderr);
     return { status: res.status, findings: JSON.parse(res.stdout) };
   };
   return { root, baton, doctor };
@@ -638,6 +639,12 @@ test('doctor reports missing commit gates', async (t) => {
   assert.deepEqual(after.findings, [], JSON.stringify(after.findings));
   assert.equal(after.status, 0);
 
+  // The commit gates run in linked worktrees, so the finding holds with the worktree guard off too.
+  const { doctor: guardOff } = await gatesRepo(t, { hooks: { worktreeOnly: false }, validate: [commitStep] });
+  const offFindings = kindMessages(guardOff().findings, 'worktree');
+  assert.equal(offFindings.length, 1, JSON.stringify(offFindings));
+  assert.match(offFindings[0], /commit-gates.*missing.*run `baton hooks install`/);
+
   // Without a commit-stage step there is nothing to report, even with no hook installed.
   const { doctor: localOnly } = await gatesRepo(t, { validate: [{ ...commitStep, stages: ['local', 'ci'] }] });
   assert.deepEqual(kindMessages(localOnly().findings, 'worktree').filter((m) => m.includes('commit-gates')), []);
@@ -656,7 +663,7 @@ test('context prints gates, non-default stages and advisory reasons', async (t) 
     { run: 'make ci' },
   ];
   const text = buildContext({ root, found: true, config }, { pluginRoot: '/p', cwd: root });
-  const start = text.indexOf('Validation (');
+  const start = text.indexOf('Validation (`baton verify` runs the local stage; stages other than the default local, ci are shown):');
   assert.ok(start >= 0, text);
   assert.deepEqual(text.slice(start).split('\n').slice(1, 5), [
     '- lint [format, lint] (commit, local, ci): `make lint`',
