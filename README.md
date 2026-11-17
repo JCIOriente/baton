@@ -1,4 +1,10 @@
-# baton
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/baton-logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/baton-logo-light.svg">
+    <img src="docs/assets/baton-logo-light.svg" alt="baton" width="280">
+  </picture>
+</h1>
 
 A Claude Code plugin with one opinionated, configurable workflow for humans and AI agents
 working on the same codebase:
@@ -20,7 +26,7 @@ claude plugin install baton@jcioriente
 
 Pin a release for a project by installing from a tag (see [CHANGELOG](CHANGELOG.md)).
 
-Requirements: Node >= 20, `git`, and `gh` (authenticated) for backlog commands. The suggested
+Requirements: Node >= 22, `git`, and `gh` (authenticated) for backlog commands. The suggested
 `secrets` validation step uses [gitleaks](https://github.com/gitleaks/gitleaks).
 
 ## Use in a project
@@ -38,7 +44,7 @@ Requirements: Node >= 20, `git`, and `gh` (authenticated) for backlog commands. 
 /baton:debug                # root cause before fixes
 /baton:deps <package>       # vet a dependency add/upgrade: registry version, audit, lockfile
 /baton:retro                # lessons -> conventions/ADRs via reviewed PRs
-/baton:handoff <spec>      # prompt that starts the next session: facts from GitHub and git
+/baton:handoff <spec>       # prompt that starts the next session: facts from GitHub and git
 ```
 
 `baton:workflow` is the router. When a session starts in a configured repo, a hook tells
@@ -48,8 +54,8 @@ Claude to load it, along with the repo's phases, gates, guide paths and validati
 
 | Concern | Where it lives |
 |---|---|
-| Shared task state (ownership, status, deps, history) | GitHub Issues: labels, assignees, `Depends on: #N`, claim marker comments |
-| Local execution | Every change happens in a linked worktree. One per task from `baton start <n>` (`../<repo>-worktrees/task-<n>-<slug>`), `setup` and a baseline run on start; one per spec, plan or other non-task change from `baton worktree add <name>`. `baton worktree clean` removes the ones whose PR is merged, keeping open, no-PR and dirty ones (`--dry-run` previews). The main checkout stays on the base branch and only fast-forwards. No shared mutable local files |
+| Shared task state (ownership, status, dependencies, history) | GitHub Issues: labels, assignees, `Depends on: #N`, claim marker comments |
+| Local execution | Every change happens in a linked worktree. `baton start <n>` creates one per task (`../<repo>-worktrees/task-<n>-<slug>`) and runs `setup` and a baseline. `baton worktree add <name>` creates one per spec, plan or other non-task change. `baton worktree clean` removes worktrees whose PRs are merged. It keeps dirty worktrees and those with open PRs or no PR (`--dry-run` previews the cleanup). The main checkout stays on the base branch and only fast-forwards. No shared mutable local files |
 | Integration | `baton verify` (project-defined commands) -> review (spec compliance, then quality angles) -> `baton done` (PR `Closes #N`) -> merge policy |
 | Learning | `baton:retro` turns review and verification evidence into convention/ADR changes, reviewed like code. Nothing is learned privately |
 | Workflow definition | `.baton/config.json` in each project, falling back to defaults |
@@ -68,27 +74,28 @@ user's instruction. It's adapted from ECC's gateguard.
 
 **Worktree guard (on by default):** with `hooks.worktreeOnly`, nothing is edited or committed in
 the main checkout. A Claude Code hook denies edits to tracked and new files there (gitignored
-files are allowed) and names the way out: `baton start <n>` for a task, `baton worktree add <name>`
-for anything else. `baton hooks install` adds a git `pre-commit` guard per clone that refuses
-commits there from anyone. It never changes an existing hook, a hook manager's setup or a hooks
-directory in the working tree (`.husky/`, `.githooks/`); it prints the line to add instead.
-`baton doctor` and the session start report a clone without it. Both guards read the switch from
-the main checkout's committed `HEAD`, allow the action on any internal error, and stand down when
-`CI` or `CLAUDE_CODE_REMOTE` is `true`. A repo turns them off by merging
+files are allowed) and tells you how to create a worktree: `baton start <n>` for a task,
+`baton worktree add <name>` for anything else. `baton hooks install` adds a git `pre-commit`
+guard per clone that refuses commits there from anyone. It never changes an existing hook,
+a hook manager's setup or a hooks directory in the working tree (`.husky/`, `.githooks/`);
+it prints the line to add instead.
+`baton doctor` and the session-start hook report when a clone lacks the guard. Both guards read
+the switch from the main checkout's committed `HEAD`, allow the action on any internal error,
+and are disabled when `CI` or `CLAUDE_CODE_REMOTE` is `true`. A repo turns them off by merging
 `"hooks": { "worktreeOnly": false }` into `.baton/config.json`.
 
-**Cross-tool:** all state and logic live in the CLI and in plain markdown, so a
-Codex/other-agent adapter only has to generate an `AGENTS.md` that points to the same skills and
-`baton` commands. Not built yet.
+**Cross-tool:** all state and logic live in the CLI and in plain Markdown, so an adapter for
+Codex or another agent only has to generate an `AGENTS.md` that points to the same skills and
+`baton` commands. This adapter is not built yet.
 
 ## Releases
 
 Releases and publishing are opt-in. The release step of `baton:init` turns them on: it sets
 `release.enabled` and `release.publish` in `.baton/config.json` and writes the release-please
-files and workflow. When on, release-please keeps a release PR with the next version (from the
-merged PR titles) and the generated changelog. Merging it, which `baton:release` does on demand
-when you ask, tags `vX.Y.Z` (e.g. `v0.2.0`, no package name), and CI publishes that tagged
-version to the configured registries. See the
+files and workflow. When enabled, release-please maintains a release PR with the next version
+(from the merged PR titles) and the generated changelog. Merging that PR tags `vX.Y.Z`
+(e.g. `v0.2.0`, no package name), and CI publishes that version to the configured registries.
+`baton:release` merges the release PR when you ask. See the
 [release phase spec](docs/specs/2026-10-28-release-phase.md).
 
 ## Stacks and guides
@@ -102,13 +109,13 @@ See [`templates/config.example.json`](templates/config.example.json). Key fields
 
 - `stacks`: which guides and reviewers apply
 - `setup`: `[{ name, run, cwd? }]`, run in every new task worktree (e.g. dependency install)
-- `validate`: `[{ name, run, cwd? }]`. All must pass before `baton done` opens a PR (its body
-  comes from [`templates/pr-body.md`](templates/pr-body.md), at most two paragraphs, plus a
-  `Validated:` line)
+- `validate`: `[{ name, run, cwd? }]`. All must pass before `baton done` opens a PR. The PR body
+  uses [`templates/pr-body.md`](templates/pr-body.md): at most two paragraphs, plus a
+  `Validated:` line
 - `workflow.phases`: reorder or drop built-in phases, or add your own with
   `workflow.custom: { "<phase>": "docs/process/<phase>.md" }`
 - `workflow.requireSpec | requireTdd | requireReview | baselineOnStart`: the gates
-- `review.scopeToDiff`: off by default (every stack reviewer runs); on, a stack reviewer is
+- `review.scopeToDiff`: off by default (every stack reviewer runs). When on, a stack reviewer is
   skipped only when the diff provably doesn't touch its stack
 - `hooks.factGate`: opt-in investigate-before-edit gate
 - `hooks.worktreeOnly`: on by default; every change happens in a linked worktree (see
@@ -121,17 +128,17 @@ See [`templates/config.example.json`](templates/config.example.json). Key fields
 
 ## Staying current
 
-Guides and skills go stale as Claude Code, libraries and the upstream projects they adapt keep
-moving. [`provenance.json`](provenance.json) records the upstream commit each adapted file came
-from, and the version-dependent facts the guides assert (e.g. `queryClient.query` needs TanStack
+Guides and skills go stale as Claude Code, libraries and the upstream projects they adapt
+change. [`provenance.json`](provenance.json) records the upstream commit each adapted file came
+from and the version-dependent facts the guides assert (e.g. `queryClient.query` needs TanStack
 Query >= 5.102).
 
-- `baton upstream` (maintainers, needs `gh`): upstream changes to adapted files since their
-  baseline, and new releases outside the asserted versions. A weekly GitHub Action
+- `baton upstream` (for maintainers, requires `gh`): reports upstream changes to adapted files
+  since their baseline, and new releases outside the asserted versions. A weekly GitHub Action
   ([`drift.yml`](.github/workflows/drift.yml)) keeps one `drift` issue updated with the result.
-- `baton doctor` (in a project, offline): the config, tools used by `setup`/`validate`, stacks
-  detected but not enabled, and installed dependencies (npm, pnpm, Cargo lockfiles) outside what
-  the guides assume.
+- `baton doctor` (in a project, offline): checks the config, tools used by `setup`/`validate`,
+  stacks detected but not enabled, and installed dependencies (npm, pnpm, Cargo lockfiles)
+  outside what the guides assume.
 - `npm test` fails if a recorded fact no longer appears in its guide.
 
 ## Development
@@ -149,6 +156,7 @@ subagents).
 Adapted from [obra/superpowers](https://github.com/obra/superpowers) and
 [affaan-m/ECC](https://github.com/affaan-m/ECC), both MIT. The scope-of-change rules follow
 [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding
-pitfalls, the React performance rules adapt [Vercel's react-best-practices](https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices),
+pitfalls. The React performance rules are adapted from
+[Vercel's react-best-practices](https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices),
 and several ideas come from [Symposium](https://github.com/symposium-dev/symposium).
 See [NOTICE](NOTICE) for details.
