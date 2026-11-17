@@ -569,6 +569,29 @@ test('every reviewer brief ends its report with the same Declined to judge block
   for (const tail of tails) assert.equal(tail, tails[0]);
 });
 
+test('context prints gates, non-default stages and advisory reasons', async (t) => {
+  const { buildContext } = await import('../lib/context.mjs');
+  const { rmSync } = await import('node:fs');
+  const root = mkdtempSync(join(tmpdir(), 'baton-ctx-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const config = deepMerge(DEFAULT_CONFIG, { hooks: { worktreeOnly: false } });
+  config.validate = [
+    { name: 'lint', run: 'make lint', gates: ['format', 'lint'], stages: ['commit', 'local', 'ci'] },
+    { name: 'test', run: 'npm test', cwd: 'cli', gates: ['unit-tests'] },
+    { name: 'api-break', run: 'just api-check', gates: ['publish'], stages: ['ci'], blocking: false, reason: 'needs a published baseline first' },
+    { run: 'make ci' },
+  ];
+  const text = buildContext({ root, found: true, config }, { pluginRoot: '/p', cwd: root });
+  const start = text.indexOf('Validation (');
+  assert.ok(start >= 0, text);
+  assert.deepEqual(text.slice(start).split('\n').slice(1, 5), [
+    '- lint [format, lint] (commit, local, ci): `make lint`',
+    '- test [unit-tests]: `npm test` (in cli)',
+    '- api-break [publish] (ci): `just api-check` advisory: needs a published baseline first',
+    '- make ci: `make ci`',
+  ]);
+});
+
 test('init suggestions carry gates', () => {
   const v = suggestValidate({ stacks: ['rust', 'typescript'], packageManager: 'pnpm' });
   assert.deepEqual(Object.fromEntries(v.map((s) => [s.name, s.gates])), {
