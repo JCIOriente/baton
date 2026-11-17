@@ -20,6 +20,18 @@
       "quoteStyle": "single"
     }
   },
+  "overrides": [
+    {
+      // release-please rewrites these as JSON.stringify(x, null, 2) on every release (the node
+      // strategy's package.json, extra-files' plugin.json), so they keep that layout.
+      "includes": ["package.json", ".claude-plugin/plugin.json"],
+      "json": {
+        "formatter": {
+          "expand": "always"
+        }
+      }
+    }
+  ],
   "linter": {
     "rules": {
       "suspicious": {
