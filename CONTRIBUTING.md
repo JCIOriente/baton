@@ -11,7 +11,7 @@ commits there.
 ## Checks
 
 `make ci` runs everything CI runs: the tests, `claude plugin validate .` and a gitleaks scan.
-Requirements: Node >= 20, [Claude Code](https://code.claude.com), [gitleaks](https://github.com/gitleaks/gitleaks).
+Requirements: Node >= 22, [Claude Code](https://code.claude.com), [gitleaks](https://github.com/gitleaks/gitleaks).
 
 ## Changes to skills, guides and reviewer briefs
 

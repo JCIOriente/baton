@@ -1,29 +1,85 @@
-# baton
+<p align="center">
+  <img src="https://raw.githubusercontent.com/JCIOriente/baton/main/assets/logo.svg" alt="baton logo: two batons meeting in a handoff zone" width="96" height="96">
+</p>
 
-A Claude Code plugin with one opinionated, configurable workflow for humans and AI agents
-working on the same codebase:
+<h1 align="center">baton</h1>
+
+<p align="center">One workflow for humans and AI agents working on the same codebase.</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@jcioriente/baton"><img src="https://img.shields.io/npm/v/@jcioriente/baton" alt="npm version"></a>
+  <a href="https://github.com/JCIOriente/baton/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/JCIOriente/baton/ci.yml?branch=main" alt="CI status"></a>
+  <a href="https://github.com/JCIOriente/baton/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+</p>
+
+baton is a Claude Code plugin with one opinionated, configurable workflow for humans and AI
+agents working on the same codebase:
 
 ```
 spec -> plan -> backlog -> implement -> verify -> review -> integrate (-> retro)
 ```
 
-A task is like a baton: exactly one holder at a time, handed off explicitly. The plugin has
-no unrelated skills and no connectors. Stack guides and reviewers load only in repos that
-enable them.
+A task is like a baton: exactly one holder at a time, handed off explicitly.
+
+- **One holder at a time.** Tasks are GitHub issues. Claims are race-safe, so two people
+  never hold the same task.
+- **Every change in its own worktree.** The main checkout stays on the base branch and only
+  fast-forwards; guards refuse edits and commits there.
+- **Gates you configure.** Spec before plan, tests first, review before merge. Your project's
+  blocking validation steps must pass before a PR opens.
+- **Nothing is learned privately.** `baton:retro` turns review and verification evidence into
+  conventions and ADRs through reviewed PRs.
+
+The plugin has no unrelated skills and no connectors. Stack guides and reviewers load only in
+repos that enable them.
 
 ## Install
 
-```bash
+```sh
 claude plugin marketplace add JCIOriente/baton
 claude plugin install baton@jcioriente
 ```
 
-Pin a release for a project by installing from a tag (see [CHANGELOG](CHANGELOG.md)).
+Pin a release for a project by installing from a tag (see the
+[CHANGELOG](https://github.com/JCIOriente/baton/blob/main/CHANGELOG.md)).
 
-Requirements: Node >= 20, `git`, and `gh` (authenticated) for backlog commands. The suggested
+Requirements: Node >= 22, `git`, and `gh` (authenticated) for backlog commands. The suggested
 `secrets` validation step uses [gitleaks](https://github.com/gitleaks/gitleaks).
 
-## Use in a project
+## Quick start
+
+Run these inside Claude Code, in your project.
+
+1. **Set up the project.** This writes `.baton/config.json`: it detects your stacks and reviews
+   setup, validation and gates with you.
+
+   ```
+   /baton:init
+   ```
+
+2. **Turn an idea into work.** Write a spec, break it into a plan, and file the tasks as GitHub
+   issues.
+
+   ```
+   /baton:spec <topic>
+   /baton:plan
+   /baton:backlog
+   ```
+
+3. **Work a task.** Claim issue #42 in its own worktree, test-first, then verify, review and
+   open the PR.
+
+   ```
+   /baton:implement 42
+   /baton:verify
+   /baton:review
+   /baton:integrate
+   ```
+
+`baton:workflow` is the router. When a session starts in a configured repo, a hook tells
+Claude to load it, along with the repo's phases, gates, guide paths and validation commands.
+
+## Commands
 
 ```
 /baton:init                 # .baton/config.json: detects stacks, reviews setup/validation/gates with you
@@ -38,117 +94,45 @@ Requirements: Node >= 20, `git`, and `gh` (authenticated) for backlog commands. 
 /baton:debug                # root cause before fixes
 /baton:deps <package>       # vet a dependency add/upgrade: registry version, audit, lockfile
 /baton:retro                # lessons -> conventions/ADRs via reviewed PRs
-/baton:handoff <spec>      # prompt that starts the next session: facts from GitHub and git
+/baton:handoff <spec>       # prompt that starts the next session: facts from GitHub and git
 ```
 
-`baton:workflow` is the router. When a session starts in a configured repo, a hook tells
-Claude to load it, along with the repo's phases, gates, guide paths and validation commands.
+The `baton` CLI does the mechanics behind these skills. `baton help` lists every command.
 
-## Architecture
+## Documentation
 
-| Concern | Where it lives |
-|---|---|
-| Shared task state (ownership, status, deps, history) | GitHub Issues: labels, assignees, `Depends on: #N`, claim marker comments |
-| Local execution | Every change happens in a linked worktree. One per task from `baton start <n>` (`../<repo>-worktrees/task-<n>-<slug>`), `setup` and a baseline run on start; one per spec, plan or other non-task change from `baton worktree add <name>`. `baton worktree clean` removes the ones whose PR is merged, keeping open, no-PR and dirty ones (`--dry-run` previews). The main checkout stays on the base branch and only fast-forwards. No shared mutable local files |
-| Integration | `baton verify` (project-defined commands) -> review (spec compliance, then quality angles) -> `baton done` (PR `Closes #N`) -> merge policy |
-| Learning | `baton:retro` turns review and verification evidence into convention/ADR changes, reviewed like code. Nothing is learned privately |
-| Workflow definition | `.baton/config.json` in each project, falling back to defaults |
-| Judgment (when and why) | `skills/*/SKILL.md` |
-| Mechanics (how, the same way every time) | `baton` CLI (`cli/`, zero dependencies, on PATH via `bin/`) |
-| Coding rules | `stacks/*.md`, opt-in per project. `common.md` always applies |
-| Review angles | `reviewers/*.md`, chosen by `baton reviewers` from the enabled stacks |
-
-**Claims:** GitHub has no atomic compare-and-set, so `baton claim` posts a marker comment,
-re-reads the thread, and the earliest claim since the last release wins. The loser rolls
-back automatically. Markers count only when the comment author matches the claimed user.
-
-**Fact gate (opt-in):** with `hooks.factGate`, the first edit of each file per session is
-refused once, until the agent states facts about it: importers, affected API, data, and the
-user's instruction. It's adapted from ECC's gateguard.
-
-**Worktree guard (on by default):** with `hooks.worktreeOnly`, nothing is edited or committed in
-the main checkout. A Claude Code hook denies edits to tracked and new files there (gitignored
-files are allowed) and names the way out: `baton start <n>` for a task, `baton worktree add <name>`
-for anything else. `baton hooks install` adds a git `pre-commit` guard per clone that refuses
-commits there from anyone. It never changes an existing hook, a hook manager's setup or a hooks
-directory in the working tree (`.husky/`, `.githooks/`); it prints the line to add instead.
-`baton doctor` and the session start report a clone without it. Both guards read the switch from
-the main checkout's committed `HEAD`, allow the action on any internal error, and stand down when
-`CI` or `CLAUDE_CODE_REMOTE` is `true`. A repo turns them off by merging
-`"hooks": { "worktreeOnly": false }` into `.baton/config.json`.
-
-**Cross-tool:** all state and logic live in the CLI and in plain markdown, so a
-Codex/other-agent adapter only has to generate an `AGENTS.md` that points to the same skills and
-`baton` commands. Not built yet.
-
-## Releases
-
-Releases and publishing are opt-in. The release step of `baton:init` turns them on: it sets
-`release.enabled` and `release.publish` in `.baton/config.json` and writes the release-please
-files and workflow. When on, release-please keeps a release PR with the next version (from the
-merged PR titles) and the generated changelog. Merging it, which `baton:release` does on demand
-when you ask, tags `vX.Y.Z` (e.g. `v0.2.0`, no package name), and CI publishes that tagged
-version to the configured registries. See the
-[release phase spec](docs/specs/2026-10-28-release-phase.md).
-
-## Stacks and guides
-
-`typescript`, `javascript`, `react`, `node`, `rust`, `rust-tokio-postgres`, `postgres`,
-`api`, `openapi`, `i18n`, `e2e`, plus the always-on `common` baseline.
-
-## Project config
-
-See [`templates/config.example.json`](templates/config.example.json). Key fields:
-
-- `stacks`: which guides and reviewers apply
-- `setup`: `[{ name, run, cwd? }]`, run in every new task worktree (e.g. dependency install)
-- `validate`: `[{ name, run, cwd? }]`. All must pass before `baton done` opens a PR (its body
-  comes from [`templates/pr-body.md`](templates/pr-body.md), at most two paragraphs, plus a
-  `Validated:` line)
-- `workflow.phases`: reorder or drop built-in phases, or add your own with
-  `workflow.custom: { "<phase>": "docs/process/<phase>.md" }`
-- `workflow.requireSpec | requireTdd | requireReview | baselineOnStart`: the gates
-- `review.scopeToDiff`: off by default (every stack reviewer runs); on, a stack reviewer is
-  skipped only when the diff provably doesn't touch its stack
-- `hooks.factGate`: opt-in investigate-before-edit gate
-- `hooks.worktreeOnly`: on by default; every change happens in a linked worktree (see
-  "Worktree guard" above). `false` turns both guards off
-- `conventions`: project rule files that override the stack guides
-
-## CLI
-
-`baton help` lists every command. Read commands accept `--json`.
-
-## Staying current
-
-Guides and skills go stale as Claude Code, libraries and the upstream projects they adapt keep
-moving. [`provenance.json`](provenance.json) records the upstream commit each adapted file came
-from, and the version-dependent facts the guides assert (e.g. `queryClient.query` needs TanStack
-Query >= 5.102).
-
-- `baton upstream` (maintainers, needs `gh`): upstream changes to adapted files since their
-  baseline, and new releases outside the asserted versions. A weekly GitHub Action
-  ([`drift.yml`](.github/workflows/drift.yml)) keeps one `drift` issue updated with the result.
-- `baton doctor` (in a project, offline): the config, tools used by `setup`/`validate`, stacks
-  detected but not enabled, and installed dependencies (npm, pnpm, Cargo lockfiles) outside what
-  the guides assume.
-- `npm test` fails if a recorded fact no longer appears in its guide.
+| Guide | What it covers |
+| --- | --- |
+| [Architecture](https://github.com/JCIOriente/baton/blob/main/docs/architecture.md) | Where task state, worktrees, skills and the CLI live; claims, the fact gate and the worktree guard |
+| [Configuration](https://github.com/JCIOriente/baton/blob/main/docs/configuration.md) | `.baton/config.json` fields, stacks and guides, releases and the CLI |
+| [Staying current](https://github.com/JCIOriente/baton/blob/main/docs/staying-current.md) | How guides track upstream changes: `provenance.json`, `baton upstream` and `baton doctor` |
+| [Contributing](https://github.com/JCIOriente/baton/blob/main/CONTRIBUTING.md) | Setting up, the checks, and changing skills |
 
 ## Development
 
-```bash
-npm test                       # node:test, no dependencies
-claude plugin validate .
+```sh
+git clone https://github.com/JCIOriente/baton.git
+cd baton
+npm ci
+make ci        # gitleaks, Biome, tests and plugin validation
 ```
 
 Changes to skills follow `.claude/skills/writing-skills` (red/green scenarios with fresh
-subagents).
+subagents). The design is in
+[`docs/specs`](https://github.com/JCIOriente/baton/tree/main/docs/specs), and the decisions
+behind it are in [`docs/adr`](https://github.com/JCIOriente/baton/tree/main/docs/adr).
 
 ## Credits
 
 Adapted from [obra/superpowers](https://github.com/obra/superpowers) and
 [affaan-m/ECC](https://github.com/affaan-m/ECC), both MIT. The scope-of-change rules follow
 [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding
-pitfalls, the React performance rules adapt [Vercel's react-best-practices](https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices),
+pitfalls. The React performance rules are adapted from
+[Vercel's react-best-practices](https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices),
 and several ideas come from [Symposium](https://github.com/symposium-dev/symposium).
-See [NOTICE](NOTICE) for details.
+See [NOTICE](https://github.com/JCIOriente/baton/blob/main/NOTICE) for details.
+
+## License
+
+baton is licensed under the
+[MIT License](https://github.com/JCIOriente/baton/blob/main/LICENSE).
