@@ -81,7 +81,10 @@ export function prBody(number, extra, res) {
     if (ciOnly.length) lines.push(`CI only: ${ciOnly.map(step).join(', ')}`);
     if (res.skipped.length) lines.push(`Skipped gates: ${res.skipped.map((s) => `${s.gate}: ${s.reason}`).join('; ')}`);
   }
-  if (!lines.length) lines.push('Validated: (no validation configured)');
+  if (!lines.length) {
+    const configured = res && (res.results.length || res.notInStage.length);
+    lines.push(configured ? `Validated (${res.stage}): (no steps in this stage)` : 'Validated: (no validation configured)');
+  }
   const middle = extra?.trim() ? `${extra.trim()}\n\n` : '';
   return `Closes #${number}\n\n${middle}${lines.join('\n')}\n`;
 }

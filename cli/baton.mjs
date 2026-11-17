@@ -42,7 +42,7 @@ import {
   statusOf,
   unblockable,
 } from './lib/tasks.mjs';
-import { BatonError, deepMerge, print, slugify } from './lib/util.mjs';
+import { BatonError, deepMerge, print, runShell, slugify } from './lib/util.mjs';
 import { formatSummary, runSetup, runStage, stageJson } from './lib/verify.mjs';
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');

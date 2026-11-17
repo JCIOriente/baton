@@ -350,6 +350,8 @@ test('prBody omits empty lines', () => {
   assert.equal(prBody(7, '', runResult({ results: [passed('ci', 'make ci')] })), 'Closes #7\n\nValidated (local): ci (`make ci`)\n');
   assert.equal(prBody(7, '', runResult({ skipped: [{ gate: 'audit', reason: 'no deps' }] })), 'Closes #7\n\nSkipped gates: audit: no deps\n');
   assert.equal(prBody(7, '', runResult()), 'Closes #7\n\nValidated: (no validation configured)\n');
+  const commitOnly = runResult({ notInStage: [{ name: 'fmt', run: 'make fmt', stages: ['commit'] }] });
+  assert.equal(prBody(7, '', commitOnly), 'Closes #7\n\nValidated (local): (no steps in this stage)\n');
   assert.equal(prBody(7, '', null), 'Closes #7\n\nValidated: (no validation configured)\n');
 });
 

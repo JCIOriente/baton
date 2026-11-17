@@ -129,7 +129,8 @@ test('verify fails the step whose cwd is missing', (t) => {
       ['tests', 'not-run'],
     ],
   );
-  assert.match(res.stderr, /✖ app failed/);
+  assert.match(res.stderr, /✖ app failed \(cwd apps\/missing not found\)/);
+  assert.equal(out.results[0].code, null);
 });
 
 test('verify --only by gate name prints the narrowed line', (t) => {
@@ -192,6 +193,20 @@ test('verify --json has the spec shape', (t) => {
   });
 });
 
+test('verify lists skipped gates in the summary', (t) => {
+  const { root } = repo(t, { gates: { skip: { 'unused-deps': 'one devDependency (Biome), used by the lint step' } }, validate: [step('lint', 0, { gates: ['lint'] })] });
+  const res = baton(root, 'verify');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /^skipped gates: unused-deps \(one devDependency \(Biome\), used by the lint step\)$/m);
+});
+
+test('doctor runs with a validate step', (t) => {
+  const { root } = repo(t, { validate: [{ run: 'true', gates: ['lint'] }] });
+  const res = baton(root, 'doctor');
+  assert.doesNotMatch(res.stderr, /ReferenceError|unexpected error/);
+  assert.ok(res.status === 0 || res.status === 1, res.stderr);
+});
+
 test('verify on an old config keeps the step lines and shows no gate', (t) => {
   const { root } = repo(t, { validate: [{ name: 'ci', run: 'echo ci >> ran.log' }] });
   const res = baton(root, 'verify');
@@ -201,8 +216,12 @@ test('verify on an old config keeps the step lines and shows no gate', (t) => {
   assert.equal(res.stdout, 'verify (local): 1 passed\n  ✔ ci [no gate]\n');
 });
 
-/** A fake `gh` first on PATH that answers as user `me`, who already holds the claim on any issue. */
+/**
+ * A fake `gh` first on PATH that answers as user `me`, who already holds the claim on any issue.
+ * Each call's arguments go to <dir>/gh.log as one JSON line; `pr create` answers with a PR URL.
+ */
 function withFakeGh(dir) {
+  const log = join(dir, 'gh.log');
   const bin = join(dir, 'bin');
   mkdirSync(bin, { recursive: true });
   const issue = { number: 12, title: 'Task', body: '', state: 'OPEN', assignees: [], labels: [], url: '', comments: [{ author: { login: 'me' }, body: '<!-- baton:claim user=me nonce=abc -->' }] };
@@ -210,10 +229,12 @@ function withFakeGh(dir) {
     join(bin, 'gh'),
     `#!${process.execPath}
 const a = process.argv.slice(2);
+require('fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify(a) + '\\n');
 if (a[0] === 'api') console.log('me');
 else if (a[0] === 'issue' && a[1] === 'list') console.log('[]');
 else if (a[0] === 'issue' && a[1] === 'view') console.log(JSON.stringify(${JSON.stringify(issue)}));
 else if (a[0] === 'pr' && a[1] === 'list') console.log('[]');
+else if (a[0] === 'pr' && a[1] === 'create') console.log('https://example.test/pr/1');
 `,
   );
   chmodSync(join(bin, 'gh'), 0o755);
@@ -228,4 +249,31 @@ test('start baseline reports a failing advisory step', (t) => {
   assert.equal(res.status, 0, res.stderr);
   assert.match(res.stdout, /baseline: validation passes before any change\./);
   assert.match(res.stdout, /^baseline: advisory 'api' fails \(needs a published baseline first\)$/m);
+});
+
+test('start baseline names the first failing blocking step', (t) => {
+  const { dir, root } = repo(t, {
+    validate: [step('docs', 1, { gates: ['format'], blocking: false, reason: 'slow' }), step('tests', 1, { gates: ['unit-tests'] }), step('build', 0)],
+  });
+  const res = withFakeGh(dir)(root, 'start', '12');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /baseline: 'tests' ALREADY FAILS/);
+  assert.match(res.stdout, /^baseline: advisory 'docs' fails \(slow\)$/m);
+});
+
+test('done runs only the local stage and opens the PR past an advisory failure', (t) => {
+  const { dir, root, base } = repo(t, {
+    validate: [step('api', 1, { gates: ['publish'], blocking: false, reason: 'no baseline yet' }), step('tests', 0, { gates: ['unit-tests'] }), step('e2e', 1, { gates: ['e2e'], stages: ['ci'] })],
+  });
+  const path = join(base, 'task-12-task');
+  git(root, 'worktree', 'add', '-q', '-b', 'task/12-task', path, 'main');
+  git(path, 'commit', '-q', '--allow-empty', '-m', 'feat: x');
+  const res = withFakeGh(dir)(path, 'done', '--draft');
+  assert.equal(res.status, 0, res.stderr);
+  assert.deepEqual(ran(path), ['api', 'tests']);
+  const create = readFileSync(join(dir, 'gh.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).find((a) => a[0] === 'pr' && a[1] === 'create');
+  const body = create[create.indexOf('--body') + 1];
+  assert.match(body, /^Validated \(local\): tests \(`echo tests >> ran.log; exit 0`\)$/m);
+  assert.match(body, /^Advisory failed: api \(`echo api >> ran.log; exit 1`\): no baseline yet$/m);
+  assert.match(body, /^CI only: e2e \(`echo e2e >> ran.log; exit 1`\)$/m);
 });
