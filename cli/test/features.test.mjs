@@ -678,3 +678,21 @@ test('init suggestions carry gates', () => {
     secrets: ['secrets'],
   });
 });
+
+test('hooks install names both scripts in its instructions', async (t) => {
+  const stubbed = await gatesRepo(t, {});
+  const res = stubbed.baton('hooks', 'install');
+  assert.equal(res.status, 0, res.stderr);
+  const gatesScript = join(stubbed.root, '.git/baton/commit-gates.sh');
+  const guardScript = join(stubbed.root, '.git/baton/worktree-guard.sh');
+  const removal = res.stdout.split('\n').find((l) => l.startsWith('To remove'));
+  assert.ok(removal.includes(guardScript) && removal.includes(gatesScript), res.stdout);
+
+  const managed = await gatesRepo(t, {}, { 'lefthook.yml': 'pre-commit:\n' });
+  const out = managed.baton('hooks', 'install').stdout;
+  assert.match(out, /Add these lines to that pre-commit hook or hook manager:/);
+  const hint = out.split('\n').find((l) => l.startsWith('To remove'));
+  assert.ok(hint.includes(join(managed.root, '.git/baton/worktree-guard.sh')), out);
+  assert.ok(hint.includes(join(managed.root, '.git/baton/commit-gates.sh')), out);
+  assert.match(hint, /those lines/);
+});
