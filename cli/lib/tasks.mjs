@@ -64,11 +64,29 @@ export function unblockable(blockedTasks, openNumbers) {
   });
 }
 
-/** PR body: the closing reference, the author's paragraphs, then the validation that actually ran. */
-export function prBody(number, extra, results) {
-  const validation = results.map((r) => `${r.name} (\`${r.run}\`)`).join(', ') || '(no validation configured)';
+/**
+ * PR body: the closing reference, the author's paragraphs, then up to four lines from the stage run
+ * (`res`, a runStage result, or null): steps that passed, advisory failures, CI-only steps and
+ * skipped gates. Empty lines are left out.
+ */
+export function prBody(number, extra, res) {
+  const step = (s) => `${s.name} (\`${s.run}\`)`;
+  const lines = [];
+  if (res) {
+    const passed = res.results.filter((r) => r.status === 'passed');
+    const advisory = res.results.filter((r) => r.status === 'failed' && !r.blocking);
+    const ciOnly = res.notInStage.filter((s) => s.stages.includes('ci') && !s.stages.includes('local'));
+    if (passed.length) lines.push(`Validated (${res.stage}): ${passed.map(step).join(', ')}`);
+    if (advisory.length) lines.push(`Advisory failed: ${advisory.map((r) => `${step(r)}: ${r.reason}`).join('; ')}`);
+    if (ciOnly.length) lines.push(`CI only: ${ciOnly.map(step).join(', ')}`);
+    if (res.skipped.length) lines.push(`Skipped gates: ${res.skipped.map((s) => `${s.gate}: ${s.reason}`).join('; ')}`);
+  }
+  if (!lines.length) {
+    const configured = res && (res.results.length || res.notInStage.length);
+    lines.push(configured ? `Validated (${res.stage}): (no steps in this stage)` : 'Validated: (no validation configured)');
+  }
   const middle = extra?.trim() ? `${extra.trim()}\n\n` : '';
-  return `Closes #${number}\n\n${middle}Validated: ${validation}\n`;
+  return `Closes #${number}\n\n${middle}${lines.join('\n')}\n`;
 }
 
 /**

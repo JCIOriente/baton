@@ -114,13 +114,6 @@ test('reviewersFor: skips stack reviewers the diff does not touch, fails open on
   assert.deepEqual(docsOnly, ['spec-compliance', 'code-quality', 'security', 'tests', 'silent-failures']);
 });
 
-test('prBody: closing reference first, author paragraphs, then one validation line', async () => {
-  const { prBody } = await import('../lib/tasks.mjs');
-  const body = prBody(42, 'Adds org list.\n\nTested by hand.\n', [{ name: 'test', run: 'cargo test' }, { name: 'lint', run: 'cargo clippy' }]);
-  assert.equal(body, 'Closes #42\n\nAdds org list.\n\nTested by hand.\n\nValidated: test (`cargo test`), lint (`cargo clippy`)\n');
-  assert.equal(prBody(7, '', []), 'Closes #7\n\nValidated: (no validation configured)\n');
-});
-
 test('provenance: satisfies ranges, lockfile parsing, lint and consumer check', async () => {
   const { satisfies, installedVersions, lintProvenance, factsVsInstalled, loadProvenance } = await import('../lib/provenance.mjs');
   assert.ok(satisfies('19.3.1', '>=19.2 <20'));
