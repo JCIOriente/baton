@@ -469,6 +469,6 @@ None.
 - [x] #167 commit-gates hook, install and upgrade
 - [x] #168 Claude Code hook refusing `--no-verify`
 - [x] #169 npm package `@jcioriente/baton` and CI template
-- [ ] #170 stage runs, advisory steps and PR body in `verify`, `start` and `done`
-- [ ] #171 `doctor` gate findings, context lines and `init` suggestions
-- [ ] #172 baton's own repo on the new shape, with Biome
+- [x] #170 stage runs, advisory steps and PR body in `verify`, `start` and `done`
+- [x] #171 `doctor` gate findings, context lines and `init` suggestions
+- [x] #172 baton's own repo on the new shape, with Biome

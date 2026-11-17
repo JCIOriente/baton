@@ -1,0 +1,5 @@
+# Commits that only reformat code, skipped by `git blame` (git config blame.ignoreRevsFile .git-blame-ignore-revs).
+
+# build: baton's own repo on per-gate validate steps, with Biome format and lint (#183)
+# The squash holds the one-time Biome format and import sort, with the config changes beside them.
+71683a7f2daf0c89c0f9a64eaa5a312163ba6039
