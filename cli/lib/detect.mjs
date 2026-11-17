@@ -90,18 +90,18 @@ export function suggestSetup({ packageManager }) {
 export function suggestValidate({ stacks, packageManager }, { remote = 'origin', baseBranch = 'main' } = {}) {
   const v = [];
   if (stacks.includes('rust') || stacks.includes('rust-tokio-postgres')) {
-    v.push({ name: 'fmt', run: 'cargo fmt --all -- --check' });
-    v.push({ name: 'clippy', run: 'cargo clippy --all-targets --all-features -- -D warnings' });
-    v.push({ name: 'cargo-test', run: 'cargo test --all' });
+    v.push({ name: 'fmt', run: 'cargo fmt --all -- --check', gates: ['format'] });
+    v.push({ name: 'clippy', run: 'cargo clippy --all-targets --all-features -- -D warnings', gates: ['lint', 'types'] });
+    v.push({ name: 'cargo-test', run: 'cargo test --all', gates: ['unit-tests', 'integration-tests'] });
   }
   if (packageManager) {
     const pm = packageManager === 'npm' ? 'npm run' : packageManager;
-    if (stacks.includes('typescript')) v.push({ name: 'typecheck', run: `${pm} typecheck` });
-    v.push({ name: 'lint', run: `${pm} lint` });
-    v.push({ name: 'js-test', run: `${pm} test` });
+    if (stacks.includes('typescript')) v.push({ name: 'typecheck', run: `${pm} typecheck`, gates: ['types'] });
+    v.push({ name: 'lint', run: `${pm} lint`, gates: ['lint'] });
+    v.push({ name: 'js-test', run: `${pm} test`, gates: ['unit-tests'] });
   }
   // Both target projects are public: refuse to ship secrets. Requires gitleaks on PATH.
   // Scans only this branch's commits. Requires gitleaks >= 8.19 on PATH.
-  v.push({ name: 'secrets', run: `gitleaks git --no-banner --redact --log-opts="${remote}/${baseBranch}..HEAD"` });
+  v.push({ name: 'secrets', run: `gitleaks git --no-banner --redact --log-opts="${remote}/${baseBranch}..HEAD"`, gates: ['secrets'] });
   return v;
 }

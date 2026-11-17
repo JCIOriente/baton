@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { currentBranch, currentTop, issueFromBranch } from './git.mjs';
 import { BASELINE_GUIDE } from './config.mjs';
 import { detectStacks } from './detect.mjs';
+import { DEFAULT_STAGES, normalizeStep } from './gates.mjs';
 import { guardStatus, isDisposableClone, isMainCheckout } from './git-guard.mjs';
 
 // Agents skip optional skills often, so the rules that must never be skipped are always in context.
@@ -73,8 +74,8 @@ export function buildContext({ root, found, config }, { pluginRoot, cwd = proces
     lines.push('', `Known recurring bug patterns in this repo. Check before coding: ${issues}`);
   }
   if (config.validate.length) {
-    lines.push('', 'Validation (`baton verify` runs all of them):');
-    for (const v of config.validate) lines.push(`- ${v.name ?? v.run}: \`${v.run}\`${v.cwd ? ` (in ${v.cwd})` : ''}`);
+    lines.push('', 'Validation (`baton verify` runs the local stage; stages other than the default local, ci are shown):');
+    for (const v of config.validate) lines.push(validationLine(normalizeStep(v)));
   }
 
   try {
@@ -88,6 +89,16 @@ export function buildContext({ root, found, config }, { pluginRoot, cwd = proces
 
   lines.push('</baton>');
   return lines.join('\n');
+}
+
+// A step without gates prints no bracket, so an old config's context is unchanged.
+function validationLine(step) {
+  const gates = step.gates.length ? ` [${step.gates.join(', ')}]` : '';
+  const isDefaultStages = step.stages.length === DEFAULT_STAGES.length && DEFAULT_STAGES.every((s) => step.stages.includes(s));
+  const stages = isDefaultStages ? '' : ` (${step.stages.join(', ')})`;
+  const cwd = step.cwd ? ` (in ${step.cwd})` : '';
+  const advisory = step.blocking ? '' : ` advisory: ${step.reason}`;
+  return `- ${step.name}${gates}${stages}: \`${step.run}\`${cwd}${advisory}`;
 }
 
 function safeGuardStatus(root) {
