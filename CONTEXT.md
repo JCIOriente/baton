@@ -30,6 +30,9 @@ specs and issues. When a term is ambiguous or keeps needing explanation, add it 
 | Skipped gate | An applicable gate listed in `gates.skip` with its reason, so `baton doctor` doesn't report it as a gap | An advisory step |
 | Narrowed run | `baton verify --only <step or gate>`: part of a stage, never reported as a gate run | A stage run |
 | Session handoff | The self-contained prompt that starts the next session. Its facts come from `baton handoff`; its goal, stopping point, next steps and leave-alone list are filled by the agent. It never depends on chat history | A phase hand-off, or a task's handoff comment on its issue |
+| Size limit | `structure.maxLines` (500 by default): the most lines a counted file may have. Enforced by `baton structure`, the `structure` gate's built-in guard | Function size, which stays a review prompt |
+| Counted file | A file `baton structure` measures: a regular file in the working tree, tracked or untracked but not ignored by git, with a source extension baton has a guide for, and not matched by `structure.exclude`. Tests count | Any file in the repo; docs, config and generated code aren't counted |
+| Allowlist | `structure.allowlist`: the files allowed to stay over the size limit, each with its exact line count. It only shrinks: a listed file must match its entry, and baton prints the edit but never writes it | `baton start`'s baseline (the validation run before any change), or a skipped gate |
 
 ## Relationships
 A spec has one plan doc. A plan doc becomes one plan issue with tasks as its sub-issues. A task has
