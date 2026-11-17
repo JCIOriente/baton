@@ -1,6 +1,6 @@
 # Every worktree in `<repo>/.worktrees/` — Spec
 
-- Status: draft
+- Status: approved 2026-11-17
 - Date: 2026-11-17
 - Owner: Arnold Gandarillas
 - Related: [worktree-only spec](2026-11-06-worktree-only.md) (the main-checkout guard),
@@ -16,8 +16,10 @@
   never touched.
 - The rule is enforced like the main-checkout rule:
   - the session's always-on rules say it;
-  - the git guard refuses a commit in a linked worktree outside `.worktrees/`;
+  - the Claude Code edit guard refuses edits, and the git guard refuses commits, in a linked
+    worktree outside `.worktrees/`;
   - `status`, `clean` and `doctor` report such worktrees.
+- `baton init` adds `/.worktrees/` to `.gitignore` for the adoption commit.
 - `doctor` also reports a leftover `git.worktreeRoot`, and a committed `.gitignore` that doesn't
   ignore `.worktrees/`.
 
@@ -81,7 +83,14 @@ two adopting repos already keep their worktrees in `.worktrees/`.
    proves it.
 10. `baton structure` (structure-guards spec) never counts a file under `.worktrees/`, even
     when `info/exclude` lacks the line.
-11. `docs/architecture.md`, the `baton:implement` and `baton:integrate` skills and
+11. `baton init` appends `/.worktrees/` to the repo's `.gitignore` (creating the file if
+    needed) unless an accepted line is already there, so it lands in the adoption commit with
+    `.baton/config.json`. It prints that it did.
+12. The Claude Code edit guard (`hooks/worktree-guard.mjs`), with `hooks.worktreeOnly` on,
+    denies an edit in a linked worktree whose top-level folder is outside `.worktrees/`, with
+    instructions to use `baton start` or `baton worktree add`. Goal 9 still holds for
+    `.worktrees/<name>/`.
+13. `docs/architecture.md`, the `baton:implement` and `baton:integrate` skills and
     `stacks/common.md` describe the new location. `common.md` says tools that don't read git's
     ignore files must exclude `.worktrees/` (for example tsconfig `exclude`, vitest or jest
     `exclude`, ESLint `ignores`).
@@ -91,10 +100,11 @@ two adopting repos already keep their worktrees in `.worktrees/`.
   reports, and no move command is added. `git worktree move` is named in the guard's message
   only.
 - A configurable location. Picked by the owner.
-- Editing the committed `.gitignore` for the user. The main checkout is never edited; `doctor`
-  names the line and a normal PR adds it.
+- Editing the committed `.gitignore` of an existing repo. The main checkout is never edited;
+  `doctor` names the line and a normal PR adds it. Only `baton init` writes it, for the
+  adoption commit (Goal 11).
 - Claude Code's own worktree folder (`.claude/worktrees/`, from its built-in worktree tool).
-  baton's guard refuses commits there like anywhere else outside `.worktrees/`.
+  baton's guards refuse edits and commits there like anywhere else outside `.worktrees/`.
 
 ## Approaches
 Settled with the owner on 2026-11-17 before this was written:
@@ -111,6 +121,12 @@ Settled with the owner on 2026-11-17 before this was written:
 - **Ignoring the folder: `info/exclude` written by baton plus a `doctor` check on `.gitignore`,
   or the committed `.gitignore` only:** `info/exclude` plus the `doctor` check. Picked by the
   owner.
+- **`baton init` writing `/.worktrees/` to `.gitignore` in the adoption commit, or `doctor`
+  only:** `init` writes it. Picked by the owner (from the builder check).
+- **The edit guard refusing edits in outside worktrees, or only the commit refused:** the edit
+  guard refuses them too, so an agent is stopped before doing a task in the wrong place.
+  Claude Code's built-in worktree folder becomes unusable for edits in baton repos. Picked by
+  the owner (from the builder check).
 - **Existing worktrees elsewhere: reported with a move command, a `baton worktree move`
   command, or nothing:** nothing beyond the reports. Fewer code paths, and baton's two adopting
   repos already use `.worktrees/`. Picked by the owner.
@@ -203,6 +219,27 @@ Every worktree lives in /home/me/code/app/.worktrees/. Move it with:
   (`guardStatus`, `cli/lib/git-guard.mjs:125`), so a clone with the `v1` script gets the
   existing `baton hooks install` finding. No new code.
 
+### Edit guard (`hooks/worktree-guard.mjs`)
+- `decide` gains a branch for linked worktrees (`gitDir !== commonDir`). It applies when the
+  common dir ends in `/.git` and `hooks.worktreeOnly` is on in the main checkout's committed
+  config. If `top`'s real path is not inside `<dirname(commonDir)>/.worktrees/`, the edit is
+  denied with:
+
+```text
+baton: <path> is in a worktree outside .worktrees/ (<top>).
+Every worktree lives in <main checkout>/.worktrees/.
+- Task work: `baton start <n>`, then edit inside the printed path.
+- Anything else: `baton worktree add <name>`, then edit there.
+```
+
+- Gitignored files, CI, cloud sessions and any git failure still allow the edit, as today.
+
+### `baton init`
+After writing `.baton/config.json`, `init` appends `/.worktrees/` to `.gitignore` at the repo
+root when no accepted line (the four forms under `doctor`) is there. It creates the file if
+needed and adds a leading newline when the file doesn't end with one. Its output adds
+`Added /.worktrees/ to .gitignore; commit it with .baton/config.json.`
+
 ### Session context and skills
 - `cli/lib/context.mjs:22` rule, added sentence: `Every worktree lives in .worktrees/ at the
   repo root, made by baton start or baton worktree add; never git worktree add elsewhere.`
@@ -262,6 +299,10 @@ the counting code.
 - `cli/test/git-guard.test.mjs`: install rewrites a `v1` script to `v2`, and `guardStatus` calls
   the `v1` script `outdated`.
 - The test that covers `baton context` (`cli/test/features.test.mjs`): the rule sentence.
+- `init`: adds the line to a missing, an existing and a no-final-newline `.gitignore`; leaves
+  one that already has `.worktrees/`; prints the line.
+- Edit guard: an edit in a linked worktree outside `.worktrees/` is denied with the text; off
+  when `worktreeOnly` is false, in CI, and for a gitignored file.
 - Each test must fail when the code it covers is removed.
 
 ## Decisions
