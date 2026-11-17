@@ -568,3 +568,16 @@ test('every reviewer brief ends its report with the same Declined to judge block
   assert.ok(tails.length > 0);
   for (const tail of tails) assert.equal(tail, tails[0]);
 });
+
+test('init suggestions carry gates', () => {
+  const v = suggestValidate({ stacks: ['rust', 'typescript'], packageManager: 'pnpm' });
+  assert.deepEqual(Object.fromEntries(v.map((s) => [s.name, s.gates])), {
+    fmt: ['format'],
+    clippy: ['lint', 'types'],
+    'cargo-test': ['unit-tests', 'integration-tests'],
+    typecheck: ['types'],
+    lint: ['lint'],
+    'js-test': ['unit-tests'],
+    secrets: ['secrets'],
+  });
+});
