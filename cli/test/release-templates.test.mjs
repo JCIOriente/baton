@@ -53,7 +53,7 @@ test('release_workflow_pins_actions_to_sha', () => {
   const uses = [...workflow().matchAll(/^\s*(?:-\s+)?uses:\s*(\S+)(.*)$/gm)];
   assert.ok(uses.length > 0, 'workflow uses at least one action');
   for (const [, ref, rest] of uses) {
-    assert.match(ref, /^[\w.-]+\/[\w.\/-]+@[0-9a-f]{40}$/, `${ref} is pinned to a full commit SHA`);
+    assert.match(ref, /^[\w.-]+\/[\w./-]+@[0-9a-f]{40}$/, `${ref} is pinned to a full commit SHA`);
     assert.match(rest, /^\s+# v\d+\.\d+\.\d+$/, `${ref} names the released version in a comment`);
   }
   for (const action of [

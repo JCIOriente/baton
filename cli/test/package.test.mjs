@@ -103,7 +103,9 @@ function jobs(text) {
   for (const line of text.slice(text.indexOf('\njobs:')).split('\n').slice(2)) {
     const key = line.match(/^ {2}([\w-]+):$/);
     if (key) name = key[1];
-    if (name) (out[name] ??= []).push(line);
+    if (!name) continue;
+    out[name] ??= [];
+    out[name].push(line);
   }
   return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, v.join('\n').trim()]));
 }

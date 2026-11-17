@@ -65,7 +65,7 @@ function readStdin() {
 
 function main() {
   const input = readStdin();
-  if (!input || input.tool_name !== 'Bash') return;
+  if (input?.tool_name !== 'Bash') return;
   const command = input.tool_input?.command;
   if (typeof command !== 'string') return;
   const dir = process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd();

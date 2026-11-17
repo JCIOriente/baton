@@ -200,7 +200,7 @@ function init(argv) {
     conventions: [],
   };
   mkdirSync(join(top, CONFIG_DIR), { recursive: true });
-  writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
+  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
   for (const d of [config.docs.specs, config.docs.plans]) mkdirSync(join(top, d), { recursive: true });
   // The config just written, not loadConfig(): that reads the main checkout's file.
   if (values.labels) getProvider(deepMerge(DEFAULT_CONFIG, config), root).ensureLabels();

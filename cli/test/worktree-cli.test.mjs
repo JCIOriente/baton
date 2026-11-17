@@ -607,7 +607,7 @@ test('status_json_gives_null_task_for_a_named_worktree', (t) => {
 });
 
 test('status_marks_the_current_and_uncommitted_worktrees_of_each_kind', (t) => {
-  const { root, base } = statusRepo(t);
+  const { base } = statusRepo(t);
   writeFileSync(join(base, 'task-12-x', 'new.txt'), 'x');
   writeFileSync(join(base, 'orgs-spec', 'new.txt'), 'x');
   const res = baton(join(base, 'orgs-spec'), 'status');

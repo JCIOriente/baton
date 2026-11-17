@@ -446,7 +446,10 @@ const jobNeeds = (yml) => {
   let current = null;
   for (const line of yml.split(/^jobs:$/m)[1].split('\n')) {
     const key = line.match(/^ {2}([\w-]+):$/);
-    if (key) jobs[(current = key[1])] = [];
+    if (key) {
+      current = key[1];
+      jobs[current] = [];
+    }
     const needs = current && line.match(/^ {4}needs: (.*)$/);
     if (needs)
       jobs[current] = needs[1]
