@@ -8,7 +8,7 @@ specs and issues. When a term is ambiguous or keeps needing explanation, add it 
 | Task | An issue matching `tasks.kind` (type `Task`, or the `task` label): one unit of planned work, claimable by one holder | Any issue. A bug report is not a task until someone makes it one |
 | Triage | An open issue that is not a task | The old `status:triage`, which no longer exists |
 | Status | `ready`, `blocked`, `in-progress`, `review` or `done`, computed from GitHub data on every read, never stored | A label |
-| Blocker | An issue linked with GitHub's "blocked by" relation. A task with an open blocker is `blocked` | A `Depends on:` line, which is no longer read |
+| Blocker | An issue named on a `Depends on:` (or `Blocked by:`) line in a task's body, which `baton create --depends-on` writes (`cli/lib/tasks.mjs`, `parseDependencies`). A task with an open blocker is `blocked` | GitHub's native "blocked by" relation, which baton doesn't read yet |
 | Plan issue | The parent issue of the tasks created from one plan. Links the spec and plan docs. Not claimable | The plan doc in `docs/plans/` |
 | Claim | The marker comment that wins the race for a task. The assignee is set only after a claim wins | Assigning someone by hand |
 | Release | In repos with `release.enabled`: a version with its tag (`v<version>`, no package name), GitHub Release, generated `CHANGELOG.md` section and, when `release.publish` is set, the same version on each registry. Created only by merging the release PR | A merged task PR, or releasing a claim (`baton release <n>`) |
