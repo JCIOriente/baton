@@ -329,4 +329,8 @@ The report says where they are.
 None.
 
 ## Implementation status
-- [ ] plan
+- [x] plan: [docs/plans/2026-11-17-worktrees-folder.md](../plans/2026-11-17-worktrees-folder.md)
+- [ ] #200 worktrees live in `.worktrees/`
+- [ ] #202 clean, status and doctor reports
+- [ ] #201 git guard v2 and edit guard
+- [ ] #203 docs, skills and `.gitignore`

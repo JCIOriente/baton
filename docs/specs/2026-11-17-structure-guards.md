@@ -489,4 +489,9 @@ many were skipped.
 None.
 
 ## Implementation status
-- [ ] plan
+- [x] plan: [docs/plans/2026-11-17-structure-guards.md](../plans/2026-11-17-structure-guards.md)
+- [ ] #197 structure core
+- [ ] #204 `baton structure` command
+- [ ] #198 guides
+- [ ] #199 skills and reviewer
+- [ ] #205 applies always, baton dogfoods it
