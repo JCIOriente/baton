@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-17-worktrees-folder.md](../specs/2026-11-17-worktrees-folder.md)
 - Date: 2026-11-17
-- Status: approved 2026-11-17
+- Status: in backlog (#200, #202, #201, #203)
 
 ## Overview
 Four tasks. No two tasks that can run at the same time share a file (owner's rule). Every
@@ -106,7 +106,7 @@ Waves, each task alone in its own worktree:
 
 ## Tasks
 
-### W1: Worktrees live in `.worktrees/`
+### W1: Worktrees live in `.worktrees/`  (#200)
 - Priority: 1
 - Depends on: #185
 - Owns:
@@ -155,7 +155,7 @@ Waves, each task alone in its own worktree:
     doesn't exist yet, resolve its parent.
   - A test must fail when the code it covers is removed.
 
-### W3: Git guard v2 and the edit guard refuse outside worktrees
+### W3: Git guard v2 and the edit guard refuse outside worktrees  (#201)
 - Priority: 1
 - Depends on: #185 (shares `cli/test/git-guard.test.mjs`)
 - Owns: `templates/git-hooks/worktree-guard.sh`, `hooks/worktree-guard.mjs`,
@@ -199,7 +199,7 @@ Waves, each task alone in its own worktree:
   - Keep `hooks/worktree-guard.mjs` standalone, with no imports from `cli/`.
   - Both guards fail open. Test the failure paths, not only the deny.
 
-### W2: `clean`, `status` and `doctor` report outside worktrees
+### W2: `clean`, `status` and `doctor` report outside worktrees  (#202)
 - Priority: 1
 - Depends on: W1 (shares `cli/baton.mjs` and `cli/test/worktree-cli.test.mjs`) and W3 (shares
   `cli/test/git-guard.test.mjs`)
@@ -237,7 +237,7 @@ Waves, each task alone in its own worktree:
   - `doctor reports a leftover worktreeRoot`
   - `context states that every worktree lives in .worktrees`
 
-### W4: Docs, skills and baton's own `.gitignore`
+### W4: Docs, skills and baton's own `.gitignore`  (#203)
 - Priority: 2
 - Depends on: T2 and T3 (structure-guards plan; they own `stacks/common.md` and
   `skills/implement/SKILL.md` first)

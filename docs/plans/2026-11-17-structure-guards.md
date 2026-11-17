@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-17-structure-guards.md](../specs/2026-11-17-structure-guards.md)
 - Date: 2026-11-17
-- Status: approved 2026-11-17
+- Status: in backlog (#197, #204, #198, #199, #205)
 
 ## Overview
 Five tasks.
@@ -92,7 +92,7 @@ Can start immediately in parallel: #185, T1a, T2, T3.
 
 ## Tasks
 
-### T1a: Structure core: counting, globs and classification
+### T1a: Structure core: counting, globs and classification  (#197)
 - Priority: 1
 - Depends on: none
 - Owns: `cli/lib/structure.mjs` (new), `cli/test/structure.test.mjs` (new)
@@ -126,7 +126,7 @@ Can start immediately in parallel: #185, T1a, T2, T3.
   - A test must fail when the code it covers is removed. Check it by deleting the line under
     test once.
 
-### T1b: `baton structure`: config and the command
+### T1b: `baton structure`: config and the command  (#204)
 - Priority: 1
 - Depends on: T1a; #185; W2 (worktrees-folder plan). #185, W1 and W2 edit `cli/baton.mjs`,
   `cli/lib/config.mjs` and `cli/test/config.test.mjs` first.
@@ -182,7 +182,7 @@ Can start immediately in parallel: #185, T1a, T2, T3.
     nested worktree as a single entry, so a test built with `git worktree add` would pass even
     with the skip removed.
 
-### T2: Guides: "Size and structure" and the Layout sections
+### T2: Guides: "Size and structure" and the Layout sections  (#198)
 - Priority: 2
 - Depends on: none
 - Owns: `stacks/common.md`, `stacks/rust.md`, `stacks/typescript.md`, `stacks/react.md`,
@@ -232,7 +232,7 @@ Can start immediately in parallel: #185, T1a, T2, T3.
   - Name no tool versions in snippets.
   - W4 adds a "Worktrees folder" section to `common.md` after this merges.
 
-### T3: Skills and reviewer: split, no-raise and structure review
+### T3: Skills and reviewer: split, no-raise and structure review  (#199)
 - Priority: 2
 - Depends on: none
 - Owns: `skills/plan/SKILL.md`, `skills/verify/SKILL.md`, `skills/implement/SKILL.md`,
@@ -266,7 +266,7 @@ Can start immediately in parallel: #185, T1a, T2, T3.
   - Keep each addition to one or two lines in the step it belongs to.
   - W4 edits `skills/implement/SKILL.md` after this merges.
 
-### T4: `structure` applies always, and baton dogfoods it
+### T4: `structure` applies always, and baton dogfoods it  (#205)
 - Priority: 1
 - Depends on: T1b. W1, W2 and W3 come before it through T1b.
 - Owns: `cli/lib/gates.mjs`, `cli/test/gates.test.mjs`, `.baton/config.json`,
