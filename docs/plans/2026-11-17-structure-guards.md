@@ -8,6 +8,12 @@
 Four tasks. The CLI work is one slice, the guides and the skills are two independent doc tasks,
 and baton's own repo goes last.
 
+**Zero file sharing (owner's rule).** No file belongs to two tasks that can run at the same
+time, not even as an additive touch. Every task works alone in its own worktree. Every file
+two tasks need, across this plan, the
+[worktrees-folder plan](2026-11-17-worktrees-folder.md) and #185, is turned into a dependency.
+The combined order is in that plan's dependency graph.
+
 - **T1, the command.** Owns `structure` config validation, `cli/lib/structure.mjs` and the
   `baton structure` dispatch. It is blocked by #185: the command reads the config of the
   checkout it runs in.
@@ -45,9 +51,13 @@ The spec and its `CONTEXT.md` terms are already merged (#194).
   merge first: the command is in the same release.
 - **Worktrees-folder spec, Goal 10:** `baton structure` never counts files under
   `.worktrees/`. T1 implements it, because T1 owns the counting code.
-- **Shared files with the worktrees-folder plan.** That plan also edits `stacks/common.md`
-  (a "Worktrees folder" section) and `skills/implement/SKILL.md`. Its docs task depends on T2
-  and T3 here, so the two never own one file at the same time.
+- **Shared files with the worktrees-folder plan and #185** become dependencies:
+  - `cli/baton.mjs`, `cli/lib/config.mjs` and `cli/test/config.test.mjs` are also edited by #185,
+    W1 and W2. So T1 depends on W2, which depends on W1, which depends on #185.
+  - `cli/test/features.test.mjs` (W2), `cli/test/worktree-cli.test.mjs` (W1) and
+    `cli/test/git-guard.test.mjs` (W3) are edited before T4, and T4 depends on all three.
+  - `stacks/common.md` (T2) and `skills/implement/SKILL.md` (T3) are also edited by W4, so W4
+    depends on T2 and T3.
 
 ## Contract
 No API. The spec fixes these, and the tasks use them as written:
@@ -80,23 +90,24 @@ No API. The spec fixes these, and the tasks use them as written:
 
 ## Dependency graph
 ```
-#185 ──> T1 ──> T4
-worktrees-folder CLI tasks ──> T4
+#185 ──> W1 ──> W2 ──> T1 ──> T4
+          └───> W3 ──────────> T4
 T2 (independent)
 T3 (independent)
 ```
-Can start immediately in parallel: T2, T3. T1 starts when #185 merges.
+W1-W3 are in the worktrees-folder plan. Can start immediately in parallel: #185, T2, T3.
 
 ## Tasks
 
 ### T1: `baton structure`: config, counting and the command
 - Priority: 1
-- Depends on: #185
+- Depends on: #185, W2 (worktrees-folder plan; it and W1 edit `cli/baton.mjs`,
+  `cli/lib/config.mjs` and `cli/test/config.test.mjs` first)
 - Owns: `cli/lib/structure.mjs` (new), `cli/test/structure.test.mjs` (new),
-  `cli/test/structure-cli.test.mjs` (new), `cli/lib/config.mjs` (the `structure` validation
-  and default only), `cli/test/config.test.mjs`
-- Touches (read-only or additive): `cli/baton.mjs`, additive only (one dispatch entry and
-  one help line; no other change, since the file is over the limit)
+  `cli/test/structure-cli.test.mjs` (new), `cli/lib/config.mjs`, `cli/test/config.test.mjs`,
+  `cli/baton.mjs` (only one dispatch entry and one help line, because the file is over the
+  limit)
+- Touches (read-only or additive): none
 - Interfaces:
   - Produces: `SOURCE_EXTENSIONS: readonly string[]` in `cli/lib/structure.mjs`.
   - Produces: `countLines(text: string): number`.
@@ -232,16 +243,15 @@ Can start immediately in parallel: T2, T3. T1 starts when #185 merges.
 - Notes:
   - Keep each addition to one or two lines in the step it belongs to, since agents skip long
     additions.
-  - The worktrees-folder plan's docs task edits `skills/implement/SKILL.md` after this merges.
+  - The worktrees-folder plan's W4 edits `skills/implement/SKILL.md` after this merges.
 
 ### T4: `structure` applies always, and baton dogfoods it
 - Priority: 1
-- Depends on: T1, #185, and every worktrees-folder task that edits `cli/baton.mjs` or
-  `cli/test/*.test.mjs`
-- Owns: `cli/lib/gates.mjs` (the `structure` rule only), `cli/test/gates.test.mjs`,
-  `.baton/config.json`
-- Touches (read-only or additive): `cli/test/features.test.mjs`, additive (doctor gap tests,
-  and fixture configs that now need a `structure` step or skip)
+- Depends on: T1, W3 (worktrees-folder plan). W1 and W2 come before it through T1.
+- Owns: `cli/lib/gates.mjs`, `cli/test/gates.test.mjs`, `.baton/config.json`,
+  `cli/test/features.test.mjs` (doctor gap tests, and fixture configs that now need a
+  `structure` step or skip)
+- Touches (read-only or additive): none
 - Interfaces:
   - Consumes: `runStructure` from `cli/lib/structure.mjs` (T1), through `node cli/baton.mjs structure`.
   - Produces: `applicableGates` returns `{ gate: 'structure', why: 'always' }` for every repo.
