@@ -569,6 +569,80 @@ test('every reviewer brief ends its report with the same Declined to judge block
   for (const tail of tails) assert.equal(tail, tails[0]);
 });
 
+// A git repo whose .baton/config.json is `config`, for black-box doctor and hooks runs. Git and
+// the CLI are isolated from the user's git config, and CI is unset so the hook checks run.
+async function gatesRepo(t, config, files = {}) {
+  const { spawnSync } = await import('node:child_process');
+  const { realpathSync, rmSync } = await import('node:fs');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'baton-gates-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  delete env.CI;
+  delete env.CLAUDE_CODE_REMOTE;
+  spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env });
+  mkdirSync(join(root, '.baton'));
+  writeFileSync(join(root, '.baton/config.json'), JSON.stringify(config));
+  for (const [path, text] of Object.entries(files)) writeFileSync(join(root, path), text);
+  const baton = (...args) => spawnSync(process.execPath, [cli, ...args], { cwd: root, env, encoding: 'utf8' });
+  const doctor = () => {
+    const res = baton('doctor', '--json');
+    return { status: res.status, findings: JSON.parse(res.stdout) };
+  };
+  return { root, baton, doctor };
+}
+const kindMessages = (findings, kind) => findings.filter((f) => f.kind === kind).map((f) => f.message);
+const DEV_PACKAGE = { 'package.json': JSON.stringify({ devDependencies: { knip: '5' } }) };
+
+test('doctor lists applicable gates no step covers', async (t) => {
+  const { doctor } = await gatesRepo(t, { validate: [{ name: 'secrets', run: 'true', gates: ['secrets'] }] }, DEV_PACKAGE);
+  const { status, findings } = doctor();
+  assert.equal(status, 1);
+  const deps = 'a package.json with dependencies or a Cargo.toml exists';
+  const uncovered = (gate, why) => `gate '${gate}' applies (${why}) but no step covers it and gates.skip doesn't list it`;
+  assert.deepEqual(kindMessages(findings, 'gates'), [
+    uncovered('install', deps),
+    uncovered('format', 'always'),
+    uncovered('lint', 'always'),
+    uncovered('unused-deps', deps),
+    uncovered('audit', deps),
+    uncovered('unit-tests', 'always'),
+  ]);
+});
+
+test('doctor reports a step with no gate', async (t) => {
+  const { doctor } = await gatesRepo(t, { validate: [{ name: 'ci', run: 'true' }] });
+  assert.ok(kindMessages(doctor().findings, 'gates').includes("step 'ci' covers no gate"));
+});
+
+test('doctor reports static gates after tests', async (t) => {
+  const steps = [
+    { name: 'test', run: 'true', gates: ['unit-tests'] },
+    { name: 'check', run: 'true', gates: ['format', 'lint', 'secrets'] },
+  ];
+  const { doctor } = await gatesRepo(t, { validate: steps });
+  assert.deepEqual(kindMessages(doctor().findings, 'gates'), ["step 'check' runs format, lint, secrets after 'test' (unit-tests)"]);
+  const { doctor: inOrder } = await gatesRepo(t, { validate: [steps[1], steps[0]] });
+  assert.deepEqual(kindMessages(inOrder().findings, 'gates'), []);
+});
+
+test('doctor reports missing commit gates', async (t) => {
+  const gates = ['secrets', 'format', 'lint', 'unit-tests'];
+  const commitStep = { name: 'all', run: 'true', gates, stages: ['commit', 'local', 'ci'] };
+  const { baton, doctor } = await gatesRepo(t, { validate: [commitStep] });
+  const missing = kindMessages(doctor().findings, 'worktree').filter((m) => m.includes('commit-gates'));
+  assert.equal(missing.length, 1);
+  assert.match(missing[0], /commit-gates.*missing.*run `baton hooks install`/);
+  assert.equal(baton('hooks', 'install').status, 0);
+  const after = doctor();
+  assert.deepEqual(after.findings, [], JSON.stringify(after.findings));
+  assert.equal(after.status, 0);
+
+  // Without a commit-stage step there is nothing to report, even with no hook installed.
+  const { doctor: localOnly } = await gatesRepo(t, { validate: [{ ...commitStep, stages: ['local', 'ci'] }] });
+  assert.deepEqual(kindMessages(localOnly().findings, 'worktree').filter((m) => m.includes('commit-gates')), []);
+});
+
 test('context prints gates, non-default stages and advisory reasons', async (t) => {
   const { buildContext } = await import('../lib/context.mjs');
   const { rmSync } = await import('node:fs');

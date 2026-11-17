@@ -9,8 +9,8 @@ import { parseArgs } from 'node:util';
 import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, CONFIG_FILE, reviewerFocus, reviewersFor } from './lib/config.mjs';
 import { buildContext } from './lib/context.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
-import { STAGES } from './lib/gates.mjs';
-import { guardStatus, installGuard, isDisposableClone, isMainCheckout } from './lib/git-guard.mjs';
+import { applicableGates, coverageFindings, normalizeStep, orderFindings, STAGES } from './lib/gates.mjs';
+import { commitGatesStatus, guardStatus, installGuard, isDisposableClone, isMainCheckout } from './lib/git-guard.mjs';
 import {
   aheadBehind,
   branchName,
@@ -939,6 +939,8 @@ function doctor(argv) {
       if (existsSync(join(root, path))) files[path] = readFileSync(join(root, path), 'utf8');
     }
     findings.push(...releaseFindings({ config, files }));
+    findings.push(...coverageFindings(config, applicableGates({ root, config })));
+    findings.push(...orderFindings(config.validate.map(normalizeStep)));
   }
 
   // The guard stands down in CI and cloud sessions; a bare repo has no main checkout to protect.
@@ -951,6 +953,10 @@ function doctor(argv) {
     if (branch !== config.git.baseBranch) {
       findings.push({ kind: 'worktree', message: `The main checkout ${root} is on ${branch}, not ${config.git.baseBranch}. Switch it back; changes happen in linked worktrees.` });
     }
+  }
+  // Unlike the guard, the commit gates run in linked worktrees, so they matter whatever hooks.worktreeOnly says.
+  if (loaded.found && !isDisposableClone() && commitGatesStatus(root, config) === 'missing') {
+    findings.push({ kind: 'worktree', message: 'The commit-gates hook is missing, but a validate step runs in the commit stage (run `baton hooks install`)' });
   }
 
   if (values.json) print(findings);
