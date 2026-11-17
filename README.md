@@ -102,9 +102,15 @@ See [`templates/config.example.json`](templates/config.example.json). Key fields
 
 - `stacks`: which guides and reviewers apply
 - `setup`: `[{ name, run, cwd? }]`, run in every new task worktree (e.g. dependency install)
-- `validate`: `[{ name, run, cwd? }]`. All must pass before `baton done` opens a PR (its body
-  comes from [`templates/pr-body.md`](templates/pr-body.md), at most two paragraphs, plus a
-  `Validated:` line)
+- `validate`: `[{ name, run, cwd?, gates?, stages?, blocking?, reason? }]`, the repo's gates.
+  Each step names the catalog gates it covers, runs in `stages` (default `["local", "ci"]`;
+  `commit` runs from the pre-commit hook) and blocks unless `blocking: false` with a `reason`.
+  `baton verify` runs the `local` stage (`--stage ci` in CI), and every blocking step must pass
+  before `baton done` opens a PR. Its body comes from
+  [`templates/pr-body.md`](templates/pr-body.md), at most two paragraphs, plus lines for the
+  steps that passed, advisory failures, CI-only steps and skipped gates
+- `gates.skip`: `{ "<gate>": "<reason>" }` for an applicable gate the repo deliberately doesn't
+  run; `baton doctor` reports any other applicable gate no step covers
 - `workflow.phases`: reorder or drop built-in phases, or add your own with
   `workflow.custom: { "<phase>": "docs/process/<phase>.md" }`
 - `workflow.requireSpec | requireTdd | requireReview | baselineOnStart`: the gates
