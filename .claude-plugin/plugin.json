@@ -7,6 +7,7 @@
     "email": "arkgast@gmail.com"
   },
   "license": "MIT",
+  "icon": "assets/icon.png",
   "keywords": [
     "workflow",
     "planning",
