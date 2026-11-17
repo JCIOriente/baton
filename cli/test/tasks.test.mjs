@@ -1,8 +1,10 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
+import { DEFAULT_CONFIG, loadConfig, validateConfig } from '../lib/config.mjs';
+import { branchName, git, issueFromBranch, parseWorktreeList } from '../lib/git.mjs';
 import {
   activeClaim,
   changelogGuard,
@@ -16,8 +18,6 @@ import {
   releaseEnabledIn,
   statusOf,
 } from '../lib/tasks.mjs';
-import { DEFAULT_CONFIG, loadConfig, validateConfig } from '../lib/config.mjs';
-import { branchName, git, issueFromBranch, parseWorktreeList } from '../lib/git.mjs';
 import { deepMerge, slugify } from '../lib/util.mjs';
 
 const labels = DEFAULT_CONFIG.tasks.labels;
@@ -51,7 +51,10 @@ test('rankClaimable filters assigned and dependency-blocked tasks, sorts by prio
     { number: 3, body: '', labels: [...ready, { name: 'priority:p2' }], assignees: [] },
   ];
   const open = new Set([1, 3, 5, 6, 7, 8]);
-  assert.deepEqual(rankClaimable(tasks, labels, open).map((t) => t.number), [8, 3, 5]);
+  assert.deepEqual(
+    rankClaimable(tasks, labels, open).map((t) => t.number),
+    [8, 3, 5],
+  );
 });
 
 test('activeClaim: earliest claim wins', () => {
@@ -60,20 +63,12 @@ test('activeClaim: earliest claim wins', () => {
 });
 
 test('activeClaim: release clears the claim, next claim wins', () => {
-  const comments = [
-    c('ana', claimComment('ana', 'a1')),
-    c('ana', releaseComment('ana')),
-    c('bob', claimComment('bob', 'b1')),
-  ];
+  const comments = [c('ana', claimComment('ana', 'a1')), c('ana', releaseComment('ana')), c('bob', claimComment('bob', 'b1'))];
   assert.deepEqual(activeClaim(comments), { user: 'bob', nonce: 'b1' });
 });
 
 test('activeClaim: losing claimant rollback does not clear the winner', () => {
-  const comments = [
-    c('ana', claimComment('ana', 'a1')),
-    c('bob', claimComment('bob', 'b1')),
-    c('bob', releaseComment('bob', 'lost claim race')),
-  ];
+  const comments = [c('ana', claimComment('ana', 'a1')), c('bob', claimComment('bob', 'b1')), c('bob', releaseComment('bob', 'lost claim race'))];
   assert.deepEqual(activeClaim(comments), { user: 'ana', nonce: 'a1' });
 });
 
@@ -98,10 +93,13 @@ test('slugify strips accents and caps length', () => {
 
 test('parseWorktreeList reads porcelain output', () => {
   const out = 'worktree /r\nHEAD abc\nbranch refs/heads/main\n\nworktree /w/task-1\nHEAD def\nbranch refs/heads/task/1-x\nlocked\n';
-  assert.deepEqual(parseWorktreeList(out).map((w) => [w.path, w.branch, w.locked]), [
-    ['/r', 'main', false],
-    ['/w/task-1', 'task/1-x', true],
-  ]);
+  assert.deepEqual(
+    parseWorktreeList(out).map((w) => [w.path, w.branch, w.locked]),
+    [
+      ['/r', 'main', false],
+      ['/w/task-1', 'task/1-x', true],
+    ],
+  );
 });
 
 test('deepMerge replaces arrays and merges objects', () => {
@@ -141,11 +139,7 @@ test('validateConfig requires instructions for custom phases', () => {
 });
 
 test('activeClaim: same user racing from two sessions keeps the winner', () => {
-  const comments = [
-    c('ana', claimComment('ana', 'a1')),
-    c('ana', claimComment('ana', 'a2')),
-    c('ana', releaseComment('ana', 'lost claim race to @ana', 'a2')),
-  ];
+  const comments = [c('ana', claimComment('ana', 'a1')), c('ana', claimComment('ana', 'a2')), c('ana', releaseComment('ana', 'lost claim race to @ana', 'a2'))];
   assert.deepEqual(activeClaim(comments), { user: 'ana', nonce: 'a1' });
 });
 
@@ -187,7 +181,23 @@ test('overrideFindings_none_without_marker', () => {
 });
 
 test('overrideFindings_accepts_well_formed_block', () => {
-  const body = ['Closes #1', '', 'Two changes in one PR.', '', BEGIN, 'feat(cli): add x', '', 'fix!: drop y', 'BREAKING CHANGE: y is gone', 'Release-As: 1.0.0', 'docs: note z', 'deps: bump w', END, '', 'Validated: make ci'].join('\n');
+  const body = [
+    'Closes #1',
+    '',
+    'Two changes in one PR.',
+    '',
+    BEGIN,
+    'feat(cli): add x',
+    '',
+    'fix!: drop y',
+    'BREAKING CHANGE: y is gone',
+    'Release-As: 1.0.0',
+    'docs: note z',
+    'deps: bump w',
+    END,
+    '',
+    'Validated: make ci',
+  ].join('\n');
   assert.deepEqual(overrideFindings(body), []);
   assert.deepEqual(overrideFindings(`  ${BEGIN}  \nperf(a-b): faster\n${END}`), [], 'surrounding spaces on the marker lines are fine');
   assert.deepEqual(overrideFindings(`Closes #1\r\n\r\n${BEGIN}\r\nfeat: x\r\nRelease-As: 1.2.3\r\n${END}\r\n`), [], 'CRLF line endings');
@@ -204,7 +214,9 @@ test('overrideFindings_rejects_marker_in_prose', () => {
 });
 
 test('overrideFindings_rejects_unterminated_block', () => {
-  assert.deepEqual(overrideFindings(`${BEGIN}\nfeat: x\n`), [`the commit override block has no ${END} line, so release-please would read the rest of the body as commits.`]);
+  assert.deepEqual(overrideFindings(`${BEGIN}\nfeat: x\n`), [
+    `the commit override block has no ${END} line, so release-please would read the rest of the body as commits.`,
+  ]);
   assert.deepEqual(overrideFindings(`feat: x\n${END}`), [`a ${END} line has no block to close.`]);
   assert.deepEqual(overrideFindings(`${BEGIN}\nfeat: x\n${END}\n${END}`), [`a ${END} line has no block to close.`], 'a stray END after the block');
   assert.deepEqual(overrideFindings(`${BEGIN}\nfeat: x\n${END}\n${BEGIN}\nfix: y\n${END}`), [
@@ -220,10 +232,14 @@ test('overrideFindings_rejects_non_conventional_line', () => {
     'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "Feat x"',
     'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "Release-As: next"',
   ]);
-  assert.deepEqual(overrideFindings(`${BEGIN}\n    feat: x\nnote: y\n${END}`), [
-    'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "    feat: x"',
-    'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "note: y"',
-  ], 'an indented line and an unknown type');
+  assert.deepEqual(
+    overrideFindings(`${BEGIN}\n    feat: x\nnote: y\n${END}`),
+    [
+      'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "    feat: x"',
+      'not a Conventional Commit header or a Release-As / BREAKING CHANGE footer inside the commit override block: "note: y"',
+    ],
+    'an indented line and an unknown type',
+  );
 });
 
 test('baton done refuses a PR body that misuses the commit override marker when releases are enabled, offline', async (t) => {
@@ -374,7 +390,8 @@ test('prBody with an override marker in a skip reason is flagged by overrideFind
   // `baton done` checks the final body, skip lines included. No remote: a run past the check fails at push.
   const { spawnSync } = await import('node:child_process');
   const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', GH_TOKEN: '' };
-  const sh = (root, ...args) => assert.equal(spawnSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: root, env }).status, 0);
+  const sh = (root, ...args) =>
+    assert.equal(spawnSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: root, env }).status, 0);
   const root = mkdtempSync(join(tmpdir(), 'baton-done-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   sh(root, 'init', '-q', '-b', 'main');

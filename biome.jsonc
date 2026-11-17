@@ -1,0 +1,44 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.8/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    // The repo's own JS and JSON. templates/ ships byte-for-byte into other repos, and
+    // release-please rewrites its manifest.
+    "includes": ["**/*.js", "**/*.mjs", "**/*.cjs", "**/*.json", "!templates", "!.release-please-manifest.json"]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 160
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
+  "overrides": [
+    {
+      // release-please rewrites these as JSON.stringify(x, null, 2) on every release (the node
+      // strategy's package.json, extra-files' plugin.json), so they keep that layout.
+      "includes": ["package.json", ".claude-plugin/plugin.json"],
+      "json": {
+        "formatter": {
+          "expand": "always"
+        }
+      }
+    }
+  ],
+  "linter": {
+    "rules": {
+      "suspicious": {
+        // Tests assert on literal GitHub Actions `${{ }}` expressions and `${CLAUDE_PLUGIN_ROOT}`
+        // hook commands; those strings are meant to keep the placeholder, not interpolate it.
+        "noTemplateCurlyInString": "off"
+      }
+    }
+  }
+}

@@ -10,8 +10,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
-const MESSAGE =
-  "baton: --no-verify skips the repo's commit gates and worktree guard. Never use `git commit --no-verify`; fix the failing gate instead.";
+const MESSAGE = "baton: --no-verify skips the repo's commit gates and worktree guard. Never use `git commit --no-verify`; fix the failing gate instead.";
 
 /** Replaces quoted strings with a placeholder token, so their text never counts. */
 function stripQuotes(command) {
@@ -66,16 +65,14 @@ function readStdin() {
 
 function main() {
   const input = readStdin();
-  if (!input || input.tool_name !== 'Bash') return;
+  if (input?.tool_name !== 'Bash') return;
   const command = input.tool_input?.command;
   if (typeof command !== 'string') return;
   const dir = process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? process.cwd();
   if (!existsSync(join(dir, '.baton', 'config.json'))) return;
   const reason = refusal(command);
   if (!reason) return;
-  process.stdout.write(
-    JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }),
-  );
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
 }
 
 if (process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]))) {

@@ -1,9 +1,6 @@
 {
   "project": "baton",
-  "stacks": [
-    "javascript",
-    "node"
-  ],
+  "stacks": ["javascript", "node"],
   "tasks": {
     "provider": "github",
     "repo": null
@@ -14,23 +11,28 @@
     "worktreeRoot": "../{repo}-worktrees",
     "mergeStrategy": "squash"
   },
-  "setup": [],
-  "validate": [
+  "setup": [
     {
-      "name": "ci",
-      "run": "make ci"
+      "name": "install",
+      "run": "npm ci"
     }
   ],
+  "validate": [
+    { "name": "secrets", "gates": ["secrets"], "run": "make secrets" },
+    { "name": "install", "gates": ["install"], "run": "npm ci" },
+    { "name": "lint", "gates": ["format", "lint"], "run": "make lint" },
+    { "name": "audit", "gates": ["audit"], "run": "npm audit --audit-level=high" },
+    { "name": "tests", "gates": ["unit-tests", "integration-tests"], "run": "make test" },
+    { "name": "plugin", "gates": ["build"], "run": "make plugin-validate" },
+    { "name": "pack", "gates": ["publish"], "run": "npm pack --dry-run" }
+  ],
+  "gates": {
+    "skip": {
+      "unused-deps": "one devDependency (Biome), used by the lint step"
+    }
+  },
   "workflow": {
-    "phases": [
-      "spec",
-      "plan",
-      "backlog",
-      "implement",
-      "verify",
-      "review",
-      "integrate"
-    ],
+    "phases": ["spec", "plan", "backlog", "implement", "verify", "review", "integrate"],
     "custom": {},
     "requireSpec": true,
     "requireTdd": true,

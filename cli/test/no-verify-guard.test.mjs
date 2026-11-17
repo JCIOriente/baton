@@ -1,9 +1,9 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 import { refusal } from '../../hooks/no-verify-guard.mjs';
 
 const hook = new URL('../../hooks/no-verify-guard.mjs', import.meta.url).pathname;
@@ -26,7 +26,17 @@ function project(withConfig) {
 const bash = (command) => ({ tool_name: 'Bash', tool_input: { command } });
 
 test('refuses git commit -n', () => {
-  for (const cmd of ['git commit --no-verify -m x', 'git commit -n -m x', 'git commit -anm x', 'git -C x commit -n', 'git -c core.x=y commit -n', 'git --git-dir x commit -n', 'git --work-tree x commit -n', 'git commit --no-verif', 'git commit --no-v']) {
+  for (const cmd of [
+    'git commit --no-verify -m x',
+    'git commit -n -m x',
+    'git commit -anm x',
+    'git -C x commit -n',
+    'git -c core.x=y commit -n',
+    'git --git-dir x commit -n',
+    'git --work-tree x commit -n',
+    'git commit --no-verif',
+    'git commit --no-v',
+  ]) {
     assert.match(refusal(cmd), /fix the failing gate/, cmd);
   }
 });
@@ -40,11 +50,32 @@ test('allows git push -n', () => {
 });
 
 test('allows -n inside a quoted message', () => {
-  for (const cmd of ['git commit -m "-n"', "git commit -m 'skip --no-verify'", 'git commit -m "fix -n flag"', "git commit -m 'skip --no-verify now'", 'echo "a && git commit -n"', 'git commit -uno -m x', 'git commit -mnew', 'git commit -mfixing']) assert.equal(refusal(cmd), null, cmd);
+  for (const cmd of [
+    'git commit -m "-n"',
+    "git commit -m 'skip --no-verify'",
+    'git commit -m "fix -n flag"',
+    "git commit -m 'skip --no-verify now'",
+    'echo "a && git commit -n"',
+    'git commit -uno -m x',
+    'git commit -mnew',
+    'git commit -mfixing',
+  ])
+    assert.equal(refusal(cmd), null, cmd);
 });
 
 test('refuses git commit -n after a semicolon', () => {
-  for (const cmd of ['cd x && git commit -n', 'true; git commit -n', 'a || git commit -n', 'a | git commit -n', 'a\ngit commit -n', '(git commit -n)', '$(git commit -n)', '`git commit -n`', '{ git commit -n; }', 'git status & git commit -n']) {
+  for (const cmd of [
+    'cd x && git commit -n',
+    'true; git commit -n',
+    'a || git commit -n',
+    'a | git commit -n',
+    'a\ngit commit -n',
+    '(git commit -n)',
+    '$(git commit -n)',
+    '`git commit -n`',
+    '{ git commit -n; }',
+    'git status & git commit -n',
+  ]) {
     assert.match(refusal(cmd), /fix the failing gate/, cmd);
   }
 });

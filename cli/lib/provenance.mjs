@@ -3,7 +3,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { run, BatonError } from './util.mjs';
+import { BatonError, run } from './util.mjs';
 
 export function loadProvenance(pluginRoot) {
   return JSON.parse(readFileSync(join(pluginRoot, 'provenance.json'), 'utf8'));
@@ -12,7 +12,10 @@ export function loadProvenance(pluginRoot) {
 // --- Versions -------------------------------------------------------------
 
 function parseVersion(v) {
-  const m = String(v).trim().replace(/^v/, '').match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+  const m = String(v)
+    .trim()
+    .replace(/^v/, '')
+    .match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
   if (!m) return null;
   return [Number(m[1]), Number(m[2] ?? 0), Number(m[3] ?? 0)];
 }
@@ -140,7 +143,12 @@ export async function upstreamFindings(prov, { gh = ghRunner } = {}) {
   const findings = [];
   for (const src of prov.sources) {
     try {
-      const res = gh(['api', `repos/${src.repo}/compare/${src.baseline.sha}...HEAD`, '--jq', '{ahead: .ahead_by, head: .commits[-1].sha, files: [.files[] | {filename, status, additions, deletions}]}']);
+      const res = gh([
+        'api',
+        `repos/${src.repo}/compare/${src.baseline.sha}...HEAD`,
+        '--jq',
+        '{ahead: .ahead_by, head: .commits[-1].sha, files: [.files[] | {filename, status, additions, deletions}]}',
+      ]);
       if (res.code !== 0) {
         findings.push({ kind: 'error', source: src.id, message: res.stderr || 'compare failed' });
         continue;
@@ -149,7 +157,16 @@ export async function upstreamFindings(prov, { gh = ghRunner } = {}) {
       const changed = (cmp.files ?? []).flatMap((f) =>
         src.files.filter((t) => f.filename === t.upstream || f.filename.startsWith(t.upstream)).map((t) => ({ ...f, local: t.local })),
       );
-      if (changed.length) findings.push({ kind: 'upstream', source: src.id, repo: src.repo, ahead: cmp.ahead, head: cmp.head, changed, truncated: (cmp.files ?? []).length >= 300 });
+      if (changed.length)
+        findings.push({
+          kind: 'upstream',
+          source: src.id,
+          repo: src.repo,
+          ahead: cmp.ahead,
+          head: cmp.head,
+          changed,
+          truncated: (cmp.files ?? []).length >= 300,
+        });
     } catch (err) {
       findings.push({ kind: 'error', source: src.id, message: err.message });
     }

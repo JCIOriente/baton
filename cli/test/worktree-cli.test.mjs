@@ -1,9 +1,9 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 
 const cli = new URL('../baton.mjs', import.meta.url).pathname;
 // Isolated from the user's git config (signing, hooks), with a fixed identity.
@@ -42,7 +42,16 @@ function withFakeGh(dir, { title = 'Task', issueStates = {}, missingIssues = [],
   const log = join(dir, 'gh.log');
   const prsFile = join(dir, 'gh-prs.json');
   writeFileSync(prsFile, '{}');
-  const issue = { number: 12, title, body: '', state: 'OPEN', assignees: [], labels: [], url: '', comments: [{ author: { login: 'me' }, body: '<!-- baton:claim user=me nonce=abc -->' }] };
+  const issue = {
+    number: 12,
+    title,
+    body: '',
+    state: 'OPEN',
+    assignees: [],
+    labels: [],
+    url: '',
+    comments: [{ author: { login: 'me' }, body: '<!-- baton:claim user=me nonce=abc -->' }],
+  };
   writeFileSync(
     join(bin, 'gh'),
     `#!${process.execPath}
@@ -310,7 +319,10 @@ test('init_labels_use_the_config_just_written', (t) => {
   assert.equal(res.status, 0, res.stderr);
   const creates = gh.log().filter((l) => l.startsWith('label create'));
   assert.ok(creates.length > 0, 'labels were ensured');
-  assert.ok(creates.every((l) => !l.includes('org/old')), creates.join('\n'));
+  assert.ok(
+    creates.every((l) => !l.includes('org/old')),
+    creates.join('\n'),
+  );
 });
 
 test('init_writes_into_current_worktree', (t) => {
@@ -587,18 +599,23 @@ test('status_lists_task_worktrees_first_then_named_and_never_the_main_checkout',
 test('status_json_gives_null_task_for_a_named_worktree', (t) => {
   const { root, base } = statusRepo(t);
   const rows = JSON.parse(baton(root, 'status', '--json').stdout);
-  assert.deepEqual(rows.map((r) => r.task), [3, 12, null, null]);
+  assert.deepEqual(
+    rows.map((r) => r.task),
+    [3, 12, null, null],
+  );
   assert.deepEqual(rows[3], { task: null, branch: 'orgs-spec', path: join(base, 'orgs-spec'), current: false, dirty: false });
 });
 
 test('status_marks_the_current_and_uncommitted_worktrees_of_each_kind', (t) => {
-  const { root, base } = statusRepo(t);
+  const { base } = statusRepo(t);
   writeFileSync(join(base, 'task-12-x', 'new.txt'), 'x');
   writeFileSync(join(base, 'orgs-spec', 'new.txt'), 'x');
   const res = baton(join(base, 'orgs-spec'), 'status');
   const lines = res.stdout.split('\n').filter((l) => /^[ *] \S/.test(l));
   assert.deepEqual(lines, ['  #3 task/3-y', '  #12 task/12-x (uncommitted)', '  a-plan', '* orgs-spec (uncommitted)']);
-  const fromTask = baton(join(base, 'task-12-x'), 'status').stdout.split('\n').filter((l) => /^[ *] \S/.test(l));
+  const fromTask = baton(join(base, 'task-12-x'), 'status')
+    .stdout.split('\n')
+    .filter((l) => /^[ *] \S/.test(l));
   assert.ok(fromTask.includes('* #12 task/12-x (uncommitted)'), fromTask.join('\n'));
 });
 
@@ -621,7 +638,10 @@ test('status_shows_a_detached_worktree_by_path_with_a_null_branch', (t) => {
   assert.match(res.stdout, /^ {2}\(detached\)$/m);
   assert.ok(res.stdout.includes(join(base, 'scratch')));
   const rows = JSON.parse(baton(root, 'status', '--json').stdout);
-  assert.deepEqual(rows.map((r) => [r.task, r.branch]), [[null, null]]);
+  assert.deepEqual(
+    rows.map((r) => [r.task, r.branch]),
+    [[null, null]],
+  );
 });
 
 test('status_with_no_linked_worktrees_prints_no_worktrees', (t) => {
@@ -647,7 +667,13 @@ test('worktree_clean_skips_locked_and_detached_worktrees', (t) => {
   const res = gh.run(root, 'worktree', 'clean', '--force', '--json');
   assert.equal(res.status, 0, res.stderr);
   const rows = JSON.parse(res.stdout);
-  assert.deepEqual(rows.map((r) => [r.branch, r.state, r.action]), [[null, 'detached', 'skip'], ['locked-one', 'locked', 'skip']]);
+  assert.deepEqual(
+    rows.map((r) => [r.branch, r.state, r.action]),
+    [
+      [null, 'detached', 'skip'],
+      ['locked-one', 'locked', 'skip'],
+    ],
+  );
   assert.ok(existsSync(locked.path) && existsSync(detached));
 });
 
@@ -661,7 +687,10 @@ test('worktree_clean_keeps_a_worktree_whose_pr_head_was_never_fetched', (t) => {
   const rows = cleanRows(gh.run(root, 'worktree', 'clean', '--json'));
   assert.deepEqual([rows['merged-one'].state, rows['merged-one'].action], ['unverified', 'keep']);
   // The head is missing on the remote too, so the fetch fails and says why.
-  assert.ok(rows['merged-one'].reason.startsWith('PR #5 head deadbee not available locally; run `git fetch origin pull/5/head`; fetch failed: '), rows['merged-one'].reason);
+  assert.ok(
+    rows['merged-one'].reason.startsWith('PR #5 head deadbee not available locally; run `git fetch origin pull/5/head`; fetch failed: '),
+    rows['merged-one'].reason,
+  );
   assert.match(rows['merged-one'].reason, /pull\/5\/head$/);
   assert.ok(existsSync(merged.path));
 });

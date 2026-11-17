@@ -1,27 +1,15 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { deepMerge, BatonError, isPlainObject } from './util.mjs';
-import { repoRoot } from './git.mjs';
 import { GATES, STAGES } from './gates.mjs';
+import { repoRoot } from './git.mjs';
+import { BatonError, deepMerge, isPlainObject } from './util.mjs';
 
 export const CONFIG_DIR = '.baton';
 export const CONFIG_FILE = 'config.json';
 
 export const BUILTIN_PHASES = ['spec', 'plan', 'backlog', 'implement', 'verify', 'review', 'integrate'];
 
-export const KNOWN_STACKS = [
-  'typescript',
-  'javascript',
-  'react',
-  'node',
-  'rust',
-  'rust-tokio-postgres',
-  'postgres',
-  'api',
-  'openapi',
-  'i18n',
-  'e2e',
-];
+export const KNOWN_STACKS = ['typescript', 'javascript', 'react', 'node', 'rust', 'rust-tokio-postgres', 'postgres', 'api', 'openapi', 'i18n', 'e2e'];
 
 // Registries a release can publish to (release.publish).
 export const PUBLISH_TARGETS = ['npm', 'crates'];
@@ -256,10 +244,7 @@ export function reviewersFor(config, changedFiles, diffText = '') {
   const unknown = changedFiles?.some((f) => !NEUTRAL_FILES.test(f) && !config.stacks.some((s) => STACK_PATHS[s]?.some((re) => re.test(f))));
   const all = !changedFiles || unknown || changedFiles.some((f) => WORKFLOW_FILES.test(f));
   for (const s of config.stacks) {
-    const touched =
-      all ||
-      changedFiles.some((f) => STACK_PATHS[s]?.some((re) => re.test(f)) ?? true) ||
-      (s === 'postgres' && SQL_IN_CODE.test(diffText));
+    const touched = all || changedFiles.some((f) => STACK_PATHS[s]?.some((re) => re.test(f)) ?? true) || (s === 'postgres' && SQL_IN_CODE.test(diffText));
     if (touched) for (const r of STACK_REVIEWERS[s] ?? []) names.add(r);
   }
   return ['spec-compliance', ...names];

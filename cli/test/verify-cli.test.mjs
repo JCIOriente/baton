@@ -1,9 +1,9 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 
 const cli = new URL('../baton.mjs', import.meta.url).pathname;
 // Isolated from the user's git config (signing, hooks), with a fixed identity.
@@ -52,16 +52,18 @@ const ran = (root) => readFileSync(join(root, 'ran.log'), 'utf8').trim().split('
 
 test('verify runs only local-stage steps by default', (t) => {
   const { root } = repo(t, {
-    validate: [step('fmt', 0, { stages: ['commit'] }), step('lint', 0, { gates: ['lint'] }), step('e2e', 0, { stages: ['ci'] }), step('tests', 0, { stages: ['local'] })],
+    validate: [
+      step('fmt', 0, { stages: ['commit'] }),
+      step('lint', 0, { gates: ['lint'] }),
+      step('e2e', 0, { stages: ['ci'] }),
+      step('tests', 0, { stages: ['local'] }),
+    ],
   });
   const res = baton(root, 'verify');
   assert.equal(res.status, 0, res.stderr);
   assert.deepEqual(ran(root), ['lint', 'tests']);
   assert.match(res.stderr, /▶ \[verify\] lint: echo lint/);
-  assert.equal(
-    res.stdout,
-    ['verify (local): 2 passed', '  ✔ lint [lint]', '  ✔ tests [no gate]', 'not in this stage: fmt (commit), e2e (ci)', ''].join('\n'),
-  );
+  assert.equal(res.stdout, ['verify (local): 2 passed', '  ✔ lint [lint]', '  ✔ tests [no gate]', 'not in this stage: fmt (commit), e2e (ci)', ''].join('\n'));
 
   rmSync(join(root, 'ran.log'));
   const ci = baton(root, 'verify', '--stage', 'ci');
@@ -79,7 +81,10 @@ test('verify --stage rejects an unknown stage', (t) => {
 
 test('verify continues past a failing advisory step and exits 0', (t) => {
   const { root } = repo(t, {
-    validate: [step('api-break', 1, { gates: ['publish'], blocking: false, reason: 'needs a published baseline first' }), step('tests', 0, { gates: ['unit-tests'] })],
+    validate: [
+      step('api-break', 1, { gates: ['publish'], blocking: false, reason: 'needs a published baseline first' }),
+      step('tests', 0, { gates: ['unit-tests'] }),
+    ],
   });
   const res = baton(root, 'verify');
   assert.equal(res.status, 0, res.stderr);
@@ -87,12 +92,16 @@ test('verify continues past a failing advisory step and exits 0', (t) => {
   assert.match(res.stderr, /✖ api-break failed \(exit 1\)/);
   assert.equal(
     res.stdout,
-    ['verify (local): 1 passed, 1 advisory failed', '  ✖ api-break [publish] advisory: needs a published baseline first', '  ✔ tests [unit-tests]', ''].join('\n'),
+    ['verify (local): 1 passed, 1 advisory failed', '  ✖ api-break [publish] advisory: needs a published baseline first', '  ✔ tests [unit-tests]', ''].join(
+      '\n',
+    ),
   );
 });
 
 test('verify stops at a blocking failure and marks later steps not-run', (t) => {
-  const { root } = repo(t, { validate: [step('lint', 0, { gates: ['lint'] }), step('tests', 2, { gates: ['unit-tests'] }), step('build', 0, { gates: ['build'] })] });
+  const { root } = repo(t, {
+    validate: [step('lint', 0, { gates: ['lint'] }), step('tests', 2, { gates: ['unit-tests'] }), step('build', 0, { gates: ['build'] })],
+  });
   const res = baton(root, 'verify');
   assert.equal(res.status, 1);
   assert.deepEqual(ran(root), ['lint', 'tests']);
@@ -176,7 +185,11 @@ test('verify --stage commit with no commit steps exits 0', (t) => {
 test('verify --json has the spec shape', (t) => {
   const { root } = repo(t, {
     gates: { skip: { 'unused-deps': 'one devDependency (Biome), used by the lint step' } },
-    validate: [step('lint', 0, { gates: ['format', 'lint'] }), step('api', 1, { gates: ['publish'], blocking: false, reason: 'no baseline' }), step('e2e', 0, { gates: ['e2e'], stages: ['ci'] })],
+    validate: [
+      step('lint', 0, { gates: ['format', 'lint'] }),
+      step('api', 1, { gates: ['publish'], blocking: false, reason: 'no baseline' }),
+      step('e2e', 0, { gates: ['e2e'], stages: ['ci'] }),
+    ],
   });
   const res = baton(root, 'verify', '--json');
   assert.equal(res.status, 0, res.stderr);
@@ -194,7 +207,10 @@ test('verify --json has the spec shape', (t) => {
 });
 
 test('verify lists skipped gates in the summary', (t) => {
-  const { root } = repo(t, { gates: { skip: { 'unused-deps': 'one devDependency (Biome), used by the lint step' } }, validate: [step('lint', 0, { gates: ['lint'] })] });
+  const { root } = repo(t, {
+    gates: { skip: { 'unused-deps': 'one devDependency (Biome), used by the lint step' } },
+    validate: [step('lint', 0, { gates: ['lint'] })],
+  });
   const res = baton(root, 'verify');
   assert.equal(res.status, 0, res.stderr);
   assert.match(res.stdout, /^skipped gates: unused-deps \(one devDependency \(Biome\), used by the lint step\)$/m);
@@ -224,7 +240,16 @@ function withFakeGh(dir) {
   const log = join(dir, 'gh.log');
   const bin = join(dir, 'bin');
   mkdirSync(bin, { recursive: true });
-  const issue = { number: 12, title: 'Task', body: '', state: 'OPEN', assignees: [], labels: [], url: '', comments: [{ author: { login: 'me' }, body: '<!-- baton:claim user=me nonce=abc -->' }] };
+  const issue = {
+    number: 12,
+    title: 'Task',
+    body: '',
+    state: 'OPEN',
+    assignees: [],
+    labels: [],
+    url: '',
+    comments: [{ author: { login: 'me' }, body: '<!-- baton:claim user=me nonce=abc -->' }],
+  };
   writeFileSync(
     join(bin, 'gh'),
     `#!${process.execPath}
@@ -243,7 +268,10 @@ else if (a[0] === 'pr' && a[1] === 'create') console.log('https://example.test/p
 
 test('start baseline reports a failing advisory step', (t) => {
   const { dir, root } = repo(t, {
-    validate: [step('api', 1, { gates: ['publish'], blocking: false, reason: 'needs a published baseline first' }), step('tests', 0, { gates: ['unit-tests'] })],
+    validate: [
+      step('api', 1, { gates: ['publish'], blocking: false, reason: 'needs a published baseline first' }),
+      step('tests', 0, { gates: ['unit-tests'] }),
+    ],
   });
   const res = withFakeGh(dir)(root, 'start', '12');
   assert.equal(res.status, 0, res.stderr);
@@ -263,7 +291,11 @@ test('start baseline names the first failing blocking step', (t) => {
 
 test('done runs only the local stage and opens the PR past an advisory failure', (t) => {
   const { dir, root, base } = repo(t, {
-    validate: [step('api', 1, { gates: ['publish'], blocking: false, reason: 'no baseline yet' }), step('tests', 0, { gates: ['unit-tests'] }), step('e2e', 1, { gates: ['e2e'], stages: ['ci'] })],
+    validate: [
+      step('api', 1, { gates: ['publish'], blocking: false, reason: 'no baseline yet' }),
+      step('tests', 0, { gates: ['unit-tests'] }),
+      step('e2e', 1, { gates: ['e2e'], stages: ['ci'] }),
+    ],
   });
   const path = join(base, 'task-12-task');
   git(root, 'worktree', 'add', '-q', '-b', 'task/12-task', path, 'main');
@@ -271,7 +303,11 @@ test('done runs only the local stage and opens the PR past an advisory failure',
   const res = withFakeGh(dir)(path, 'done', '--draft');
   assert.equal(res.status, 0, res.stderr);
   assert.deepEqual(ran(path), ['api', 'tests']);
-  const create = readFileSync(join(dir, 'gh.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).find((a) => a[0] === 'pr' && a[1] === 'create');
+  const create = readFileSync(join(dir, 'gh.log'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((l) => JSON.parse(l))
+    .find((a) => a[0] === 'pr' && a[1] === 'create');
   const body = create[create.indexOf('--body') + 1];
   assert.match(body, /^Validated \(local\): tests \(`echo tests >> ran.log; exit 0`\)$/m);
   assert.match(body, /^Advisory failed: api \(`echo api >> ran.log; exit 1`\): no baseline yet$/m);

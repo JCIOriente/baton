@@ -68,6 +68,6 @@ export function deepMerge(base, override) {
 }
 
 export function print(obj, { json = false } = {}) {
-  if (json || typeof obj !== 'string') process.stdout.write(JSON.stringify(obj, null, 2) + '\n');
-  else process.stdout.write(obj + '\n');
+  if (json || typeof obj !== 'string') process.stdout.write(`${JSON.stringify(obj, null, 2)}\n`);
+  else process.stdout.write(`${obj}\n`);
 }

@@ -34,4 +34,5 @@ jobs:
           tar -xzf gitleaks.tgz gitleaks && sudo mv gitleaks /usr/local/bin/ && rm gitleaks.tgz
       - name: Install Claude Code (for plugin validation)
         run: npm install -g @anthropic-ai/claude-code@2.1.309
-      - run: make ci
+      # The checkout's own CLI, not the published one, so a PR is checked by the code it changes.
+      - run: node cli/baton.mjs verify --stage ci

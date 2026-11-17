@@ -1,12 +1,12 @@
 // The files baton:init writes when a repo enables releases (templates/release/).
 // YAML is checked with plain text matching: the CLI has no dependencies.
 
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { test } from 'node:test';
 
 const dir = new URL('../../templates/release/', import.meta.url).pathname;
 const read = (name) => readFileSync(join(dir, name), 'utf8');
@@ -41,7 +41,10 @@ test('release_workflow_uses_release_please_token', () => {
     assert.match(yml, new RegExp(`^ {6}${out}: \\$\\{\\{ steps\\.release\\.outputs\\.${out} \\}\\}$`, 'm'), `output ${out}`);
   }
   // Every job declares its own permissions.
-  const jobs = yml.split(/^jobs:$/m)[1].split(/^ {2}(?=[\w-]+:$)/m).filter((j) => j.trim() && !j.trim().startsWith('#'));
+  const jobs = yml
+    .split(/^jobs:$/m)[1]
+    .split(/^ {2}(?=[\w-]+:$)/m)
+    .filter((j) => j.trim() && !j.trim().startsWith('#'));
   assert.ok(jobs.length > 0);
   for (const job of jobs) assert.match(job, /^ {4}permissions:/m, `job ${job.split(':')[0]} declares permissions`);
 });
@@ -50,11 +53,21 @@ test('release_workflow_pins_actions_to_sha', () => {
   const uses = [...workflow().matchAll(/^\s*(?:-\s+)?uses:\s*(\S+)(.*)$/gm)];
   assert.ok(uses.length > 0, 'workflow uses at least one action');
   for (const [, ref, rest] of uses) {
-    assert.match(ref, /^[\w.-]+\/[\w.\/-]+@[0-9a-f]{40}$/, `${ref} is pinned to a full commit SHA`);
+    assert.match(ref, /^[\w.-]+\/[\w./-]+@[0-9a-f]{40}$/, `${ref} is pinned to a full commit SHA`);
     assert.match(rest, /^\s+# v\d+\.\d+\.\d+$/, `${ref} names the released version in a comment`);
   }
-  for (const action of ['googleapis/release-please-action', 'actions/checkout', 'actions/setup-node', 'actions/upload-artifact', 'actions/download-artifact', 'rust-lang/crates-io-auth-action']) {
-    assert.ok(uses.some(([, ref]) => ref.startsWith(`${action}@`)), `${action} is used`);
+  for (const action of [
+    'googleapis/release-please-action',
+    'actions/checkout',
+    'actions/setup-node',
+    'actions/upload-artifact',
+    'actions/download-artifact',
+    'rust-lang/crates-io-auth-action',
+  ]) {
+    assert.ok(
+      uses.some(([, ref]) => ref.startsWith(`${action}@`)),
+      `${action} is used`,
+    );
   }
 });
 
@@ -131,9 +144,14 @@ const trimTo = (yml, keep) => {
     while (k < lines.length && lines[k].trim() && indentOf(lines[k]) > indent) k++;
     i = k - 1;
   }
-  return out
-    .join('\n')
-    .replace(/^( {4}needs: \[)(.*)\]$/gm, (_, head, list) => `${head}${list.split(', ').filter((n) => !dropped.includes(n)).join(', ')}]`);
+  return out.join('\n').replace(
+    /^( {4}needs: \[)(.*)\]$/gm,
+    (_, head, list) =>
+      `${head}${list
+        .split(', ')
+        .filter((n) => !dropped.includes(n))
+        .join(', ')}]`,
+  );
 };
 
 test('dry_run_input_defaults_false_and_skips_release_please', () => {
@@ -213,7 +231,13 @@ const indexOfStep = (steps, re) => {
 test('publish_checks_everything_before_publishing_anything', () => {
   const steps = publishSteps();
   const firstPublish = Math.min(indexOfStep(steps, /name: Publish to npm$/m), indexOfStep(steps, /name: Publish to crates\.io$/m));
-  for (const check of [/name: Check npm supports trusted publishing/, /id: tarball/, /name: Check the crate version matches the tag/, /id: npm-registry/, /id: crates-registry/]) {
+  for (const check of [
+    /name: Check npm supports trusted publishing/,
+    /id: tarball/,
+    /name: Check the crate version matches the tag/,
+    /id: npm-registry/,
+    /id: crates-registry/,
+  ]) {
     assert.ok(indexOfStep(steps, check) < firstPublish, `${check} runs before any publish`);
   }
   // A crates.io trusted-publisher mismatch fails before npm gets anything.
@@ -238,9 +262,21 @@ test('dry_run_jobs_have_no_id_token_or_environment', () => {
   assert.match(dry, /^ {10}npm publish "\$1" --dry-run --ignore-scripts$/m);
   assert.doesNotMatch(dry.replace('npm publish "$1" --dry-run --ignore-scripts', ''), /npm publish/, 'only the dry-run publish');
   // The tarball check is the same script in both jobs.
-  const tarball = (j) => stepsOf(j).find((s) => /id: tarball/.test(s)).split(/^ {8}run: \|$/m)[1].split('\n').filter((l) => indentOf(l) >= 10).join('\n');
+  const tarball = (j) =>
+    stepsOf(j)
+      .find((s) => /id: tarball/.test(s))
+      .split(/^ {8}run: \|$/m)[1]
+      .split('\n')
+      .filter((l) => indentOf(l) >= 10)
+      .join('\n');
   assert.equal(tarball(dry), tarball(job('publish')));
-  const registry = (j) => stepsOf(j).find((s) => /id: npm-registry/.test(s)).split(/^ {8}run: \|$/m)[1].split('\n').filter((l) => indentOf(l) >= 10).join('\n');
+  const registry = (j) =>
+    stepsOf(j)
+      .find((s) => /id: npm-registry/.test(s))
+      .split(/^ {8}run: \|$/m)[1]
+      .split('\n')
+      .filter((l) => indentOf(l) >= 10)
+      .join('\n');
   assert.ok(registry(dry).includes('npm view'), 'the registry script is captured');
   assert.equal(registry(dry), registry(job('publish')), 'same registry skip check as publish');
   // npm refuses a dry-run publish of a version it already has; the skip is reported, not silent.
@@ -314,7 +350,11 @@ test('jobs_check_out_the_released_sha_without_credentials', () => {
     // A dry run has no release: it checks the dispatched commit.
     assert.match(job(name), checkout('\\$\\{\\{ inputs\\.dry_run && github\\.sha \\|\\| needs\\.release-please\\.outputs\\.sha \\}\\}'), name);
   }
-  assert.match(job('publish'), checkout('\\$\\{\\{ needs\\.release-please\\.outputs\\.sha \\}\\}'), 'publish checks out the released sha, which a moved tag cannot change');
+  assert.match(
+    job('publish'),
+    checkout('\\$\\{\\{ needs\\.release-please\\.outputs\\.sha \\}\\}'),
+    'publish checks out the released sha, which a moved tag cannot change',
+  );
 });
 
 test('publish_jobs_check_version_matches_tag', () => {
@@ -327,16 +367,32 @@ test('publish_jobs_check_version_matches_tag', () => {
     assert.match(step, /VERSION: \$\{\{ needs\.release-please\.outputs\.version \}\}/, `${name} reads the release version`);
     assert.match(step, /TAG: \$\{\{ needs\.release-please\.outputs\.tag_name \}\}/, `${name} reads the tag`);
     assert.match(step, /DRY_RUN: \$\{\{ inputs\.dry_run \}\}/, `${name} knows when it is a dry run`);
-    assert.match(step, /if \[ "\$DRY_RUN" = true \]; then\n {12}VERSION=\$\([^\n]*\.release-please-manifest\.json[^\n]*\)\n {12}TAG="v\$VERSION"\n {10}fi/, `${name} compares with the manifest on a dry run`);
-    assert.match(step, /\[ "\$actual" != "\$VERSION" \] \|\| \[ "\$TAG" != "v\$VERSION" \]/, `${name} requires the manifest version and tag v<version> to match`);
+    assert.match(
+      step,
+      /if \[ "\$DRY_RUN" = true \]; then\n {12}VERSION=\$\([^\n]*\.release-please-manifest\.json[^\n]*\)\n {12}TAG="v\$VERSION"\n {10}fi/,
+      `${name} compares with the manifest on a dry run`,
+    );
+    assert.match(
+      step,
+      /\[ "\$actual" != "\$VERSION" \] \|\| \[ "\$TAG" != "v\$VERSION" \]/,
+      `${name} requires the manifest version and tag v<version> to match`,
+    );
     assert.ok(step.includes(file[name]), `${name} reads the version from ${file[name]}`);
     assert.match(step, /exit 1/, `${name} fails on a mismatch`);
   }
   assert.match(job('build-npm'), /actual=\$\(node -p "require\('\.\/package\.json'\)\.version"\)/, 'npm reads the manifest version');
   assert.match(job('build-npm'), /^ {4}outputs:\n {6}version: \$\{\{ steps\.version\.outputs\.version \}\}$/m, 'build-npm exposes the checked version');
   const crates = job('verify-crates');
-  assert.match(crates, /cargo metadata --no-deps[\s\S]*manifest_path == \$manifest[\s\S]*actual=\$\(jq -r \.version <<<"\$pkg"\)/, 'crates reads the root manifest version');
-  assert.match(crates, /\[ -n "\$pkg" \] \|\| \{ echo "::error::root Cargo\.toml defines no package"; exit 1; \}/, 'crates fails when the root defines no package');
+  assert.match(
+    crates,
+    /cargo metadata --no-deps[\s\S]*manifest_path == \$manifest[\s\S]*actual=\$\(jq -r \.version <<<"\$pkg"\)/,
+    'crates reads the root manifest version',
+  );
+  assert.match(
+    crates,
+    /\[ -n "\$pkg" \] \|\| \{ echo "::error::root Cargo\.toml defines no package"; exit 1; \}/,
+    'crates fails when the root defines no package',
+  );
   assert.match(crates, /^ {4}outputs:\n {6}name: \$\{\{ steps\.version\.outputs\.name \}\}$/m, 'verify-crates exposes the crate name');
   // publish checks the crate it is about to upload, too.
   const publishCrate = stepsOf(job('publish')).find((s) => /^name: Check the crate version matches the tag$/m.test(s));
@@ -348,18 +404,29 @@ test('publish_jobs_check_the_registry_right_before_publishing', () => {
   const j = job('publish');
   const steps = stepsOf(j);
   // The publish job asks the registry itself, so a re-run of only that job sees a hand publish.
-  for (const [target, id, publish] of [['npm', 'npm-registry', /^ {8}run: \|\n(?: {10}.*\n)*? {10}npm publish "\$1" --ignore-scripts$/m], ['crates', 'crates-registry', /^ {8}run: \|\n(?: {10}.*\n)*? {10}cargo publish --no-verify "\$\{locked\[@\]\}"$/m]]) {
+  for (const [target, id, publish] of [
+    ['npm', 'npm-registry', /^ {8}run: \|\n(?: {10}.*\n)*? {10}npm publish "\$1" --ignore-scripts$/m],
+    ['crates', 'crates-registry', /^ {8}run: \|\n(?: {10}.*\n)*? {10}cargo publish --no-verify "\$\{locked\[@\]\}"$/m],
+  ]) {
     const check = steps.findIndex((s) => new RegExp(`^ {8}id: ${id}$`, 'm').test(s));
     const last = steps.findIndex((s) => publish.test(s));
     assert.ok(check >= 0, `${target} has a registry check`);
     assert.ok(last > check, `${target} checks the registry before publishing`);
-    assert.match(steps[last], new RegExp(`^ {8}if: steps\\.${id}\\.outputs\\.published != 'true'$`, 'm'), `${target} publishes only a version the registry lacks`);
+    assert.match(
+      steps[last],
+      new RegExp(`^ {8}if: steps\\.${id}\\.outputs\\.published != 'true'$`, 'm'),
+      `${target} publishes only a version the registry lacks`,
+    );
     assert.match(steps[check], /exit 1/, `${target} fails when the registry check fails`);
   }
   const npm = steps.find((s) => /id: npm-registry/.test(s));
   const crates = steps.find((s) => /id: crates-registry/.test(s));
   assert.match(npm, /npm view "\$NAME@\$VERSION" version/, 'npm checks the registry');
-  assert.match(npm, /if \[ "\$found" = "\$VERSION" \]; then\n(?:.*\n)*? {12}echo "published=true" >> "\$GITHUB_OUTPUT"\n {10}else\n {12}echo "published=false"/, 'npm skips only an exact version match');
+  assert.match(
+    npm,
+    /if \[ "\$found" = "\$VERSION" \]; then\n(?:.*\n)*? {12}echo "published=true" >> "\$GITHUB_OUTPUT"\n {10}else\n {12}echo "published=false"/,
+    'npm skips only an exact version match',
+  );
   // Only E404 means "not published"; any other npm failure fails the job.
   assert.match(
     npm,
@@ -430,8 +497,14 @@ test('no_expression_in_any_run_script', () => {
     }
   }
   // Self-check: the capture reaches the end of multi-line scripts, not just their first line.
-  assert.ok(scripts.some((x) => x.includes('tar -xOf') && x.includes('GITHUB_OUTPUT')), 'the tarball script is captured whole');
-  assert.ok(scripts.some((x) => x.includes('cargo metadata') && x.includes('GITHUB_OUTPUT')), 'the crates version script is captured whole');
+  assert.ok(
+    scripts.some((x) => x.includes('tar -xOf') && x.includes('GITHUB_OUTPUT')),
+    'the tarball script is captured whole',
+  );
+  assert.ok(
+    scripts.some((x) => x.includes('cargo metadata') && x.includes('GITHUB_OUTPUT')),
+    'the crates version script is captured whole',
+  );
 });
 
 test('publish_npm_validates_the_tarball_name_and_package_name', () => {
@@ -439,7 +512,11 @@ test('publish_npm_validates_the_tarball_name_and_package_name', () => {
     const j = job(name);
     assert.match(j, /\^\(@\[a-z0-9~-\]\[a-z0-9\._~-\]\*\/\)\?\[a-z0-9~-\]\[a-z0-9\._~-\]\*\$/, `${name}: package name is checked against the npm name pattern`);
     assert.match(j, /::error::[^\n]*tarball file name/, `${name}: a bad tarball file name fails`);
-    assert.match(j, /case "\$\{1##\*\/\}" in\n\s+\*\[!A-Za-z0-9@\._~-\]\*\|\.\*\|-\*\) echo "::error::unexpected tarball file name"; exit 1 ;;/, `${name}: only a plain file name is accepted`);
+    assert.match(
+      j,
+      /case "\$\{1##\*\/\}" in\n\s+\*\[!A-Za-z0-9@\._~-\]\*\|\.\*\|-\*\) echo "::error::unexpected tarball file name"; exit 1 ;;/,
+      `${name}: only a plain file name is accepted`,
+    );
     const lines = j.split('\n').map((l) => l.trim());
     const check = lines.indexOf('[[ "$name" =~ $name_pattern ]] || { echo "::error::tarball has an invalid package name"; exit 1; }');
     const exported = lines.indexOf('echo "name=$name" >> "$GITHUB_OUTPUT"');
@@ -465,14 +542,21 @@ test('registry_check_inputs_come_from_the_right_place', () => {
   assert.match(crates, /^ {10}VERSION: \$\{\{ needs\.release-please\.outputs\.version \}\}$/m);
   // A dry run has no release version: dry-run-npm checks the version build-npm checked.
   const dry = stepsOf(job('dry-run-npm'));
-  assert.match(dry.find((x) => /id: tarball/.test(x)), /^ {10}VERSION: \$\{\{ needs\.build-npm\.outputs\.version \}\}$/m);
+  assert.match(
+    dry.find((x) => /id: tarball/.test(x)),
+    /^ {10}VERSION: \$\{\{ needs\.build-npm\.outputs\.version \}\}$/m,
+  );
 });
 
 test('publish_npm_publishes_only_the_prepared_tarball', () => {
   const j = job('publish');
   assert.doesNotMatch(j, /npm (ci|install)/, 'no install in the job with id-token');
   const checkout = markedSteps(j).filter((s) => /actions\/checkout/.test(s.text));
-  assert.deepEqual(checkout.map((s) => s.target), ['crates'], 'only the crate is checked out; npm uses the tarball');
+  assert.deepEqual(
+    checkout.map((s) => s.target),
+    ['crates'],
+    'only the crate is checked out; npm uses the tarball',
+  );
   assert.match(j, /actions\/download-artifact@/);
   assert.match(j, /name: npm-package/);
   assert.match(j, /tar -xOf "\$1" package\/package\.json/, 'reads the tarball package.json');
@@ -495,7 +579,11 @@ test('publish_jobs_use_trusted_publishing', () => {
   const yml = workflow();
   assert.doesNotMatch(yml, /NPM_TOKEN|NODE_AUTH_TOKEN|secrets\.CARGO_REGISTRY_TOKEN/, 'no stored registry token');
   for (const name of ['build-npm', 'dry-run-npm', 'publish']) {
-    assert.match(job(name), /^ {6}- uses: actions\/setup-node@\S+ # v\S+\n {8}with:\n(?: {10}.*\n)*? {10}registry-url: https:\/\/registry\.npmjs\.org$/m, `${name} sets the registry`);
+    assert.match(
+      job(name),
+      /^ {6}- uses: actions\/setup-node@\S+ # v\S+\n {8}with:\n(?: {10}.*\n)*? {10}registry-url: https:\/\/registry\.npmjs\.org$/m,
+      `${name} sets the registry`,
+    );
   }
   const crates = job('publish');
   assert.match(crates, /^ {8}uses: rust-lang\/crates-io-auth-action@/m);
@@ -565,7 +653,9 @@ const publishingComment = (yml) => yml.match(/^ {2}# Publishing:.*\n(?: {2}#.*\n
 test('publishing_comment_claims_no_credentials_only_for_jobs_running_dependency_code', () => {
   // publish needs release-please, which holds RELEASE_PLEASE_TOKEN: "no credentials" must not cover
   // every job before publish, only the ones that run dependency and build code.
-  const text = publishingComment(workflow()).replace(/^ *# ?/gm, '').replace(/\s+/g, ' ');
+  const text = publishingComment(workflow())
+    .replace(/^ *# ?/gm, '')
+    .replace(/\s+/g, ' ');
   assert.ok(text, 'the # Publishing: comment exists');
   assert.doesNotMatch(text, /jobs before publish[^.;]*no credentials/, 'no credentials claim for every job before publish');
   assert.match(text, /jobs that run dependency and build code[^.;]*no credentials/, 'scoped to jobs running dependency code');
@@ -573,7 +663,10 @@ test('publishing_comment_claims_no_credentials_only_for_jobs_running_dependency_
 });
 
 test('each_single_target_trim_publishing_comment_names_only_the_kept_target', () => {
-  for (const [keep, other] of [['npm', /crates|cargo/i], ['crates', /npm/i]]) {
+  for (const [keep, other] of [
+    ['npm', /crates|cargo/i],
+    ['crates', /npm/i],
+  ]) {
     const comment = publishingComment(trimTo(workflow(), keep));
     assert.ok(comment, `${keep} only: the # Publishing: comment is kept`);
     assert.doesNotMatch(comment, other, `${keep} only: the # Publishing: comment names only ${keep}`);

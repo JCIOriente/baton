@@ -1,9 +1,9 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 
 const cli = new URL('../baton.mjs', import.meta.url).pathname;
 // Isolated from the user's git config (signing, hooks), with a fixed identity.
@@ -31,7 +31,15 @@ function git(cwd, ...args) {
 /** An open issue as `gh issue list --json` returns it. */
 function issue(number, { labels = [], spec, assignees = [] } = {}) {
   const body = spec ? `Spec: ${spec} · Plan: docs/plans/x.md#t1\r\n\r\n## Scope\r\n` : 'No spec line here.';
-  return { number, title: `Task ${number}`, body, state: 'OPEN', assignees: assignees.map((login) => ({ login })), labels: labels.map((name) => ({ name })), url: '' };
+  return {
+    number,
+    title: `Task ${number}`,
+    body,
+    state: 'OPEN',
+    assignees: assignees.map((login) => ({ login })),
+    labels: labels.map((name) => ({ name })),
+    url: '',
+  };
 }
 
 /** An open PR as `gh pr list --json` returns it. */
@@ -190,7 +198,17 @@ test('handoff_json_shape', (t) => {
   const res = gh.run(root, 'handoff', '--json');
   assert.equal(res.status, 0, res.stderr);
   const json = JSON.parse(res.stdout);
-  assert.deepEqual(Object.keys(json), ['schemaVersion', 'unit', 'groups', 'prsWithoutTask', 'worktrees', 'base', 'leaveAloneCandidates', 'triageCount', 'truncated']);
+  assert.deepEqual(Object.keys(json), [
+    'schemaVersion',
+    'unit',
+    'groups',
+    'prsWithoutTask',
+    'worktrees',
+    'base',
+    'leaveAloneCandidates',
+    'triageCount',
+    'truncated',
+  ]);
   assert.equal(json.schemaVersion, 1);
   assert.equal(json.unit, null);
   assert.deepEqual(
@@ -201,7 +219,13 @@ test('handoff_json_shape', (t) => {
     spec: SPEC_A,
     tasks: [
       { number: 160, title: 'Task 160', status: 'in-progress', assignees: ['arnold'], pr: null },
-      { number: 161, title: 'Task 161', status: 'review', assignees: [], pr: { number: 165, draft: false, reviewDecision: 'REVIEW_REQUIRED', checks: 'passing' } },
+      {
+        number: 161,
+        title: 'Task 161',
+        status: 'review',
+        assignees: [],
+        pr: { number: 165, draft: false, reviewDecision: 'REVIEW_REQUIRED', checks: 'passing' },
+      },
     ],
     openStatusItems: ['Plan and issues'],
   });
@@ -283,7 +307,9 @@ test('handoff_worktree_flags', (t) => {
   assert.equal(res.status, 0, res.stderr);
   const lines = standing(res.stdout).split('\n');
   assert.ok(
-    lines.includes(`Worktrees: #160 task/160-pushed (uncommitted, 2 unpushed) ${pushed} · #170 task/170-gone (missing; baton worktree prune) ${stale} · notes (not pushed) ${local}`),
+    lines.includes(
+      `Worktrees: #160 task/160-pushed (uncommitted, 2 unpushed) ${pushed} · #170 task/170-gone (missing; baton worktree prune) ${stale} · notes (not pushed) ${local}`,
+    ),
     lines.join('\n'),
   );
   assert.ok(lines.includes('Base branch main: 1 ahead, 0 behind origin/main (as of last fetch)'), lines.join('\n'));
@@ -379,7 +405,11 @@ test('handoff_canonicalizes_spec', (t) => {
     assert.equal(res.status, 0, `${spelling}: ${res.stderr}`);
     const json = JSON.parse(res.stdout);
     assert.deepEqual(json.unit, { spec: SPEC_A, found: true }, spelling);
-    assert.deepEqual(json.groups[0].tasks.map((task) => task.number), [160], spelling);
+    assert.deepEqual(
+      json.groups[0].tasks.map((task) => task.number),
+      [160],
+      spelling,
+    );
     assert.deepEqual(json.leaveAloneCandidates.tasks, [], spelling);
   }
 });

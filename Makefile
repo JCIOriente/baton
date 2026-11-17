@@ -1,16 +1,20 @@
-# Single entry point for checks: `make ci` runs locally (via `baton verify`) and in GitHub CI.
-.PHONY: ci test validate secrets evals
+# The `validate` steps in .baton/config.json are the source of truth for checks: `baton verify` runs
+# them locally and `baton verify --stage ci` in GitHub CI. `make ci` is a convenience that runs the same recipes.
+.PHONY: ci secrets lint test plugin-validate evals
 
-ci: test validate secrets
+ci: secrets lint test plugin-validate
+
+secrets:
+	gitleaks git --no-banner --redact .
+
+lint:
+	npm run lint
 
 test:
 	npm test
 
-validate:
+plugin-validate:
 	claude plugin validate .
-
-secrets:
-	gitleaks git --no-banner --redact .
 
 # Skill trigger evals: paid Claude runs (~$6), so not part of ci. See CONTRIBUTING.md.
 evals:

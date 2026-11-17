@@ -1,11 +1,11 @@
 // The npm package (@jcioriente/baton): what `npm pack` ships, and that the unpacked CLI runs.
 
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 
 const root = new URL('../../', import.meta.url).pathname;
 
@@ -22,7 +22,11 @@ function pack() {
 test('package files include every path the CLI reads at runtime', () => {
   const files = pack();
   const has = (path) => assert.ok(files.includes(path), `${path} is packed`);
-  const under = (dir) => assert.ok(files.some((f) => f.startsWith(dir)), `${dir} is packed`);
+  const under = (dir) =>
+    assert.ok(
+      files.some((f) => f.startsWith(dir)),
+      `${dir} is packed`,
+    );
   has('cli/baton.mjs');
   under('cli/lib/');
   has('templates/handoff.md');
@@ -37,7 +41,11 @@ test('package files include every path the CLI reads at runtime', () => {
 test('package excludes tests, evals, docs and skills', () => {
   const files = pack();
   for (const dir of ['cli/test/', 'tests/', 'evals/', 'docs/', 'skills/']) {
-    assert.deepEqual(files.filter((f) => f.startsWith(dir)), [], `nothing under ${dir}`);
+    assert.deepEqual(
+      files.filter((f) => f.startsWith(dir)),
+      [],
+      `nothing under ${dir}`,
+    );
   }
 });
 
@@ -95,7 +103,9 @@ function jobs(text) {
   for (const line of text.slice(text.indexOf('\njobs:')).split('\n').slice(2)) {
     const key = line.match(/^ {2}([\w-]+):$/);
     if (key) name = key[1];
-    if (name) (out[name] ??= []).push(line);
+    if (!name) continue;
+    out[name] ??= [];
+    out[name].push(line);
   }
   return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, v.join('\n').trim()]));
 }
@@ -117,7 +127,8 @@ function trimmedTemplate() {
     while (i < lines.length && (lines[i] === '' || lines[i].search(/\S/) > marker[1].length)) i++;
     i--;
   }
-  return kept.join('\n')
+  return kept
+    .join('\n')
     .replaceAll('<base-branch>', 'main')
     .replace('needs: [release-please, build-npm, verify-crates]', 'needs: [release-please, build-npm]')
     .replaceAll('node-version: "26"', 'node-version: "24"');

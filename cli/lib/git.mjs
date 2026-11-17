@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
-import { run, BatonError, slugify } from './util.mjs';
+import { BatonError, run, slugify } from './util.mjs';
 
 export function git(args, opts = {}) {
   return run('git', args, opts);
@@ -81,7 +81,9 @@ export function hasUncommittedChanges(cwd) {
 export function unpushedCount(cwd) {
   const head = git(['symbolic-ref', '-q', 'HEAD'], { cwd, allowFail: true });
   if (head.code !== 0) return null;
-  const [upstream, track, remote] = git(['for-each-ref', '--format=%(upstream)%00%(upstream:track)%00%(upstream:remotename)', head.stdout], { cwd }).stdout.split('\0');
+  const [upstream, track, remote] = git(['for-each-ref', '--format=%(upstream)%00%(upstream:track)%00%(upstream:remotename)', head.stdout], {
+    cwd,
+  }).stdout.split('\0');
   if (!upstream) return null;
   const range = track === '[gone]' ? ['HEAD', '--not', `--remotes=${remote}`] : [`${upstream}..HEAD`];
   return Number(git(['rev-list', '--count', ...range], { cwd }).stdout);
@@ -94,7 +96,9 @@ export function aheadBehind(cwd, remote, branch) {
   if (git(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd, allowFail: true }).code !== 0) {
     throw new BatonError(`No local base branch ${branch}`, { hint: `Create it with \`git branch ${branch} ${remote}/${branch}\`, then retry.` });
   }
-  const [ahead, behind] = git(['rev-list', '--left-right', '--count', `refs/heads/${branch}...${tracking}`], { cwd }).stdout.split(/\s+/).map(Number);
+  const [ahead, behind] = git(['rev-list', '--left-right', '--count', `refs/heads/${branch}...${tracking}`], { cwd })
+    .stdout.split(/\s+/)
+    .map(Number);
   return { ahead, behind };
 }
 

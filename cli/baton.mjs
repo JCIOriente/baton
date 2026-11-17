@@ -6,11 +6,10 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileS
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, CONFIG_FILE, reviewerFocus, reviewersFor } from './lib/config.mjs';
+import { CONFIG_DIR, CONFIG_FILE, configPath, DEFAULT_CONFIG, loadConfig, reviewerFocus, reviewersFor } from './lib/config.mjs';
 import { buildContext } from './lib/context.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
 import { applicableGates, coverageFindings, normalizeStep, orderFindings, STAGES } from './lib/gates.mjs';
-import { commitGatesStatus, guardStatus, installGuard, isDisposableClone, isMainCheckout } from './lib/git-guard.mjs';
 import {
   aheadBehind,
   branchName,
@@ -25,17 +24,27 @@ import {
   unpushedCount,
   worktreeBase,
 } from './lib/git.mjs';
-import { groupBySpec, HANDOFF_TEMPLATE_PATH, leaveAloneCandidates, linkPullRequests, normalizeSpecPath, openStatusItems, parseSpecRef, renderHandoff } from './lib/handoff.mjs';
-import { getProvider } from './lib/providers/github.mjs';
+import { commitGatesStatus, guardStatus, installGuard, isDisposableClone, isMainCheckout } from './lib/git-guard.mjs';
+import {
+  groupBySpec,
+  HANDOFF_TEMPLATE_PATH,
+  leaveAloneCandidates,
+  linkPullRequests,
+  normalizeSpecPath,
+  openStatusItems,
+  parseSpecRef,
+  renderHandoff,
+} from './lib/handoff.mjs';
 import { factsVsInstalled, installedVersions, loadProvenance, upstreamFindings } from './lib/provenance.mjs';
+import { getProvider } from './lib/providers/github.mjs';
 import {
   changelogGuard,
   labelNames,
   overrideFindings,
   parseDependencies,
   prBody,
-  rankClaimable,
   RELEASE_FILES,
+  rankClaimable,
   releaseEnabledIn,
   releaseFindings,
   reviewState,
@@ -191,7 +200,7 @@ function init(argv) {
     conventions: [],
   };
   mkdirSync(join(top, CONFIG_DIR), { recursive: true });
-  writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
+  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
   for (const d of [config.docs.specs, config.docs.plans]) mkdirSync(join(top, d), { recursive: true });
   // The config just written, not loadConfig(): that reads the main checkout's file.
   if (values.labels) getProvider(deepMerge(DEFAULT_CONFIG, config), root).ensureLabels();
@@ -240,7 +249,9 @@ function hooks(argv) {
   const lines = [`Wrote ${res.script} (the guard script, refreshed on every run).`];
   if (res.stub) {
     lines.push(`Wrote ${res.stub} (the pre-commit hook that runs it).`);
-    lines.push(res.changed ? 'Commits in the main checkout are now refused while hooks.worktreeOnly is on.' : 'It was already installed; behavior is unchanged.');
+    lines.push(
+      res.changed ? 'Commits in the main checkout are now refused while hooks.worktreeOnly is on.' : 'It was already installed; behavior is unchanged.',
+    );
     lines.push(`To remove the guard, delete ${res.script}, ${res.gates} and ${res.stub}.`);
   } else {
     lines.push(`Left the hooks unchanged: ${res.reason}. Add these lines to that pre-commit hook or hook manager:`);
@@ -265,9 +276,7 @@ function summarize(t, labelsCfg) {
 
 function table(rows) {
   if (!rows.length) return '(none)';
-  return rows
-    .map((r) => `#${String(r.number).padEnd(5)} ${r.status.padEnd(12)} ${(r.assignees.join(',') || '-').padEnd(14)} ${r.title}`)
-    .join('\n');
+  return rows.map((r) => `#${String(r.number).padEnd(5)} ${r.status.padEnd(12)} ${(r.assignees.join(',') || '-').padEnd(14)} ${r.title}`).join('\n');
 }
 
 function list(argv) {
@@ -423,7 +432,9 @@ function start(argv) {
 
   const setup = runSetup(config.setup, path);
   if (!setup.ok) {
-    throw new BatonError(`Setup failed in ${path}`, { hint: 'Fix the setup step (see output above), then rerun `baton start`. The claim and worktree are kept.' });
+    throw new BatonError(`Setup failed in ${path}`, {
+      hint: 'Fix the setup step (see output above), then rerun `baton start`. The claim and worktree are kept.',
+    });
   }
   const baseline = config.workflow.baselineOnStart && !values['no-baseline'] ? runValidation(config, path, { label: 'baseline' }) : null;
 
@@ -492,7 +503,9 @@ function createWorktree(root, config, branch) {
   // Checked before git runs, so a clash never leaves a new branch behind.
   const occupant = worktrees.find((w) => w.path === path);
   if (occupant || existsSync(path)) {
-    throw new BatonError(`${path} is already taken${occupant ? ` by the worktree on ${occupant.branch ?? '(detached HEAD)'}` : ''}`, { hint: 'Pick another name.' });
+    throw new BatonError(`${path} is already taken${occupant ? ` by the worktree on ${occupant.branch ?? '(detached HEAD)'}` : ''}`, {
+      hint: 'Pick another name.',
+    });
   }
   const localBranch = git(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: root, allowFail: true });
   mkdirSync(dirname(path), { recursive: true });
@@ -535,7 +548,9 @@ function worktree(argv) {
       throw new BatonError(`'${branch}' clashes with the task branch prefix '${config.git.branchPrefix}/'`, { hint: 'Pick another name.' });
     }
     if (listWorktrees(root).some((w) => w.branch === branch && w.path === root)) {
-      throw new BatonError(`Branch ${branch} is checked out in the main checkout`, { hint: `Switch the main checkout back to ${config.git.baseBranch}, or pick another name.` });
+      throw new BatonError(`Branch ${branch} is checked out in the main checkout`, {
+        hint: `Switch the main checkout back to ${config.git.baseBranch}, or pick another name.`,
+      });
     }
     const { path, created } = createWorktree(root, config, branch);
     if (values.setup && !runSetup(config.setup, path).ok) {
@@ -682,7 +697,9 @@ function noPrReason(provider, config, w) {
   const task = issueFromBranch(config, w.branch);
   if (task && isIssueClosed(provider, task)) parts.push(`issue #${task} is closed`);
   const { remote, baseBranch } = config.git;
-  const base = [`${remote}/${baseBranch}`, baseBranch].find((ref) => git(['rev-parse', '--verify', '--quiet', ref], { cwd: w.path, allowFail: true }).code === 0);
+  const base = [`${remote}/${baseBranch}`, baseBranch].find(
+    (ref) => git(['rev-parse', '--verify', '--quiet', ref], { cwd: w.path, allowFail: true }).code === 0,
+  );
   if (base && git(['rev-list', '--count', `${base}..HEAD`], { cwd: w.path }).stdout === '0') parts.push(`no commits beyond ${base}`);
   return parts.join('; ');
 }
@@ -718,7 +735,14 @@ function worktreeRows(root, config) {
     .filter((w) => w.path !== root)
     .map((w) => {
       const stale = isStale(w);
-      return { task: issueFromBranch(config, w.branch), branch: w.branch, path: w.path, current: w.path === here, dirty: !stale && hasUncommittedChanges(w.path), stale };
+      return {
+        task: issueFromBranch(config, w.branch),
+        branch: w.branch,
+        path: w.path,
+        current: w.path === here,
+        dirty: !stale && hasUncommittedChanges(w.path),
+        stale,
+      };
     })
     .sort((a, b) => (a.task && b.task ? a.task - b.task : a.task ? -1 : b.task ? 1 : (a.branch ?? '(detached)').localeCompare(b.branch ?? '(detached)')));
 }
@@ -729,7 +753,11 @@ function status(argv) {
   const rows = worktreeRows(root, config);
   if (values.json) return print(rows.map(({ stale, ...row }) => row));
   const note = (r) => (r.stale ? ' (missing; baton worktree prune)' : r.dirty ? ' (uncommitted)' : '');
-  print(rows.length ? rows.map((r) => `${r.current ? '*' : ' '} ${r.task ? `#${r.task} ` : ''}${r.branch ?? '(detached)'}${note(r)}\n    ${r.path}`).join('\n') : 'No worktrees.');
+  print(
+    rows.length
+      ? rows.map((r) => `${r.current ? '*' : ' '} ${r.task ? `#${r.task} ` : ''}${r.branch ?? '(detached)'}${note(r)}\n    ${r.path}`).join('\n')
+      : 'No worktrees.',
+  );
 }
 
 const GITHUB_LIST_LIMIT = 1000;
@@ -744,10 +772,13 @@ function handoff(argv) {
   const { root, config } = requireConfig();
   const unitSpec = values.spec === undefined ? null : canonicalSpec(values.spec);
   const provider = getProvider(config, root);
-  const { issues, prs } = fromGithub(() => ({ issues: provider.list({ limit: GITHUB_LIST_LIMIT }), prs: provider.listPullRequests({ limit: GITHUB_LIST_LIMIT }) }), {
-    what: 'tasks and PRs',
-    hint: 'Install gh and run `gh auth login`, then retry.',
-  });
+  const { issues, prs } = fromGithub(
+    () => ({ issues: provider.list({ limit: GITHUB_LIST_LIMIT }), prs: provider.listPullRequests({ limit: GITHUB_LIST_LIMIT }) }),
+    {
+      what: 'tasks and PRs',
+      hint: 'Install gh and run `gh auth login`, then retry.',
+    },
+  );
   const truncated = issues.length >= GITHUB_LIST_LIMIT || prs.length >= GITHUB_LIST_LIMIT;
   if (truncated) process.stderr.write(`warning: GitHub returned ${GITHUB_LIST_LIMIT} open issues or PRs, the most read; more exist and are left out.\n`);
 
@@ -764,7 +795,8 @@ function handoff(argv) {
     // groupBySpec puts the unit's group first, even with no tasks.
     const [group] = groups;
     const found = group.openStatusItems !== null;
-    if (!found && !group.tasks.length) throw new BatonError(`No spec ${unitSpec} on ${config.git.remote}/${config.git.baseBranch} or in the working tree, and no open task names it`);
+    if (!found && !group.tasks.length)
+      throw new BatonError(`No spec ${unitSpec} on ${config.git.remote}/${config.git.baseBranch} or in the working tree, and no open task names it`);
     unit = { spec: unitSpec, found };
   }
   const worktrees = worktreeRows(root, config).map((w) => ({ ...w, unpushed: w.stale || w.branch === null ? null : unpushedCount(w.path) }));
@@ -811,7 +843,8 @@ function canonicalSpec(value) {
   const rel = relative(top, onDisk);
   if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new BatonError(`--spec ${value} is outside this checkout`);
   const path = rel.split(sep).join(posix.sep);
-  if (parseSpecRef(`Spec: ${path}`) !== path) throw new BatonError(`--spec ${value} is not a spec path`, { hint: 'Name a .md file, e.g. docs/specs/<name>.md.' });
+  if (parseSpecRef(`Spec: ${path}`) !== path)
+    throw new BatonError(`--spec ${value} is not a spec path`, { hint: 'Name a .md file, e.g. docs/specs/<name>.md.' });
   return path;
 }
 
@@ -923,14 +956,19 @@ function doctor(argv) {
   for (const step of [...config.setup, ...config.validate]) {
     const tool = step.run.trim().split(/\s+/)[0];
     if (!/^[\w.-]+$/.test(tool)) continue;
-    if (runShell(`command -v ${tool} >/dev/null 2>&1`) !== 0) findings.push({ kind: 'tool', message: `'${tool}' (used by '${step.name ?? step.run}') is not on PATH` });
-    if (step.cwd && !existsSync(join(root, step.cwd))) findings.push({ kind: 'config', message: `cwd '${step.cwd}' of '${step.name ?? step.run}' does not exist` });
+    if (runShell(`command -v ${tool} >/dev/null 2>&1`) !== 0)
+      findings.push({ kind: 'tool', message: `'${tool}' (used by '${step.name ?? step.run}') is not on PATH` });
+    if (step.cwd && !existsSync(join(root, step.cwd)))
+      findings.push({ kind: 'config', message: `cwd '${step.cwd}' of '${step.name ?? step.run}' does not exist` });
   }
   const notEnabled = detectStacks(root).stacks.filter((s) => !config.stacks.includes(s));
   if (notEnabled.length) findings.push({ kind: 'stacks', message: `Detected but not enabled: ${notEnabled.join(', ')}` });
 
   for (const f of factsVsInstalled(loadProvenance(PLUGIN_ROOT), installedVersions(root))) {
-    findings.push({ ...f, message: `${f.pkg.replace(/^\w+:/, '')} ${f.installed} installed, but ${f.file} assumes ${f.requires} (${f.fact}). Upgrade, or record the exception in the project conventions.` });
+    findings.push({
+      ...f,
+      message: `${f.pkg.replace(/^\w+:/, '')} ${f.installed} installed, but ${f.file} assumes ${f.requires} (${f.fact}). Upgrade, or record the exception in the project conventions.`,
+    });
   }
 
   if (loaded.found) {
@@ -951,7 +989,10 @@ function doctor(argv) {
     const head = git(['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: root, allowFail: true });
     const branch = head.code === 0 ? head.stdout : 'a detached HEAD';
     if (branch !== config.git.baseBranch) {
-      findings.push({ kind: 'worktree', message: `The main checkout ${root} is on ${branch}, not ${config.git.baseBranch}. Switch it back; changes happen in linked worktrees.` });
+      findings.push({
+        kind: 'worktree',
+        message: `The main checkout ${root} is on ${branch}, not ${config.git.baseBranch}. Switch it back; changes happen in linked worktrees.`,
+      });
     }
   }
   // Unlike the guard, the commit gates run in linked worktrees, so they matter whatever hooks.worktreeOnly says.
