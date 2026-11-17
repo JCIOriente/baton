@@ -24,7 +24,7 @@
   "scripts": {
     "test": "node --test 'cli/test/*.test.mjs'",
     "lint": "biome ci --error-on-warnings .",
-    "format": "biome format --write ."
+    "format": "biome check --write ."
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.8"
