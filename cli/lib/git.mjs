@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
-import { run, BatonError, slugify } from './util.mjs';
+import { BatonError, run, slugify } from './util.mjs';
 
 export function git(args, opts = {}) {
   return run('git', args, opts);

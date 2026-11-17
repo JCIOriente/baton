@@ -1,9 +1,9 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { test } from 'node:test';
 import { COMMIT_GATES_LINE, COMMIT_GATES_PATH, commitGatesStatus, guardStatus, MANAGER_LINE } from '../lib/git-guard.mjs';
 
 const cli = new URL('../baton.mjs', import.meta.url).pathname;

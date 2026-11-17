@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { deepMerge, BatonError, isPlainObject } from './util.mjs';
-import { repoRoot } from './git.mjs';
 import { GATES, STAGES } from './gates.mjs';
+import { repoRoot } from './git.mjs';
+import { BatonError, deepMerge, isPlainObject } from './util.mjs';
 
 export const CONFIG_DIR = '.baton';
 export const CONFIG_FILE = 'config.json';

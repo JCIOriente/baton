@@ -1,8 +1,10 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
+import { DEFAULT_CONFIG, loadConfig, validateConfig } from '../lib/config.mjs';
+import { branchName, git, issueFromBranch, parseWorktreeList } from '../lib/git.mjs';
 import {
   activeClaim,
   changelogGuard,
@@ -16,8 +18,6 @@ import {
   releaseEnabledIn,
   statusOf,
 } from '../lib/tasks.mjs';
-import { DEFAULT_CONFIG, loadConfig, validateConfig } from '../lib/config.mjs';
-import { branchName, git, issueFromBranch, parseWorktreeList } from '../lib/git.mjs';
 import { deepMerge, slugify } from '../lib/util.mjs';
 
 const labels = DEFAULT_CONFIG.tasks.labels;

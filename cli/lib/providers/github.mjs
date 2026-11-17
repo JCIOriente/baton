@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { run, BatonError } from '../util.mjs';
 import { activeClaim, claimComment, labelNames, releaseComment } from '../tasks.mjs';
+import { BatonError, run } from '../util.mjs';
 
 const ISSUE_FIELDS = 'number,title,body,state,assignees,labels,url';
 const PR_FIELDS = 'number,title,headRefName,isDraft,reviewDecision,statusCheckRollup,labels';

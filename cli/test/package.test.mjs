@@ -1,11 +1,11 @@
 // The npm package (@jcioriente/baton): what `npm pack` ships, and that the unpacked CLI runs.
 
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { test } from 'node:test';
 
 const root = new URL('../../', import.meta.url).pathname;
 

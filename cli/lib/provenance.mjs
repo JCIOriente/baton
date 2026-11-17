@@ -3,7 +3,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { run, BatonError } from './util.mjs';
+import { BatonError, run } from './util.mjs';
 
 export function loadProvenance(pluginRoot) {
   return JSON.parse(readFileSync(join(pluginRoot, 'provenance.json'), 'utf8'));

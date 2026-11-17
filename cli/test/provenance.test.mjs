@@ -1,9 +1,9 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { latestVersion, upstreamFindings, loadProvenance } from '../lib/provenance.mjs';
-import { run, BatonError } from '../lib/util.mjs';
+import { test } from 'node:test';
+import { latestVersion, loadProvenance, upstreamFindings } from '../lib/provenance.mjs';
+import { BatonError, run } from '../lib/util.mjs';
 
 const ok = (stdout) => () => ({ code: 0, stdout, stderr: '' });
 

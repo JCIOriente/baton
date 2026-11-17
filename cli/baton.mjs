@@ -6,11 +6,10 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileS
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, CONFIG_FILE, reviewerFocus, reviewersFor } from './lib/config.mjs';
+import { CONFIG_DIR, CONFIG_FILE, configPath, DEFAULT_CONFIG, loadConfig, reviewerFocus, reviewersFor } from './lib/config.mjs';
 import { buildContext } from './lib/context.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
 import { applicableGates, coverageFindings, normalizeStep, orderFindings, STAGES } from './lib/gates.mjs';
-import { commitGatesStatus, guardStatus, installGuard, isDisposableClone, isMainCheckout } from './lib/git-guard.mjs';
 import {
   aheadBehind,
   branchName,
@@ -25,6 +24,7 @@ import {
   unpushedCount,
   worktreeBase,
 } from './lib/git.mjs';
+import { commitGatesStatus, guardStatus, installGuard, isDisposableClone, isMainCheckout } from './lib/git-guard.mjs';
 import {
   groupBySpec,
   HANDOFF_TEMPLATE_PATH,
@@ -35,16 +35,16 @@ import {
   parseSpecRef,
   renderHandoff,
 } from './lib/handoff.mjs';
-import { getProvider } from './lib/providers/github.mjs';
 import { factsVsInstalled, installedVersions, loadProvenance, upstreamFindings } from './lib/provenance.mjs';
+import { getProvider } from './lib/providers/github.mjs';
 import {
   changelogGuard,
   labelNames,
   overrideFindings,
   parseDependencies,
   prBody,
-  rankClaimable,
   RELEASE_FILES,
+  rankClaimable,
   releaseEnabledIn,
   releaseFindings,
   reviewState,

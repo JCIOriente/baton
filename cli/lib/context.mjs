@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { currentBranch, currentTop, issueFromBranch } from './git.mjs';
 import { BASELINE_GUIDE } from './config.mjs';
 import { detectStacks } from './detect.mjs';
 import { DEFAULT_STAGES, normalizeStep } from './gates.mjs';
+import { currentBranch, currentTop, issueFromBranch } from './git.mjs';
 import { guardStatus, isDisposableClone, isMainCheckout } from './git-guard.mjs';
 
 // Agents skip optional skills often, so the rules that must never be skipped are always in context.

@@ -1,14 +1,13 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DEFAULT_CONFIG, reviewersFor } from '../lib/config.mjs';
+import { test } from 'node:test';
+import { classify, questions } from '../../hooks/fact-gate.mjs';
+import { DEFAULT_CONFIG, PUBLISH_TARGETS, reviewersFor } from '../lib/config.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from '../lib/detect.mjs';
-import { PUBLISH_TARGETS } from '../lib/config.mjs';
 import { PUBLISH_STEP_NAMES, releaseFindings, unblockable } from '../lib/tasks.mjs';
 import { deepMerge } from '../lib/util.mjs';
-import { classify, questions } from '../../hooks/fact-gate.mjs';
 
 test('unblockable: only blocked tasks whose declared deps are all closed', () => {
   const tasks = [

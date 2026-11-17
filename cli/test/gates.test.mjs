@@ -1,10 +1,10 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DEFAULT_STAGES, GATES, STAGES, STATIC_GATES, applicableGates, coverageFindings, normalizeStep, orderFindings } from '../lib/gates.mjs';
+import { test } from 'node:test';
 import { hasDependencies } from '../lib/detect.mjs';
+import { applicableGates, coverageFindings, DEFAULT_STAGES, GATES, normalizeStep, orderFindings, STAGES, STATIC_GATES } from '../lib/gates.mjs';
 
 const repo = (files = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'gates-'));
