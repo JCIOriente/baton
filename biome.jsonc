@@ -6,6 +6,8 @@
     "useIgnoreFile": true
   },
   "files": {
+    // The repo's own JS and JSON. templates/ ships byte-for-byte into other repos, and
+    // release-please rewrites its manifest.
     "includes": ["**/*.js", "**/*.mjs", "**/*.cjs", "**/*.json", "!templates", "!.release-please-manifest.json"]
   },
   "formatter": {
@@ -16,6 +18,15 @@
   "javascript": {
     "formatter": {
       "quoteStyle": "single"
+    }
+  },
+  "linter": {
+    "rules": {
+      "suspicious": {
+        // Tests assert on literal GitHub Actions `${{ }}` expressions and `${CLAUDE_PLUGIN_ROOT}`
+        // hook commands; those strings are meant to keep the placeholder, not interpolate it.
+        "noTemplateCurlyInString": "off"
+      }
     }
   }
 }
