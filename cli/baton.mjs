@@ -9,6 +9,7 @@ import { parseArgs } from 'node:util';
 import { configPath, DEFAULT_CONFIG, loadConfig, CONFIG_DIR, CONFIG_FILE, reviewerFocus, reviewersFor } from './lib/config.mjs';
 import { buildContext } from './lib/context.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
+import { STAGES } from './lib/gates.mjs';
 import { guardStatus, installGuard, isDisposableClone, isMainCheckout } from './lib/git-guard.mjs';
 import {
   aheadBehind,
@@ -41,7 +42,8 @@ import {
   statusOf,
   unblockable,
 } from './lib/tasks.mjs';
-import { BatonError, deepMerge, print, runShell, slugify } from './lib/util.mjs';
+import { BatonError, deepMerge, print, slugify } from './lib/util.mjs';
+import { formatSummary, runSetup, runStage, stageJson } from './lib/verify.mjs';
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -80,7 +82,8 @@ Execution
   handoff [--spec PATH] [--json]   Draft the next session's prompt from GitHub and git state (read-only)
 
 Integration
-  verify [--only NAME]             Run the project's validation commands in the current checkout
+  verify [--stage S] [--only NAME] Run the validation steps of stage S (commit|local|ci, default local);
+                                   --only NAME keeps the steps named NAME or covering gate NAME
   reviewers [--all]                Reviewer briefs to dispatch, with the changed files each should focus on
   done [--draft] [--title T] [--body-file F] [--skip-review REASON]
                                    Verify, push and open a PR for the current task, mark it review.
@@ -418,19 +421,22 @@ function start(argv) {
   // A stale record (directory gone) keeps its branch: createWorktree prunes it and checks the branch out again.
   const path = existing && !isStale(existing) ? existing.path : createWorktree(root, config, existing?.branch ?? branchName(config, n, res.task.title)).path;
 
-  const setup = runSteps(config.setup, path, 'setup');
+  const setup = runSetup(config.setup, path);
   if (!setup.ok) {
     throw new BatonError(`Setup failed in ${path}`, { hint: 'Fix the setup step (see output above), then rerun `baton start`. The claim and worktree are kept.' });
   }
-  const baseline = config.workflow.baselineOnStart && !values['no-baseline'] ? runSteps(config.validate, path, 'baseline') : null;
+  const baseline = config.workflow.baselineOnStart && !values['no-baseline'] ? runValidation(config, path, { label: 'baseline' }) : null;
 
   const branch = currentBranch(path);
   if (values.json) return print({ number: n, path, branch, baseline: baseline && { ok: baseline.ok, results: baseline.results } });
   const lines = [`Task #${n} ready in ${path}`, `branch: ${branch}`];
   if (baseline && !baseline.ok) {
-    const failed = baseline.results.at(-1);
+    const failed = baseline.results.find((r) => r.status === 'failed' && r.blocking);
     lines.push(`baseline: '${failed.name}' ALREADY FAILS before any change. Report it; don't count it against this task or "fix" it silently.`);
   } else if (baseline) lines.push('baseline: validation passes before any change.');
+  for (const r of baseline?.results ?? []) {
+    if (r.status === 'failed' && !r.blocking) lines.push(`baseline: advisory '${r.name}' fails (${r.reason})`);
+  }
   lines.push('Next: work only inside that directory.');
   print(lines.join('\n'));
 }
@@ -532,7 +538,7 @@ function worktree(argv) {
       throw new BatonError(`Branch ${branch} is checked out in the main checkout`, { hint: `Switch the main checkout back to ${config.git.baseBranch}, or pick another name.` });
     }
     const { path, created } = createWorktree(root, config, branch);
-    if (values.setup && !runSteps(config.setup, path, 'setup').ok) {
+    if (values.setup && !runSetup(config.setup, path).ok) {
       throw new BatonError(`Setup failed in ${path}`, { hint: 'Fix the setup step (see output above), then rerun with --setup. The worktree is kept.' });
     }
     if (values.json) return print({ path, branch, created });
@@ -811,37 +817,17 @@ function canonicalSpec(value) {
 
 // --- Integration ----------------------------------------------------------
 
-/** Run configured steps ({ name, run, cwd? }) in order, stopping at the first failure. Output goes to stderr. */
-function runSteps(steps, top, label) {
-  const results = [];
-  for (const step of steps) {
-    const name = step.name ?? step.run;
-    process.stderr.write(`\n▶ [${label}] ${name}: ${step.run}\n`);
-    const code = runShell(step.run, { cwd: step.cwd ? join(top, step.cwd) : top, stdout: 'stderr' });
-    results.push({ name, run: step.run, code });
-    if (code !== 0) {
-      process.stderr.write(`✖ ${name} failed (exit ${code})\n`);
-      return { ok: false, results };
-    }
-    process.stderr.write(`✔ ${name}\n`);
-  }
-  return { ok: true, results };
-}
-
-function runValidation(config, top, only) {
-  const steps = config.validate.filter((v) => !only || v.name === only);
-  if (!steps.length) {
-    process.stderr.write(only ? `No validation step named '${only}'.\n` : 'No validation commands configured (.baton/config.json "validate").\n');
-    return { ok: !only, results: [] };
-  }
-  return runSteps(steps, top, 'verify');
+/** Run the validate steps of `stage` (see runStage); `only` narrows the run. */
+function runValidation(config, top, { stage = 'local', only, label = 'verify' } = {}) {
+  if (!STAGES.includes(stage)) throw new BatonError(`unknown stage '${stage}'`, { hint: `Use one of: ${STAGES.join(', ')}.` });
+  return runStage(config.validate, top, { stage, only, label, skip: config.gates?.skip });
 }
 
 function verify(argv) {
-  const { values } = opts(argv, { only: { type: 'string' } });
+  const { values } = opts(argv, { stage: { type: 'string' }, only: { type: 'string' } });
   const { config } = requireConfig();
-  const res = runValidation(config, currentTop(), values.only);
-  if (values.json) print(res);
+  const res = runValidation(config, currentTop(), { stage: values.stage, only: values.only });
+  print(values.json ? stageJson(res) : formatSummary(res));
   if (!res.ok) process.exitCode = 1;
 }
 
