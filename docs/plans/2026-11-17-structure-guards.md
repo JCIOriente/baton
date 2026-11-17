@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-17-structure-guards.md](../specs/2026-11-17-structure-guards.md)
 - Date: 2026-11-17
-- Status: draft
+- Status: approved 2026-11-17
 
 ## Overview
 Four tasks. The CLI work is one slice, the guides and the skills are two independent doc tasks,

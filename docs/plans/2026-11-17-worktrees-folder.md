@@ -2,7 +2,7 @@
 
 - Spec: [docs/specs/2026-11-17-worktrees-folder.md](../specs/2026-11-17-worktrees-folder.md)
 - Date: 2026-11-17
-- Status: draft
+- Status: approved 2026-11-17
 
 ## Overview
 Four tasks, cut so that no two tasks that can run at the same time share a file (owner's
