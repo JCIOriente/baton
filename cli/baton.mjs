@@ -876,19 +876,24 @@ function done(argv) {
   }
 
   // Commit override gate: release-please reads the squash-merged PR body, so a stray marker would
-  // replace this PR's changelog entry. Checked before validation to fail fast; the Validated line
-  // added afterwards comes from config step names and cannot open or close a block.
-  if (releaseEnabled) {
-    const findings = overrideFindings(prBody(n, extra, []));
+  // replace this PR's changelog entry. Checked before validation to fail fast on the author's text,
+  // and again on the final body, whose lines carry config step names and skip or advisory reasons.
+  const checkOverrides = (body) => {
+    if (!releaseEnabled) return;
+    const findings = overrideFindings(body);
     if (findings.length) {
       throw new BatonError(`The PR body would drop changelog entries:\n${findings.map((f) => `  - ${f}`).join('\n')}`, {
         hint: 'In prose, write "commit override block" instead of the marker. Keep a real block well-formed: the BEGIN line, Conventional Commit headers or Release-As / BREAKING CHANGE footers, then the END line.',
       });
     }
-  }
+  };
+  checkOverrides(prBody(n, extra, null));
 
   const res = runValidation(config, top);
+  process.stderr.write(`\n${formatSummary(res)}\n`);
   if (!res.ok) throw new BatonError('Validation failed; not opening a PR.');
+  const body = prBody(n, extra, res);
+  checkOverrides(body);
 
   const provider = getProvider(config, root);
   const branch = currentBranch(top);
@@ -898,7 +903,6 @@ function done(argv) {
   const task = provider.get(n);
   let pr = provider.findPullRequest(branch);
   if (!pr) {
-    const body = prBody(n, extra, res.results);
     const url = provider.openPullRequest({ branch, title: values.title ?? task.title, body, base: config.git.baseBranch, draft: values.draft });
     pr = { url };
   }

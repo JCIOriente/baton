@@ -116,9 +116,11 @@ test('reviewersFor: skips stack reviewers the diff does not touch, fails open on
 
 test('prBody: closing reference first, author paragraphs, then one validation line', async () => {
   const { prBody } = await import('../lib/tasks.mjs');
-  const body = prBody(42, 'Adds org list.\n\nTested by hand.\n', [{ name: 'test', run: 'cargo test' }, { name: 'lint', run: 'cargo clippy' }]);
-  assert.equal(body, 'Closes #42\n\nAdds org list.\n\nTested by hand.\n\nValidated: test (`cargo test`), lint (`cargo clippy`)\n');
-  assert.equal(prBody(7, '', []), 'Closes #7\n\nValidated: (no validation configured)\n');
+  const passed = (name, run) => ({ name, run, gates: [], blocking: true, status: 'passed', code: 0 });
+  const res = { ok: true, stage: 'local', narrowed: false, results: [passed('test', 'cargo test'), passed('lint', 'cargo clippy')], notInStage: [], skipped: [] };
+  const body = prBody(42, 'Adds org list.\n\nTested by hand.\n', res);
+  assert.equal(body, 'Closes #42\n\nAdds org list.\n\nTested by hand.\n\nValidated (local): test (`cargo test`), lint (`cargo clippy`)\n');
+  assert.equal(prBody(7, '', null), 'Closes #7\n\nValidated: (no validation configured)\n');
 });
 
 test('provenance: satisfies ranges, lockfile parsing, lint and consumer check', async () => {

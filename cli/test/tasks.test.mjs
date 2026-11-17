@@ -9,6 +9,7 @@ import {
   claimComment,
   overrideFindings,
   parseDependencies,
+  prBody,
   priorityOf,
   rankClaimable,
   releaseComment,
@@ -310,4 +311,80 @@ test('DEFAULT_CONFIG: releases are off, and a config without the key loads that 
   mkdirSync(join(root, '.baton'));
   writeFileSync(join(root, '.baton/config.json'), JSON.stringify({ stacks: [] }));
   assert.deepEqual(loadConfig(root).config.release, { enabled: false, publish: [] });
+});
+
+/** A RunResult as runStage returns it, for prBody. */
+const runResult = (over = {}) => ({ ok: true, stage: 'local', narrowed: false, results: [], notInStage: [], skipped: [], ...over });
+const passed = (name, run) => ({ name, run, gates: [], blocking: true, status: 'passed', code: 0 });
+
+test('prBody writes all four lines', () => {
+  const res = runResult({
+    results: [
+      passed('secrets', 'make secrets'),
+      { name: 'api-break', run: 'just api-check', gates: ['publish'], blocking: false, reason: 'needs a published baseline first', status: 'failed', code: 1 },
+      passed('tests', 'make test'),
+    ],
+    notInStage: [
+      { name: 'e2e', run: 'just e2e-smoke', stages: ['ci'] },
+      { name: 'fmt', run: 'make fmt', stages: ['commit'] },
+    ],
+    skipped: [{ gate: 'unused-deps', reason: 'one devDependency (Biome), used by the lint step' }],
+  });
+  assert.equal(
+    prBody(42, 'Adds org list.\n', res),
+    [
+      'Closes #42',
+      '',
+      'Adds org list.',
+      '',
+      'Validated (local): secrets (`make secrets`), tests (`make test`)',
+      'Advisory failed: api-break (`just api-check`): needs a published baseline first',
+      'CI only: e2e (`just e2e-smoke`)',
+      'Skipped gates: unused-deps: one devDependency (Biome), used by the lint step',
+      '',
+    ].join('\n'),
+  );
+});
+
+test('prBody omits empty lines', () => {
+  assert.equal(prBody(7, '', runResult({ results: [passed('ci', 'make ci')] })), 'Closes #7\n\nValidated (local): ci (`make ci`)\n');
+  assert.equal(prBody(7, '', runResult({ skipped: [{ gate: 'audit', reason: 'no deps' }] })), 'Closes #7\n\nSkipped gates: audit: no deps\n');
+  assert.equal(prBody(7, '', runResult()), 'Closes #7\n\nValidated: (no validation configured)\n');
+  assert.equal(prBody(7, '', null), 'Closes #7\n\nValidated: (no validation configured)\n');
+});
+
+test('prBody with all four lines has no override findings', () => {
+  const res = runResult({
+    results: [passed('lint', 'make lint'), { name: 'api', run: 'x', gates: [], blocking: false, reason: 'slow', status: 'failed', code: 1 }],
+    notInStage: [{ name: 'e2e', run: 'y', stages: ['ci'] }],
+    skipped: [{ gate: 'audit', reason: 'no deps' }],
+  });
+  const body = prBody(1, `${BEGIN}\nfeat: x\n${END}\n`, res);
+  assert.equal(body.split('\n').filter((l) => /^(Validated|Advisory failed|CI only|Skipped gates)/.test(l)).length, 4);
+  assert.deepEqual(overrideFindings(body), []);
+});
+
+test('prBody with an override marker in a skip reason is flagged by overrideFindings', async (t) => {
+  const body = prBody(1, '', runResult({ results: [passed('lint', 'make lint')], skipped: [{ gate: 'audit', reason: `see ${END}` }] }));
+  assert.equal(overrideFindings(body).length, 1);
+  assert.match(overrideFindings(body)[0], /in a line of text/);
+
+  // `baton done` checks the final body, skip lines included. No remote: a run past the check fails at push.
+  const { spawnSync } = await import('node:child_process');
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', GH_TOKEN: '' };
+  const sh = (root, ...args) => assert.equal(spawnSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: root, env }).status, 0);
+  const root = mkdtempSync(join(tmpdir(), 'baton-done-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  sh(root, 'init', '-q', '-b', 'main');
+  mkdirSync(join(root, '.baton'));
+  writeFileSync(join(root, '.baton/config.json'), JSON.stringify({ release: { enabled: true }, gates: { skip: { audit: `see ${END}` } } }));
+  sh(root, 'add', '-A');
+  sh(root, 'commit', '-qm', 'init');
+  sh(root, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+  sh(root, 'checkout', '-qb', `${DEFAULT_CONFIG.git.branchPrefix}/1-x`);
+  sh(root, 'commit', '-q', '--allow-empty', '-m', 'x');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const res = spawnSync(process.execPath, [cli, 'done', '--draft'], { cwd: root, env, encoding: 'utf8' });
+  assert.notEqual(res.status, 0);
+  assert.match(res.stderr, /The PR body would drop changelog entries/);
 });
