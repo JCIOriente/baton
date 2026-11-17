@@ -7,5 +7,11 @@
     "email": "arkgast@gmail.com"
   },
   "license": "MIT",
-  "keywords": ["workflow", "planning", "worktrees", "backlog", "multi-agent"]
+  "keywords": [
+    "workflow",
+    "planning",
+    "worktrees",
+    "backlog",
+    "multi-agent"
+  ]
 }
