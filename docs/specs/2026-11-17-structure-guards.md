@@ -1,6 +1,6 @@
 # Engineering standard, layout and size: the `structure` gate — Spec
 
-- Status: draft
+- Status: approved 2026-11-17
 - Date: 2026-11-17
 - Owner: Arnold Gandarillas
 - Related: #136 (this spec), #137 (umbrella; this is its spec 2 of 4), #185 (blocks the CLI
