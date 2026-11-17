@@ -22,7 +22,11 @@ function pack() {
 test('package files include every path the CLI reads at runtime', () => {
   const files = pack();
   const has = (path) => assert.ok(files.includes(path), `${path} is packed`);
-  const under = (dir) => assert.ok(files.some((f) => f.startsWith(dir)), `${dir} is packed`);
+  const under = (dir) =>
+    assert.ok(
+      files.some((f) => f.startsWith(dir)),
+      `${dir} is packed`,
+    );
   has('cli/baton.mjs');
   under('cli/lib/');
   has('templates/handoff.md');
@@ -37,7 +41,11 @@ test('package files include every path the CLI reads at runtime', () => {
 test('package excludes tests, evals, docs and skills', () => {
   const files = pack();
   for (const dir of ['cli/test/', 'tests/', 'evals/', 'docs/', 'skills/']) {
-    assert.deepEqual(files.filter((f) => f.startsWith(dir)), [], `nothing under ${dir}`);
+    assert.deepEqual(
+      files.filter((f) => f.startsWith(dir)),
+      [],
+      `nothing under ${dir}`,
+    );
   }
 });
 
@@ -117,7 +125,8 @@ function trimmedTemplate() {
     while (i < lines.length && (lines[i] === '' || lines[i].search(/\S/) > marker[1].length)) i++;
     i--;
   }
-  return kept.join('\n')
+  return kept
+    .join('\n')
     .replaceAll('<base-branch>', 'main')
     .replace('needs: [release-please, build-npm, verify-crates]', 'needs: [release-please, build-npm]')
     .replaceAll('node-version: "26"', 'node-version: "24"');

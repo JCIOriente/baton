@@ -33,14 +33,28 @@ export function questions(kind, isNew, relPath) {
   const q = {
     code: isNew
       ? [`Name the file(s) and line(s) that will call ${relPath}`, `Confirm no existing module already does this ${SEARCH}`]
-      : [`List every file that imports or calls ${relPath} ${SEARCH}`, 'List the public functions/types this change affects and how their callers are impacted'],
+      : [
+          `List every file that imports or calls ${relPath} ${SEARCH}`,
+          'List the public functions/types this change affects and how their callers are impacted',
+        ],
     test: ['Name the behavior under test and the module/function it exercises', `Name existing tests for that module, or confirm there are none ${SEARCH}`],
-    migration: ['Name the tables/columns affected and the code that reads or writes them', 'State whether the change is backward compatible with the currently deployed code, and how it rolls forward if it fails'],
-    config: ['Name which process/tool reads this file and when', 'Describe the effect of the change', 'Confirm no secrets or credentials are being written in plain text'],
+    migration: [
+      'Name the tables/columns affected and the code that reads or writes them',
+      'State whether the change is backward compatible with the currently deployed code, and how it rolls forward if it fails',
+    ],
+    config: [
+      'Name which process/tool reads this file and when',
+      'Describe the effect of the change',
+      'Confirm no secrets or credentials are being written in plain text',
+    ],
     prose: isNew
       ? [`Name any existing doc this duplicates or supersedes ${SEARCH}`, 'State where it will be linked from']
       : [`List docs or code that reference the section being changed ${SEARCH}`, 'State what the change corrects or adds'],
-    instruction: ['Name which agent/loader reads this file and when', 'Describe what agent behavior changes as a result', `Confirm no existing instruction already covers it ${SEARCH}`],
+    instruction: [
+      'Name which agent/loader reads this file and when',
+      'Describe what agent behavior changes as a result',
+      `Confirm no existing instruction already covers it ${SEARCH}`,
+    ],
   }[kind];
   return [...q, "Quote the user's current instruction verbatim"];
 }
@@ -97,9 +111,7 @@ function main() {
     ...asks.map((q, i) => `${i + 1}. ${q}`),
     'This gate fires once per file per session.',
   ].join('\n');
-  process.stdout.write(
-    JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }),
-  );
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
 }
 
 if (process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]))) {

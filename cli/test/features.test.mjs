@@ -16,7 +16,10 @@ test('unblockable: only blocked tasks whose declared deps are all closed', () =>
     { number: 2, body: 'Depends on: #10, #11' },
     { number: 3, body: 'blocked waiting on a product decision' },
   ];
-  assert.deepEqual(unblockable(tasks, new Set([11])).map((t) => t.number), [1]);
+  assert.deepEqual(
+    unblockable(tasks, new Set([11])).map((t) => t.number),
+    [1],
+  );
 });
 
 test('reviewersFor: spec compliance first, general reviewers always, stack reviewers deduplicated', () => {
@@ -32,7 +35,10 @@ test('detectStacks: monorepo with React app, Rust API on tokio-postgres, Playwri
   const root = mkdtempSync(join(tmpdir(), 'baton-detect-'));
   mkdirSync(join(root, 'apps/web'), { recursive: true });
   mkdirSync(join(root, 'crates/api'), { recursive: true });
-  writeFileSync(join(root, 'apps/web/package.json'), JSON.stringify({ dependencies: { react: '19', 'react-intl': '7' }, devDependencies: { typescript: '5', '@playwright/test': '1' } }));
+  writeFileSync(
+    join(root, 'apps/web/package.json'),
+    JSON.stringify({ dependencies: { react: '19', 'react-intl': '7' }, devDependencies: { typescript: '5', '@playwright/test': '1' } }),
+  );
   writeFileSync(join(root, 'crates/api/Cargo.toml'), '[dependencies]\naxum = "0.8"\ntokio-postgres = "0.7"\n');
   writeFileSync(join(root, 'pnpm-lock.yaml'), '');
   const d = detectStacks(root);
@@ -90,7 +96,8 @@ test('context_always_rules_include_users_call', async (t) => {
   const { rmSync } = await import('node:fs');
   const root = mkdtempSync(join(tmpdir(), 'baton-ctx-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const rule = "A technology, dependency or architecture new to the repo, or user-visible behavior, is the user's call even when the request only describes outcomes: present 2-3 options with your lean and wait. Never pick one and write it down as decided.";
+  const rule =
+    "A technology, dependency or architecture new to the repo, or user-visible behavior, is the user's call even when the request only describes outcomes: present 2-3 options with your lean and wait. Never pick one and write it down as decided.";
   assert.equal(ALWAYS_RULES.filter((r) => r === rule).length, 1);
   const ambiguity = ALWAYS_RULES.findIndex((r) => r.startsWith('If a requirement is ambiguous'));
   assert.equal(ALWAYS_RULES[ambiguity + 1], rule);
@@ -122,8 +129,16 @@ test('provenance: satisfies ranges, lockfile parsing, lint and consumer check', 
   assert.ok(satisfies('v8.30.1', '>=8.19'));
 
   const root = mkdtempSync(join(tmpdir(), 'baton-lock-'));
-  writeFileSync(join(root, 'package-lock.json'), JSON.stringify({ packages: { '': {}, 'node_modules/react': { version: '19.1.0' }, 'node_modules/a/node_modules/@tanstack/query-core': { version: '5.96.2' } } }));
-  writeFileSync(join(root, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n\npackages:\n\n  '@scope/pkg@1.2.3':\n    resolution: {}\n\n  react@19.3.1:\n    resolution: {}\n\nsnapshots:\n  react@19.3.1: {}\n");
+  writeFileSync(
+    join(root, 'package-lock.json'),
+    JSON.stringify({
+      packages: { '': {}, 'node_modules/react': { version: '19.1.0' }, 'node_modules/a/node_modules/@tanstack/query-core': { version: '5.96.2' } },
+    }),
+  );
+  writeFileSync(
+    join(root, 'pnpm-lock.yaml'),
+    "lockfileVersion: '9.0'\n\npackages:\n\n  '@scope/pkg@1.2.3':\n    resolution: {}\n\n  react@19.3.1:\n    resolution: {}\n\nsnapshots:\n  react@19.3.1: {}\n",
+  );
   writeFileSync(join(root, 'Cargo.lock'), '[[package]]\nname = "axum"\nversion = "0.8.9"\n');
   const v = installedVersions(root);
   assert.deepEqual([...v.get('npm:react')].sort(), ['19.1.0', '19.3.1']);
@@ -142,7 +157,7 @@ test('reviewersFor: workflow files and SQL in code keep reviewers; reviewerFocus
   const config = deepMerge(DEFAULT_CONFIG, { stacks: ['react', 'typescript', 'rust-tokio-postgres', 'postgres'] });
   assert.deepEqual(reviewersFor(config, ['.baton/config.json', 'README.md']), reviewersFor(config));
   assert.deepEqual(reviewersFor(config, ['.github/workflows/ci.yml']), reviewersFor(config));
-  const sqlInTs = reviewersFor(config, ['apps/web/src/report.ts'], "+ const q = `SELECT id, name FROM orgs WHERE nation_id = $1`");
+  const sqlInTs = reviewersFor(config, ['apps/web/src/report.ts'], '+ const q = `SELECT id, name FROM orgs WHERE nation_id = $1`');
   assert.ok(sqlInTs.includes('postgres') && !sqlInTs.includes('rust'));
   assert.ok(!reviewersFor(config, ['apps/web/src/a.ts'], '+ const total = items.length').includes('postgres'));
   const files = ['apps/web/src/a.tsx', 'crates/api/src/b.rs'];
@@ -172,7 +187,11 @@ test('the CLI entry point loads and prints help', async () => {
 test('a subcommand answers --help with the usage text', async () => {
   const { spawnSync } = await import('node:child_process');
   const cli = new URL('../baton.mjs', import.meta.url).pathname;
-  for (const args of [['create', '--help'], ['list', '-h'], ['worktree', 'add', '--help']]) {
+  for (const args of [
+    ['create', '--help'],
+    ['list', '-h'],
+    ['worktree', 'add', '--help'],
+  ]) {
     const res = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
     assert.equal(res.status, 0, res.stderr);
     assert.match(res.stdout, /baton <command>/);
@@ -193,7 +212,11 @@ test('other option parse errors and a -- terminator are handled', async () => {
   const { spawnSync } = await import('node:child_process');
   const cli = new URL('../baton.mjs', import.meta.url).pathname;
   const run = (...args) => spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
-  for (const [args, option] of [[['create', '--title'], '--title'], [['list', '--status'], '--status'], [['list', '--json=x'], '--json']]) {
+  for (const [args, option] of [
+    [['create', '--title'], '--title'],
+    [['list', '--status'], '--status'],
+    [['list', '--json=x'], '--json'],
+  ]) {
     const res = run(...args);
     assert.equal(res.status, 1, res.stderr);
     assert.match(res.stderr, new RegExp(`^baton: .*${option}`));
@@ -257,7 +280,13 @@ test('context_uses_worktree_rule_when_on', async (t) => {
   installGuard(root);
   const installed = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
   assert.ok(!installed.includes('baton hooks install'), installed);
-  assert.equal(installed, on.split('\n').filter((l) => !l.includes('baton hooks install')).join('\n'));
+  assert.equal(
+    installed,
+    on
+      .split('\n')
+      .filter((l) => !l.includes('baton hooks install'))
+      .join('\n'),
+  );
 
   const offConfig = deepMerge(DEFAULT_CONFIG, { hooks: { worktreeOnly: false } });
   rmSync(join(root, '.git/baton'), { recursive: true });
@@ -270,21 +299,25 @@ test('context_uses_worktree_rule_when_on', async (t) => {
 
 const STEP_NAMES = { npm: 'Publish to npm', crates: 'Publish to crates.io' };
 const releaseConfig = (publish = []) => deepMerge(DEFAULT_CONFIG, { release: { enabled: true, publish } });
-const releaseMessages = (config, files) => releaseFindings({ config, files }).map((f) => {
-  assert.equal(f.kind, 'release');
-  return f.message;
-});
+const releaseMessages = (config, files) =>
+  releaseFindings({ config, files }).map((f) => {
+    assert.equal(f.kind, 'release');
+    return f.message;
+  });
 // A synthetic release workflow in the new layout; `extraJobs` are raw job blocks appended after `publish`.
 const releaseWorkflow = (targets, { environment = 'publish', extraJobs = '' } = {}) => {
-  const publish = targets.length === 0 ? '' : [
-    '  publish:',
-    '    needs: [release-please, build-npm, verify-crates]',
-    ...(environment ? [`    environment: ${environment}`] : []),
-    '    runs-on: ubuntu-latest',
-    '    steps:',
-    ...targets.map((t) => `      - name: ${STEP_NAMES[t]}\n        run: echo ${t}`),
-    '',
-  ].join('\n');
+  const publish =
+    targets.length === 0
+      ? ''
+      : [
+          '  publish:',
+          '    needs: [release-please, build-npm, verify-crates]',
+          ...(environment ? [`    environment: ${environment}`] : []),
+          '    runs-on: ubuntu-latest',
+          '    steps:',
+          ...targets.map((t) => `      - name: ${STEP_NAMES[t]}\n        run: echo ${t}`),
+          '',
+        ].join('\n');
   return `jobs:\n  release-please:\n    runs-on: ubuntu-latest\n${publish}${extraJobs}`;
 };
 const releaseRepo = (workflow) => ({
@@ -331,14 +364,25 @@ test('releaseFindings_reports_missing_target_step', () => {
 test('releaseFindings_accepts_equivalent_spellings', () => {
   const check = (workflow) => releaseMessages(releaseConfig(['npm']), releaseRepo(workflow));
   const base = releaseWorkflow(['npm']);
-  for (const spelling of ['"publish"', "'publish'", 'publish # the release gate', '{ name: publish }', '{ name: "publish", url: x }', '{ url: x, name: publish }']) {
+  for (const spelling of [
+    '"publish"',
+    "'publish'",
+    'publish # the release gate',
+    '{ name: publish }',
+    '{ name: "publish", url: x }',
+    '{ url: x, name: publish }',
+  ]) {
     assert.deepEqual(check(base.replace('environment: publish', `environment: ${spelling}`)), [], spelling);
   }
   assert.deepEqual(check(base.replace('environment: publish', 'environment:\n      # gate\n      name: publish\n      url: x')), [], 'block form');
   assert.equal(check(base.replace('environment: publish', 'environment:\n      name: production')).length, 1);
   assert.deepEqual(check(base.replace('- name: Publish to npm', '- name: "Publish to npm"')), [], 'quoted step name');
   assert.deepEqual(check(base.replace('- name: Publish to npm', "-   name: 'Publish to npm' # last step")), [], 'spaced dash, comment');
-  assert.deepEqual(check(base.replace('      - name: Publish to npm', "      - if: steps.registry.outputs.published != 'true'\n        name: Publish to npm")), [], 'name after another step key');
+  assert.deepEqual(
+    check(base.replace('      - name: Publish to npm', "      - if: steps.registry.outputs.published != 'true'\n        name: Publish to npm")),
+    [],
+    'name after another step key',
+  );
   const nested = base.replace('    environment: publish\n', '').replace('        run: echo npm', '        with:\n          environment: publish');
   assert.equal(check(nested).length, 1, 'environment under a step is not the job environment');
   assert.deepEqual(check(base.replace(/\n/g, '\r\n')), [], 'CRLF');
@@ -386,11 +430,16 @@ const trimReleaseTemplate = (yml, publish) => {
     while (k < lines.length && (!lines[k].trim() || lineIndent(lines[k]) > indent)) k++;
     i = k - 1;
   }
-  const trimmed = out.join('\n').replace(/^( {4}needs: \[)(.*)\]$/m, (_, head, list) => `${head}${list.split(', ').filter((n) => !deletedJobs.includes(n)).join(', ')}]`);
+  const trimmed = out.join('\n').replace(
+    /^( {4}needs: \[)(.*)\]$/m,
+    (_, head, list) =>
+      `${head}${list
+        .split(', ')
+        .filter((n) => !deletedJobs.includes(n))
+        .join(', ')}]`,
+  );
   if (/^ {6}- /m.test(trimmed.split(/^ {2}publish:$/m)[1] ?? '')) return trimmed;
-  return trimmed
-    .replace(/(?:^ {2}#.*\n)*^ {2}publish:\n[\s\S]*$/m, '')
-    .replace(/^ {2}# Publishing:.*\n(?: {2}#.*\n)*\n*/m, '');
+  return trimmed.replace(/(?:^ {2}#.*\n)*^ {2}publish:\n[\s\S]*$/m, '').replace(/^ {2}# Publishing:.*\n(?: {2}#.*\n)*\n*/m, '');
 };
 // Job name -> the jobs its `needs:` names, scalar or list form.
 const jobNeeds = (yml) => {
@@ -400,7 +449,11 @@ const jobNeeds = (yml) => {
     const key = line.match(/^ {2}([\w-]+):$/);
     if (key) jobs[(current = key[1])] = [];
     const needs = current && line.match(/^ {4}needs: (.*)$/);
-    if (needs) jobs[current] = needs[1].replace(/^\[|\]$/g, '').split(',').map((n) => n.trim());
+    if (needs)
+      jobs[current] = needs[1]
+        .replace(/^\[|\]$/g, '')
+        .split(',')
+        .map((n) => n.trim());
   }
   return jobs;
 };
@@ -446,7 +499,11 @@ test('releaseFindings: reports each mismatch between the release config and the 
   const [leftover] = messages(DEFAULT_CONFIG, { '.github/workflows/release.yml': workflow() });
   assert.match(leftover, /release\.enabled is false.*\.github\/workflows\/release\.yml/);
 
-  for (const tags of [{ 'include-v-in-tag': true }, { 'include-component-in-tag': false, 'include-v-in-tag': false }, { 'include-component-in-tag': false, 'include-v-in-tag': true, packages: { '.': { 'include-component-in-tag': true } } }]) {
+  for (const tags of [
+    { 'include-v-in-tag': true },
+    { 'include-component-in-tag': false, 'include-v-in-tag': false },
+    { 'include-component-in-tag': false, 'include-v-in-tag': true, packages: { '.': { 'include-component-in-tag': true } } },
+  ]) {
     const found = messages(on(), { ...complete, 'release-please-config.json': JSON.stringify(tags) });
     assert.equal(found.length, 1, JSON.stringify(tags));
     assert.match(found[0], /include-component-in-tag: false.*include-v-in-tag: true/);
@@ -463,7 +520,6 @@ test('releaseFindings: reports each mismatch between the release config and the 
   assert.match(messages(on(['crates']), crateJobs).join('\n'), /crates.*no root Cargo\.toml/);
   assert.match(messages(on(['crates']), { ...crateJobs, 'Cargo.toml': '[package]\nname = "x"\npublish = false\n' }).join('\n'), /crates.*publish = false/);
   assert.deepEqual(messages(on(['crates']), { ...crateJobs, 'Cargo.toml': '[package]\nname = "x"\n' }), []);
-
 });
 
 test('baton init writes the release switch, off', async (t) => {
@@ -552,19 +608,22 @@ test('baton doctor reports missing release files, offline', async (t) => {
   assert.equal(res.status, 1, res.stderr);
   const release = JSON.parse(res.stdout).filter((f) => f.kind === 'release');
   assert.equal(release.length, 1);
-  for (const file of ['release-please-config.json', '.release-please-manifest.json', '.github/workflows/release.yml']) assert.ok(release[0].message.includes(file), file);
+  for (const file of ['release-please-config.json', '.release-please-manifest.json', '.github/workflows/release.yml'])
+    assert.ok(release[0].message.includes(file), file);
 });
 
 test('every reviewer brief ends its report with the same Declined to judge block', () => {
   const dir = new URL('../../reviewers/', import.meta.url).pathname;
-  const tails = readdirSync(dir).filter((f) => f.endsWith('.md')).map((f) => {
-    const text = readFileSync(join(dir, f), 'utf8');
-    assert.match(text, /^## Declined to judge$/m, f);
-    assert.match(text, /^Output only the following, in this order, ending with the `## Declined to judge` block\. First\nline:$/m, f);
-    const start = text.lastIndexOf('\nLast, after the findings');
-    assert.ok(start >= 0, f);
-    return text.slice(start);
-  });
+  const tails = readdirSync(dir)
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => {
+      const text = readFileSync(join(dir, f), 'utf8');
+      assert.match(text, /^## Declined to judge$/m, f);
+      assert.match(text, /^Output only the following, in this order, ending with the `## Declined to judge` block\. First\nline:$/m, f);
+      const start = text.lastIndexOf('\nLast, after the findings');
+      assert.ok(start >= 0, f);
+      return text.slice(start);
+    });
   assert.ok(tails.length > 0);
   for (const tail of tails) assert.equal(tail, tails[0]);
 });
@@ -647,7 +706,10 @@ test('doctor reports missing commit gates', async (t) => {
 
   // Without a commit-stage step there is nothing to report, even with no hook installed.
   const { doctor: localOnly } = await gatesRepo(t, { validate: [{ ...commitStep, stages: ['local', 'ci'] }] });
-  assert.deepEqual(kindMessages(localOnly().findings, 'worktree').filter((m) => m.includes('commit-gates')), []);
+  assert.deepEqual(
+    kindMessages(localOnly().findings, 'worktree').filter((m) => m.includes('commit-gates')),
+    [],
+  );
 });
 
 test('context prints gates, non-default stages and advisory reasons', async (t) => {

@@ -82,7 +82,9 @@ export function detectStacks(root) {
 /** Suggest per-worktree setup commands (worktrees don't share installed dependencies). */
 export function suggestSetup({ packageManager }) {
   if (!packageManager) return [];
-  const install = { npm: 'npm ci', pnpm: 'pnpm install --frozen-lockfile', yarn: 'yarn install --immutable', bun: 'bun install --frozen-lockfile' }[packageManager];
+  const install = { npm: 'npm ci', pnpm: 'pnpm install --frozen-lockfile', yarn: 'yarn install --immutable', bun: 'bun install --frozen-lockfile' }[
+    packageManager
+  ];
   return [{ name: 'install', run: install }];
 }
 

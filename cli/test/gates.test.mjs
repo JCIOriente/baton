@@ -76,17 +76,26 @@ test('applicableGates: stack rows', () => {
 
 test('applicableGates: release.publish non-empty adds publish', () => {
   const r = applicableGates({ root: repo(), config: { stacks: [], release: { publish: ['npm'] } } });
-  assert.deepEqual(r.map((g) => g.gate), [...BASE, 'publish']);
+  assert.deepEqual(
+    r.map((g) => g.gate),
+    [...BASE, 'publish'],
+  );
   assert.ok(r.every((g) => g.why));
 });
 
 test('applicableGates: never-applicable gates are never returned', () => {
-  const all = names(repo({ 'package.json': '{"dependencies":{"a":"1"}}' }), { stacks: ['typescript', 'react', 'postgres', 'e2e'], release: { publish: ['npm'] } });
+  const all = names(repo({ 'package.json': '{"dependencies":{"a":"1"}}' }), {
+    stacks: ['typescript', 'react', 'postgres', 'e2e'],
+    release: { publish: ['npm'] },
+  });
   for (const g of ['structure', 'generated', 'dead-code', 'integration-tests', 'budget']) assert.ok(!all.includes(g), g);
 });
 
 test('coverageFindings: an uncovered gate is reported', () => {
-  const f = coverageFindings({ validate: [{ name: 's', run: 'x', gates: ['secrets'] }], gates: { skip: {} } }, [{ gate: 'lint', why: 'always' }, { gate: 'secrets', why: 'always' }]);
+  const f = coverageFindings({ validate: [{ name: 's', run: 'x', gates: ['secrets'] }], gates: { skip: {} } }, [
+    { gate: 'lint', why: 'always' },
+    { gate: 'secrets', why: 'always' },
+  ]);
   assert.deepEqual(f, [{ kind: 'gates', message: "gate 'lint' applies (always) but no step covers it and gates.skip doesn't list it" }]);
 });
 
@@ -105,10 +114,11 @@ test('coverageFindings: covering a non-applicable gate is fine', () => {
 });
 
 test('orderFindings: secrets after tests is reported', () => {
-  const steps = [normalizeStep({ name: 'test', run: 'x', gates: ['unit-tests', 'build'] }), normalizeStep({ name: 'sec', run: 'y', gates: ['secrets', 'lint'] })];
-  assert.deepEqual(orderFindings(steps), [
-    { kind: 'gates', message: "step 'sec' runs secrets, lint after 'test' (unit-tests, build)" },
-  ]);
+  const steps = [
+    normalizeStep({ name: 'test', run: 'x', gates: ['unit-tests', 'build'] }),
+    normalizeStep({ name: 'sec', run: 'y', gates: ['secrets', 'lint'] }),
+  ];
+  assert.deepEqual(orderFindings(steps), [{ kind: 'gates', message: "step 'sec' runs secrets, lint after 'test' (unit-tests, build)" }]);
 });
 
 test('orderFindings: static before non-static is fine', () => {

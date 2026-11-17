@@ -235,7 +235,12 @@ function factsText(facts) {
   const unit = facts.unit ? unitGroup(facts) : null;
   const out = unit ? unitLines(unit) : [];
   if (!facts.groups.some((g) => g.tasks.length)) out.push('No open tasks.');
-  out.push(...otherWorkLines(facts.groups.filter((g) => g !== unit), facts.prsWithoutTask));
+  out.push(
+    ...otherWorkLines(
+      facts.groups.filter((g) => g !== unit),
+      facts.prsWithoutTask,
+    ),
+  );
   if (facts.triageCount > 0) out.push(`Not listed: ${facts.triageCount} triage issues`);
   if (facts.truncated) out.push(`Lists cut at ${LIST_LIMIT}; more exist.`);
   out.push(worktreeLine(facts.worktrees), baseLine(facts.base));

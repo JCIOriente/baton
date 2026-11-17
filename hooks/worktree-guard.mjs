@@ -117,9 +117,7 @@ function main() {
   if (ignore.status !== 0 && ignore.status !== 1) return allowing(gitFailure('check-ignore', ignore));
   const reason = decide({ path, gitDir, commonDir, top, ignored: ignore.status === 0, config: committedConfig(top), env: process.env });
   if (!reason) return;
-  process.stdout.write(
-    JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }),
-  );
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
 }
 
 if (process.argv[1] && import.meta.url.endsWith(basename(process.argv[1]))) {

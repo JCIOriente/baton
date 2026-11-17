@@ -96,7 +96,8 @@ export function prBody(number, extra, res) {
 export function reviewState(body, head) {
   const m = (body ?? '').match(/^Reviewed-at:\s*([0-9a-f]{7,40})\s*$/im);
   if (!m) return { ok: false, reason: 'no `Reviewed-at: <sha>` line in the PR body' };
-  if (!head.startsWith(m[1].toLowerCase())) return { ok: false, reason: `review recorded at ${m[1]}, but HEAD is ${head.slice(0, 12)}: commits were added after the review` };
+  if (!head.startsWith(m[1].toLowerCase()))
+    return { ok: false, reason: `review recorded at ${m[1]}, but HEAD is ${head.slice(0, 12)}: commits were added after the review` };
   return { ok: true };
 }
 
@@ -180,9 +181,11 @@ export function releaseFindings({ config, files }) {
   const has = (path) => typeof files[path] === 'string';
 
   const missing = RELEASE_FILES.filter((f) => !has(f));
-  if (enabled && missing.length) add(`release.enabled is true but ${missing.join(', ')} ${missing.length > 1 ? 'are' : 'is'} missing (re-run the baton:init release step).`);
+  if (enabled && missing.length)
+    add(`release.enabled is true but ${missing.join(', ')} ${missing.length > 1 ? 'are' : 'is'} missing (re-run the baton:init release step).`);
   const present = RELEASE_FILES.filter(has);
-  if (!enabled && present.length) add(`release.enabled is false but ${present.join(', ')} ${present.length > 1 ? 'exist' : 'exists'}: finish turning releases on or off.`);
+  if (!enabled && present.length)
+    add(`release.enabled is false but ${present.join(', ')} ${present.length > 1 ? 'exist' : 'exists'}: finish turning releases on or off.`);
 
   if (has('release-please-config.json')) {
     const tagProblem = releaseTagProblem(files['release-please-config.json']);
@@ -234,7 +237,9 @@ function inEnvironmentPublish(block) {
   const keyIndent = indentOf(block.find((line) => !isBlankOrComment(line)) ?? '');
   const at = block.findIndex((line) => indentOf(line) === keyIndent && /^\s*environment:/.test(line));
   if (at === -1) return false;
-  const value = withoutComment(block[at]).replace(/^\s*environment:/, '').trim();
+  const value = withoutComment(block[at])
+    .replace(/^\s*environment:/, '')
+    .trim();
   if (value) {
     const inline = value.match(/^\{.*?\bname:\s*(.*?)\s*[,}]/);
     return unquote(inline ? inline[1] : value) === 'publish';
@@ -243,7 +248,9 @@ function inEnvironmentPublish(block) {
   for (const line of block.slice(at + 1)) {
     if (isBlankOrComment(line)) continue;
     if (indentOf(line) <= own) return false;
-    const name = withoutComment(line).trim().match(/^name:\s*(.*)$/);
+    const name = withoutComment(line)
+      .trim()
+      .match(/^name:\s*(.*)$/);
     if (name) return unquote(name[1]) === 'publish';
   }
   return false;
@@ -257,14 +264,19 @@ function hasStepNamed(block, stepName) {
 function publishLayoutProblems(workflow, publish) {
   const problems = [];
   for (const job of ['publish-npm', 'publish-crates']) {
-    if (jobBlock(workflow, job) !== null) problems.push(`${RELEASE_WORKFLOW} has a ${job} job, the old publish layout: re-run the release step of baton:init (trusted publishers must then name environment 'publish').`);
+    if (jobBlock(workflow, job) !== null)
+      problems.push(
+        `${RELEASE_WORKFLOW} has a ${job} job, the old publish layout: re-run the release step of baton:init (trusted publishers must then name environment 'publish').`,
+      );
   }
   const block = jobBlock(workflow, 'publish');
-  if (block !== null && !inEnvironmentPublish(block)) problems.push(`the publish job in ${RELEASE_WORKFLOW} has no 'environment: publish' line: re-run the release step of baton:init.`);
+  if (block !== null && !inEnvironmentPublish(block))
+    problems.push(`the publish job in ${RELEASE_WORKFLOW} has no 'environment: publish' line: re-run the release step of baton:init.`);
   for (const target of publish) {
     const stepName = PUBLISH_STEP_NAMES[target];
     // An unknown target is reported by the config check, not here.
-    if (stepName && !hasStepNamed(block ?? [], stepName)) problems.push(`release.publish has '${target}' but the publish job in ${RELEASE_WORKFLOW} has no '${stepName}' step.`);
+    if (stepName && !hasStepNamed(block ?? [], stepName))
+      problems.push(`release.publish has '${target}' but the publish job in ${RELEASE_WORKFLOW} has no '${stepName}' step.`);
   }
   return problems;
 }

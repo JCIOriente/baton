@@ -50,7 +50,10 @@ test('upstreamFindings reports github releases outside the range and errors', as
     return { code: 1, stdout: '', stderr: 'boom' };
   };
   const findings = await upstreamFindings({ sources: [], facts }, { gh });
-  assert.deepEqual(findings.map((f) => `${f.kind}:${f.fact}`), ['release:a.one', 'error:a.three']);
+  assert.deepEqual(
+    findings.map((f) => `${f.kind}:${f.fact}`),
+    ['release:a.one', 'error:a.three'],
+  );
   assert.equal(findings[0].latest, '2.0.0');
 });
 
@@ -58,7 +61,9 @@ test('provenance.json tracks every action pinned in the release template', () =>
   const root = new URL('../..', import.meta.url).pathname;
   const yml = readFileSync(join(root, 'templates/release/release.yml'), 'utf8');
   const pinned = [...new Set([...yml.matchAll(/uses:\s*([\w.-]+\/[\w.-]+)@/g)].map((m) => m[1]))];
-  const tracked = loadProvenance(root).facts.filter((f) => f.pkg.startsWith('github:')).map((f) => f.pkg.slice(7));
+  const tracked = loadProvenance(root)
+    .facts.filter((f) => f.pkg.startsWith('github:'))
+    .map((f) => f.pkg.slice(7));
   assert.deepEqual(tracked.sort(), pinned.sort());
 });
 
@@ -72,6 +77,9 @@ test('upstreamFindings turns a throwing gh on a source into an error and still c
     return { code: 0, stdout: 'v2.0.0', stderr: '' };
   };
   const findings = await upstreamFindings(prov, { gh });
-  assert.deepEqual(findings.map((f) => `${f.kind}:${f.source ?? f.fact}`), ['error:s1', 'release:a.one']);
+  assert.deepEqual(
+    findings.map((f) => `${f.kind}:${f.source ?? f.fact}`),
+    ['error:s1', 'release:a.one'],
+  );
   assert.match(findings[0].message, /not found on PATH/);
 });

@@ -5,7 +5,11 @@
       "id": "superpowers",
       "repo": "obra/superpowers",
       "license": "MIT",
-      "baseline": { "sha": "22f0b463e7a5e579904dd6211a520321035526f7", "date": "2026-11-03", "how": "v7.0.2, repository HEAD at the 2026-11-06 triage (#97); adopted ideas tracked in #111" },
+      "baseline": {
+        "sha": "22f0b463e7a5e579904dd6211a520321035526f7",
+        "date": "2026-11-03",
+        "how": "v7.0.2, repository HEAD at the 2026-11-06 triage (#97); adopted ideas tracked in #111"
+      },
       "files": [
         { "upstream": "skills/brainstorming/SKILL.md", "local": "skills/spec/SKILL.md" },
         { "upstream": "skills/brainstorming/builder-check-prompt.md", "local": "templates/builder-check.md" },
@@ -30,7 +34,11 @@
       "id": "ecc",
       "repo": "affaan-m/ECC",
       "license": "MIT",
-      "baseline": { "sha": "d2ef2680594f9a17526a6e1a2e18b3d242c5d17b", "date": "2026-11-06", "how": "repository HEAD at the 2026-11-06 triage (#6); only agents/typescript-reviewer.md had changed since 90606c83, skipped" },
+      "baseline": {
+        "sha": "d2ef2680594f9a17526a6e1a2e18b3d242c5d17b",
+        "date": "2026-11-06",
+        "how": "repository HEAD at the 2026-11-06 triage (#6); only agents/typescript-reviewer.md had changed since 90606c83, skipped"
+      },
       "files": [
         { "upstream": "skills/coding-standards/", "local": "stacks/common.md" },
         { "upstream": "rules/common/", "local": "stacks/common.md" },
@@ -65,7 +73,11 @@
       "id": "react-best-practices",
       "repo": "vercel-labs/agent-skills",
       "license": "MIT (declared in the skill; the repository has no LICENSE file)",
-      "baseline": { "sha": "063bee94c3f4df8453406c830b0a7df0f2860278", "date": "2026-08-28", "how": "repository HEAD when the rules were fetched (2026-10-22)" },
+      "baseline": {
+        "sha": "063bee94c3f4df8453406c830b0a7df0f2860278",
+        "date": "2026-08-28",
+        "how": "repository HEAD when the rules were fetched (2026-10-22)"
+      },
       "files": [
         { "upstream": "skills/react-best-practices/", "local": "stacks/react.md" },
         { "upstream": "skills/react-best-practices/", "local": "reviewers/react.md" }
@@ -73,23 +85,159 @@
     }
   ],
   "facts": [
-    { "id": "react.19-2-apis", "file": "stacks/react.md", "anchor": "(React 19.2+)", "pkg": "npm:react", "requires": ">=19.2 <20", "verified": "2026-10-22", "note": "Activity and useEffectEvent shipped in 19.2.0 (2025-10-01)" },
-    { "id": "react-compiler.stable", "file": "stacks/react.md", "anchor": "stable since 1.0", "pkg": "npm:babel-plugin-react-compiler", "requires": ">=1.0 <2", "verified": "2026-10-22" },
-    { "id": "query.imperative-api", "file": "stacks/react.md", "anchor": "From **5.102**", "pkg": "npm:@tanstack/query-core", "requires": ">=5.102 <6", "verified": "2026-10-22", "note": "queryClient.query added and fetchQuery/prefetchQuery/ensureQueryData deprecated in 5.102.0" },
-    { "id": "router.autocodesplitting", "file": "stacks/react.md", "anchor": "autoCodeSplitting: true", "pkg": "npm:@tanstack/react-router", "requires": ">=1.0 <2", "verified": "2026-10-22" },
-    { "id": "playwright.fail-on-flaky", "file": "stacks/e2e.md", "anchor": "--fail-on-flaky-tests", "pkg": "npm:@playwright/test", "requires": "<2", "verified": "2026-10-22", "note": "flag present in 1.64.1; earliest version not checked" },
-    { "id": "actions.release-please", "file": "templates/release/release.yml", "anchor": "googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0", "pkg": "github:googleapis/release-please-action", "requires": ">=5.0 <6", "verified": "2026-11-06" },
-    { "id": "actions.checkout", "file": "templates/release/release.yml", "anchor": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1", "pkg": "github:actions/checkout", "requires": ">=7.0 <8", "verified": "2026-11-06" },
-    { "id": "actions.setup-node", "file": "templates/release/release.yml", "anchor": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0", "pkg": "github:actions/setup-node", "requires": ">=7.1 <8", "verified": "2026-11-06" },
-    { "id": "actions.upload-artifact", "file": "templates/release/release.yml", "anchor": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2", "pkg": "github:actions/upload-artifact", "requires": ">=7.0 <8", "verified": "2026-11-06" },
-    { "id": "actions.download-artifact", "file": "templates/release/release.yml", "anchor": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2", "pkg": "github:actions/download-artifact", "requires": ">=8.0 <9", "verified": "2026-11-06" },
-    { "id": "actions.crates-io-auth", "file": "templates/release/release.yml", "anchor": "rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6", "pkg": "github:rust-lang/crates-io-auth-action", "requires": ">=1.0 <2", "verified": "2026-11-06" },
-    { "id": "deps.npm-view-one-field", "file": "skills/deps/SKILL.md", "anchor": "one field per call", "pkg": "npm:npm", "requires": ">=12.2 <13", "verified": "2026-11-06", "note": "checked with npm 12.2.1: `npm view request@2.88.2 deprecated peerDependencies` prints only the deprecation message; earliest version not checked" },
-    { "id": "deps.pnpm-add-lockfile-only", "file": "skills/deps/SKILL.md", "anchor": "`pnpm add <pkg>@<v> --lockfile-only --ignore-scripts`", "pkg": "npm:pnpm", "requires": ">=11.5 <13", "verified": "2026-11-06", "note": "accepted by 11.5.1 (not in `pnpm add --help`) and 12.18.0 (listed); writes pnpm-lock.yaml, no node_modules" },
-    { "id": "deps.pnpm-audit-ignore-list", "file": "skills/deps/SKILL.md", "anchor": "pnpm `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`", "pkg": "npm:pnpm", "requires": ">=11.5 <13", "verified": "2026-11-06", "note": "11.5.1 and 12.18.0 read it there, not from the package.json pnpm field; `pnpm audit --ignore <id>` appends the id to that file" },
-    { "id": "deps.yarn-classic-audit-bitmask", "file": "skills/deps/SKILL.md", "anchor": "`exit & 24`", "pkg": "npm:yarn", "requires": ">=1.22 <2", "verified": "2026-11-06", "note": "yarn 1.22.22: `yarn audit --level critical` exits 12 (lodash@4.17.15) and 10 (node-fetch@2.6.0) with no critical advisory" },
-    { "id": "deps.yarn-berry-audit-all", "file": "skills/deps/SKILL.md", "anchor": "`yarn npm audit --all --recursive --severity high`", "pkg": "npm:@yarnpkg/cli-dist", "requires": ">=4.9 <5", "verified": "2026-11-06", "note": "4.9.2 and 4.18.1: without --all, an audit at the root exits 0 when only a workspace member is affected" },
-    { "id": "deps.yarn-berry-ignore-id", "file": "skills/deps/SKILL.md", "anchor": "numeric `ID` from `--json`, not the GHSA", "pkg": "npm:@yarnpkg/cli-dist", "requires": ">=4.9 <5", "verified": "2026-11-06", "note": "4.9.2 and 4.18.1: npmAuditIgnoreAdvisories matches the numeric advisory ID; GHSA ids are not matched" },
-    { "id": "deps.yarn-berry-info-per-version", "file": "skills/deps/SKILL.md", "anchor": "`yarn npm info <pkg>@<v> --fields version,deprecated,peerDependencies --json`", "pkg": "npm:@yarnpkg/cli-dist", "requires": ">=4.9 <5", "verified": "2026-11-06", "note": "4.9.2 and 4.18.1: without a version, deprecated and peerDependencies describe latest (react-dom: react ^19.3.1; react-dom@18.3.1: ^18.3.1); a version that is not deprecated has no deprecated key (zod@4.1.12 prints only name); uuid@3.4.0 prints its deprecation. A version that does not exist exits 0 with latest's manifest: with version in --fields, uuid@99.0.0 prints version 14.0.3 and react-dom@99.0.0 latest's peers (react ^19.3.1); without it, uuid@99.0.0 prints only name" }
+    {
+      "id": "react.19-2-apis",
+      "file": "stacks/react.md",
+      "anchor": "(React 19.2+)",
+      "pkg": "npm:react",
+      "requires": ">=19.2 <20",
+      "verified": "2026-10-22",
+      "note": "Activity and useEffectEvent shipped in 19.2.0 (2025-10-01)"
+    },
+    {
+      "id": "react-compiler.stable",
+      "file": "stacks/react.md",
+      "anchor": "stable since 1.0",
+      "pkg": "npm:babel-plugin-react-compiler",
+      "requires": ">=1.0 <2",
+      "verified": "2026-10-22"
+    },
+    {
+      "id": "query.imperative-api",
+      "file": "stacks/react.md",
+      "anchor": "From **5.102**",
+      "pkg": "npm:@tanstack/query-core",
+      "requires": ">=5.102 <6",
+      "verified": "2026-10-22",
+      "note": "queryClient.query added and fetchQuery/prefetchQuery/ensureQueryData deprecated in 5.102.0"
+    },
+    {
+      "id": "router.autocodesplitting",
+      "file": "stacks/react.md",
+      "anchor": "autoCodeSplitting: true",
+      "pkg": "npm:@tanstack/react-router",
+      "requires": ">=1.0 <2",
+      "verified": "2026-10-22"
+    },
+    {
+      "id": "playwright.fail-on-flaky",
+      "file": "stacks/e2e.md",
+      "anchor": "--fail-on-flaky-tests",
+      "pkg": "npm:@playwright/test",
+      "requires": "<2",
+      "verified": "2026-10-22",
+      "note": "flag present in 1.64.1; earliest version not checked"
+    },
+    {
+      "id": "actions.release-please",
+      "file": "templates/release/release.yml",
+      "anchor": "googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0",
+      "pkg": "github:googleapis/release-please-action",
+      "requires": ">=5.0 <6",
+      "verified": "2026-11-06"
+    },
+    {
+      "id": "actions.checkout",
+      "file": "templates/release/release.yml",
+      "anchor": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
+      "pkg": "github:actions/checkout",
+      "requires": ">=7.0 <8",
+      "verified": "2026-11-06"
+    },
+    {
+      "id": "actions.setup-node",
+      "file": "templates/release/release.yml",
+      "anchor": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0",
+      "pkg": "github:actions/setup-node",
+      "requires": ">=7.1 <8",
+      "verified": "2026-11-06"
+    },
+    {
+      "id": "actions.upload-artifact",
+      "file": "templates/release/release.yml",
+      "anchor": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2",
+      "pkg": "github:actions/upload-artifact",
+      "requires": ">=7.0 <8",
+      "verified": "2026-11-06"
+    },
+    {
+      "id": "actions.download-artifact",
+      "file": "templates/release/release.yml",
+      "anchor": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2",
+      "pkg": "github:actions/download-artifact",
+      "requires": ">=8.0 <9",
+      "verified": "2026-11-06"
+    },
+    {
+      "id": "actions.crates-io-auth",
+      "file": "templates/release/release.yml",
+      "anchor": "rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6",
+      "pkg": "github:rust-lang/crates-io-auth-action",
+      "requires": ">=1.0 <2",
+      "verified": "2026-11-06"
+    },
+    {
+      "id": "deps.npm-view-one-field",
+      "file": "skills/deps/SKILL.md",
+      "anchor": "one field per call",
+      "pkg": "npm:npm",
+      "requires": ">=12.2 <13",
+      "verified": "2026-11-06",
+      "note": "checked with npm 12.2.1: `npm view request@2.88.2 deprecated peerDependencies` prints only the deprecation message; earliest version not checked"
+    },
+    {
+      "id": "deps.pnpm-add-lockfile-only",
+      "file": "skills/deps/SKILL.md",
+      "anchor": "`pnpm add <pkg>@<v> --lockfile-only --ignore-scripts`",
+      "pkg": "npm:pnpm",
+      "requires": ">=11.5 <13",
+      "verified": "2026-11-06",
+      "note": "accepted by 11.5.1 (not in `pnpm add --help`) and 12.18.0 (listed); writes pnpm-lock.yaml, no node_modules"
+    },
+    {
+      "id": "deps.pnpm-audit-ignore-list",
+      "file": "skills/deps/SKILL.md",
+      "anchor": "pnpm `auditConfig.ignoreGhsas` in `pnpm-workspace.yaml`",
+      "pkg": "npm:pnpm",
+      "requires": ">=11.5 <13",
+      "verified": "2026-11-06",
+      "note": "11.5.1 and 12.18.0 read it there, not from the package.json pnpm field; `pnpm audit --ignore <id>` appends the id to that file"
+    },
+    {
+      "id": "deps.yarn-classic-audit-bitmask",
+      "file": "skills/deps/SKILL.md",
+      "anchor": "`exit & 24`",
+      "pkg": "npm:yarn",
+      "requires": ">=1.22 <2",
+      "verified": "2026-11-06",
+      "note": "yarn 1.22.22: `yarn audit --level critical` exits 12 (lodash@4.17.15) and 10 (node-fetch@2.6.0) with no critical advisory"
+    },
+    {
+      "id": "deps.yarn-berry-audit-all",
+      "file": "skills/deps/SKILL.md",
+      "anchor": "`yarn npm audit --all --recursive --severity high`",
+      "pkg": "npm:@yarnpkg/cli-dist",
+      "requires": ">=4.9 <5",
+      "verified": "2026-11-06",
+      "note": "4.9.2 and 4.18.1: without --all, an audit at the root exits 0 when only a workspace member is affected"
+    },
+    {
+      "id": "deps.yarn-berry-ignore-id",
+      "file": "skills/deps/SKILL.md",
+      "anchor": "numeric `ID` from `--json`, not the GHSA",
+      "pkg": "npm:@yarnpkg/cli-dist",
+      "requires": ">=4.9 <5",
+      "verified": "2026-11-06",
+      "note": "4.9.2 and 4.18.1: npmAuditIgnoreAdvisories matches the numeric advisory ID; GHSA ids are not matched"
+    },
+    {
+      "id": "deps.yarn-berry-info-per-version",
+      "file": "skills/deps/SKILL.md",
+      "anchor": "`yarn npm info <pkg>@<v> --fields version,deprecated,peerDependencies --json`",
+      "pkg": "npm:@yarnpkg/cli-dist",
+      "requires": ">=4.9 <5",
+      "verified": "2026-11-06",
+      "note": "4.9.2 and 4.18.1: without a version, deprecated and peerDependencies describe latest (react-dom: react ^19.3.1; react-dom@18.3.1: ^18.3.1); a version that is not deprecated has no deprecated key (zod@4.1.12 prints only name); uuid@3.4.0 prints its deprecation. A version that does not exist exits 0 with latest's manifest: with version in --fields, uuid@99.0.0 prints version 14.0.3 and react-dom@99.0.0 latest's peers (react ^19.3.1); without it, uuid@99.0.0 prints only name"
+    }
   ]
 }

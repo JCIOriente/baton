@@ -1,9 +1,6 @@
 {
   "project": "baton",
-  "stacks": [
-    "javascript",
-    "node"
-  ],
+  "stacks": ["javascript", "node"],
   "tasks": {
     "provider": "github",
     "repo": null
@@ -35,15 +32,7 @@
     }
   },
   "workflow": {
-    "phases": [
-      "spec",
-      "plan",
-      "backlog",
-      "implement",
-      "verify",
-      "review",
-      "integrate"
-    ],
+    "phases": ["spec", "plan", "backlog", "implement", "verify", "review", "integrate"],
     "custom": {},
     "requireSpec": true,
     "requireTdd": true,

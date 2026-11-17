@@ -117,10 +117,16 @@ test('parse_spec_ref_handles_crlf', () => {
 });
 
 test('group_by_spec_no_spec_group', () => {
-  const groups = groupBySpec([{ ...task(1, 'ready'), body: 'Nothing.' }, { ...task(2, 'ready'), body: `Spec: ${OTHER}` }]);
+  const groups = groupBySpec([
+    { ...task(1, 'ready'), body: 'Nothing.' },
+    { ...task(2, 'ready'), body: `Spec: ${OTHER}` },
+  ]);
   assert.deepEqual(
     groups.map((g) => [g.spec, g.tasks.map((t) => t.number)]),
-    [[OTHER, [2]], [null, [1]]],
+    [
+      [OTHER, [2]],
+      [null, [1]],
+    ],
   );
 });
 
@@ -141,7 +147,12 @@ test('group_by_spec_order', () => {
   ];
   assert.deepEqual(
     groupBySpec(tasks, 'docs/specs/u.md').map((g) => [g.spec, g.tasks.map((t) => t.number)]),
-    [['docs/specs/u.md', [3]], ['docs/specs/a.md', [4]], ['docs/specs/b.md', [1, 5]], [null, [9]]],
+    [
+      ['docs/specs/u.md', [3]],
+      ['docs/specs/a.md', [4]],
+      ['docs/specs/b.md', [1, 5]],
+      [null, [9]],
+    ],
   );
 });
 
@@ -158,7 +169,10 @@ test('link_prs_closed_issue_goes_to_without_task', () => {
   assert.deepEqual(res.tasks[0].pr, { number: 20, draft: true, reviewDecision: 'REVIEW_REQUIRED', checks: 'passing' });
   assert.equal(res.tasks[1].pr, null);
   assert.equal(res.tasks[2].pr, null);
-  assert.deepEqual(res.prsWithoutTask.map((p) => p.number), [21, 22, 23, 24]);
+  assert.deepEqual(
+    res.prsWithoutTask.map((p) => p.number),
+    [21, 22, 23, 24],
+  );
   assert.deepEqual(res.prsWithoutTask[2], { number: 23, title: 'PR 23', branch: 'fix-typo', release: false });
   assert.equal(tasks[0].pr, null, 'the input tasks are not mutated');
 });
@@ -198,7 +212,13 @@ test('open_status_items_only_under_section', () => {
 test('summarize_checks_states', () => {
   const ok = { status: 'COMPLETED', conclusion: 'SUCCESS' };
   assert.equal(summarizeChecks([ok, { state: 'SUCCESS' }, { status: 'COMPLETED', conclusion: 'SKIPPED' }]), 'passing');
-  for (const bad of [{ status: 'COMPLETED', conclusion: 'FAILURE' }, { state: 'ERROR' }, { status: 'COMPLETED', conclusion: 'CANCELLED' }, { status: 'COMPLETED', conclusion: 'TIMED_OUT' }, { state: 'FAILURE' }]) {
+  for (const bad of [
+    { status: 'COMPLETED', conclusion: 'FAILURE' },
+    { state: 'ERROR' },
+    { status: 'COMPLETED', conclusion: 'CANCELLED' },
+    { status: 'COMPLETED', conclusion: 'TIMED_OUT' },
+    { state: 'FAILURE' },
+  ]) {
     assert.equal(summarizeChecks([ok, bad, { status: 'IN_PROGRESS', conclusion: '' }]), 'failing');
   }
   assert.equal(summarizeChecks([ok, { status: 'QUEUED', conclusion: '' }]), 'pending');
@@ -216,7 +236,11 @@ test('leave_alone_excludes_ready_and_blocked', () => {
   const { leaveAloneCandidates: _, ...facts } = nutshellFacts();
   facts.groups = [
     { spec: UNIT, tasks: [task(1, 'in-progress', { pr: { number: 31 } }), task(2, 'ready')], openStatusItems: [] },
-    { spec: OTHER, tasks: [task(3, 'in-progress'), task(4, 'review', { pr: { number: 34 } }), task(5, 'ready', { pr: { number: 35 } }), task(6, 'blocked')], openStatusItems: [] },
+    {
+      spec: OTHER,
+      tasks: [task(3, 'in-progress'), task(4, 'review', { pr: { number: 34 } }), task(5, 'ready', { pr: { number: 35 } }), task(6, 'blocked')],
+      openStatusItems: [],
+    },
     { spec: null, tasks: [task(7, 'review'), task(8, 'triage')], openStatusItems: null },
   ];
   facts.prsWithoutTask = [{ number: 145, title: 'r', branch: 'b', release: true }];
@@ -323,7 +347,9 @@ test('render_edge_lines', () => {
   const stands = (facts) => renderHandoff(template, facts, 'demo').split('## Where things stand\n')[1].split('\n\n')[0];
   assert.equal(
     stands(empty),
-    ['No open tasks.', 'Not listed: 3 triage issues', 'Lists cut at 1000; more exist.', 'Worktrees: none', 'Base branch main: no remote-tracking ref'].join('\n'),
+    ['No open tasks.', 'Not listed: 3 triage issues', 'Lists cut at 1000; more exist.', 'Worktrees: none', 'Base branch main: no remote-tracking ref'].join(
+      '\n',
+    ),
   );
   assert.match(renderHandoff(template, empty, 'demo'), /^Continue demo \(this repo\)\. Load baton:workflow\.$/m);
 
@@ -371,6 +397,9 @@ test('template_has_slot_sections', () => {
     assert.match(template, new RegExp(`^## ${section}\\n<FILL: [^>]+>$`, 'm'), section);
   }
   assert.match(template, /^## Where things stand\n\{\{facts\}\}$/m);
-  assert.match(template, /^## Rules\nFollow baton:workflow and this repo's conventions; they hold the rules for this repo\. Never `git commit --no-verify`\.$/m);
+  assert.match(
+    template,
+    /^## Rules\nFollow baton:workflow and this repo's conventions; they hold the rules for this repo\. Never `git commit --no-verify`\.$/m,
+  );
   assert.deepEqual([...new Set(template.match(/\{\{[^}]*\}\}/g))], ['{{project}}', '{{facts}}']);
 });
