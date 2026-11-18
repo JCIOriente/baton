@@ -23,7 +23,8 @@ it" are not evidence. Output from a command you ran after your last change is.
    entry, or add a `structure.exclude` glob to get green.** The one exception is a purely
    mechanical change (formatter, codegen, a `baton:deps` upgrade) that adds lines, with the
    owner's approval stated in the PR; otherwise stop and ask the owner. Lowering or removing
-   an entry, as `baton structure` prints, is expected. Repeat until it passes. If the cause is unclear, use `baton:debug`.
+   an entry, as `baton structure` prints, is expected. Repeat until it passes. If the cause
+   is unclear, use `baton:debug`.
 3. **Check the acceptance criteria one by one** against the task (`baton show <n>`). For each
    one, name the test or the command output that proves it. A criterion with no proof is not
    met.

@@ -26,8 +26,9 @@ spec and the stack guides, and nothing else.
    - Check the line counts of the files it will grow (`wc -l`, or `baton structure --json`
      for files already over). A task that would push a file past `structure.maxLines`
      includes the split as its first, move-only commit and lists the new sibling files in
-     Owns. `structure.allowlist` entries are exempt from ownership; resolve a merge conflict
-     there by rerunning `baton structure` and taking its numbers.
+     Owns. `structure.allowlist` entries are exempt from ownership (two tasks may each lower
+     or drop their own); resolve a merge conflict there by rerunning `baton structure` and
+     taking its numbers.
    - **Contract first:** when frontend and backend work (or two services) happen in parallel,
      the API contract is its own first task. It produces the OpenAPI document (see the
      `openapi` guide). Consumer and provider tasks both depend on it and build against it,
