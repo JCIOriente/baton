@@ -671,10 +671,23 @@ test('doctor lists applicable gates no step covers', async (t) => {
     uncovered('install', deps),
     uncovered('format', 'always'),
     uncovered('lint', 'always'),
+    uncovered('structure', 'always'),
     uncovered('unused-deps', deps),
     uncovered('audit', deps),
     uncovered('unit-tests', 'always'),
   ]);
+});
+
+test('doctor reports the structure gap until a step covers it', async (t) => {
+  const gap = "gate 'structure' applies (always) but no step covers it and gates.skip doesn't list it";
+  const base = [{ name: 'check', run: 'true', gates: ['secrets', 'format', 'lint', 'unit-tests'] }];
+  const { doctor } = await gatesRepo(t, { validate: base });
+  assert.deepEqual(kindMessages(doctor().findings, 'gates'), [gap]);
+  const structureStep = { name: 'structure', run: 'true', gates: ['structure'] };
+  const { doctor: covered } = await gatesRepo(t, { validate: [structureStep, ...base] });
+  assert.deepEqual(kindMessages(covered().findings, 'gates'), []);
+  const { doctor: skipped } = await gatesRepo(t, { validate: base, gates: { skip: { structure: 'r' } } });
+  assert.deepEqual(kindMessages(skipped().findings, 'gates'), []);
 });
 
 test('doctor reports a step with no gate', async (t) => {
@@ -687,14 +700,14 @@ test('doctor reports static gates after tests', async (t) => {
     { name: 'test', run: 'true', gates: ['unit-tests'] },
     { name: 'check', run: 'true', gates: ['format', 'lint', 'secrets'] },
   ];
-  const { doctor } = await gatesRepo(t, { validate: steps });
+  const { doctor } = await gatesRepo(t, { validate: steps, gates: { skip: { structure: 'not under test' } } });
   assert.deepEqual(kindMessages(doctor().findings, 'gates'), ["step 'check' runs format, lint, secrets after 'test' (unit-tests)"]);
-  const { doctor: inOrder } = await gatesRepo(t, { validate: [steps[1], steps[0]] });
+  const { doctor: inOrder } = await gatesRepo(t, { validate: [steps[1], steps[0]], gates: { skip: { structure: 'not under test' } } });
   assert.deepEqual(kindMessages(inOrder().findings, 'gates'), []);
 });
 
 test('doctor reports missing commit gates', async (t) => {
-  const gates = ['secrets', 'format', 'lint', 'unit-tests'];
+  const gates = ['secrets', 'format', 'lint', 'structure', 'unit-tests'];
   const commitStep = { name: 'all', run: 'true', gates, stages: ['commit', 'local', 'ci'] };
   const { baton, doctor } = await gatesRepo(t, { validate: [commitStep] });
   const missing = kindMessages(doctor().findings, 'worktree').filter((m) => m.includes('commit-gates'));
@@ -751,7 +764,7 @@ test('doctor reports a .gitignore without .worktrees', async (t) => {
 });
 
 test('doctor reports each worktree outside .worktrees', async (t) => {
-  const config = { validate: [{ name: 'all', run: 'true', gates: ['secrets', 'format', 'lint', 'unit-tests'] }] };
+  const config = { validate: [{ name: 'all', run: 'true', gates: ['secrets', 'format', 'lint', 'structure', 'unit-tests'] }] };
   const withWorktrees = async (cfg) => {
     const repo = await gatesRepo(t, cfg);
     repo.git('worktree', 'add', '-q', '-b', 'inside-one', join(repo.root, '.worktrees', 'inside-one'));
