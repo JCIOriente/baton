@@ -42,14 +42,33 @@ unstated assumptions, overbuild, and change code they don't understand as a side
 - Configuration and limits are named constants or config, not magic numbers or strings in
   logic. `0`, `1` and obvious literals don't need names.
 
-## Size heuristics
+## Size and structure
 
-- A function does one thing at one level of abstraction. Past ~50 lines, or when it needs
-  section comments, consider splitting. Long but linear code (a mapping table, a migration)
-  is fine.
-- A file holds one cohesive concept. Past a few hundred lines, check whether it holds two.
-- Organize by feature/domain rather than by technical layer, unless the project does otherwise.
-- These are prompts to look, not limits to enforce mechanically.
+- **File size is a rule.** Every counted file stays within `structure.maxLines` (500 by
+  default), tests included. Generated code is excluded with `structure.exclude`, never by
+  renaming it. Files already over the limit sit in `structure.allowlist`, which only shrinks.
+  The `structure` gate enforces it.
+- **Split in the same PR.** A change that would push a file past the limit splits it in the
+  same PR. The split is the PR's first commit and only moves code. The behavior change comes
+  after it. Review checks this.
+- **Move or change, never both.** A refactor PR, and a split commit, only moves code or only
+  changes it. A move-only diff is reviewable because nothing in it changes behavior:
+  `git diff --color-moved` shows it. Review checks this.
+- **Organize by feature, not by file type.** Shared code is promoted once a second feature
+  needs it. Dependencies point one way. Each stack's Layout section says what enforces that.
+- **Structure is added on a trigger, not predicted:**
+
+| Trigger | Change |
+|---|---|
+| A module has more than one part | It becomes a folder |
+| A feature has three or more files of one kind | A subfolder appears (`components/`, `hooks/`, `model/`, `api/`) |
+| A second feature needs the code | It moves to a shared module in the PR that needs it |
+| A change would push a file past the limit | The same PR splits it first, in a move-only commit |
+| A second adapter needs the use cases (CLI, MCP server, another window) | Service logic moves out of the framework crate or package |
+
+- Function size, nesting and "one concept per file" stay prompts to look, not limits to
+  enforce. Past ~50 lines, or when a function needs section comments, consider splitting. Long
+  but linear code (a mapping table, a migration) is fine. Review checks them.
 
 ## Comments
 
