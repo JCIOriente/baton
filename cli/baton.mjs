@@ -628,34 +628,47 @@ function cleanWorktrees(root, config, values) {
     .map((w) => ({ w, ...cleanDecision(provider, config, w, { root, here, force: values.force }) }));
   const dryRun = values['dry-run'];
   let hasFailure = false;
-  // Each row is carried out on its own, so one failure still leaves a full report of what changed.
-  const rows = plan.map(({ w, pr, state, action, reason }) => {
-    const row = { branch: w.branch, path: w.path, task: issueFromBranch(config, w.branch), pr, state, action, reason };
-    const isMergedRemoval = state === 'merged' && action === 'remove';
-    const deleteBranch = values['delete-branch'] && isMergedRemoval;
-    if (dryRun) {
+  // `git worktree prune` is repo-wide, so a stale outside record is locked while the plan runs,
+  // then unlocked; one that was already locked is left as it is.
+  const shielded = [];
+  let rows;
+  try {
+    for (const { w, action } of plan) {
+      if (dryRun || action !== 'outside' || w.locked || !isStale(w)) continue;
+      git(['worktree', 'lock', '--reason', 'baton worktree clean is running', w.path], { cwd: root });
+      shielded.push(w.path);
+    }
+    // Each row is carried out on its own, so one failure still leaves a full report of what changed.
+    rows = plan.map(({ w, pr, state, action, reason }) => {
+      const row = { branch: w.branch, path: w.path, task: issueFromBranch(config, w.branch), pr, state, action, reason };
+      const isMergedRemoval = state === 'merged' && action === 'remove';
+      const deleteBranch = values['delete-branch'] && isMergedRemoval;
+      if (dryRun) {
+        if (!isMergedRemoval) return row;
+        return { ...row, reason: `${reason}; branch ${deleteBranch ? 'would be deleted' : 'kept'}` };
+      }
+      if (action !== 'remove' && action !== 'prune') return row;
+      try {
+        removeWorktree(root, w);
+      } catch (err) {
+        if (!(err instanceof BatonError)) throw err;
+        hasFailure = true;
+        return { ...row, action: 'skip', reason: `removal failed: ${oneLine(err.message)}` };
+      }
       if (!isMergedRemoval) return row;
-      return { ...row, reason: `${reason}; branch ${deleteBranch ? 'would be deleted' : 'kept'}` };
-    }
-    if (action !== 'remove' && action !== 'prune') return row;
-    try {
-      removeWorktree(root, w);
-    } catch (err) {
-      if (!(err instanceof BatonError)) throw err;
-      hasFailure = true;
-      return { ...row, action: 'skip', reason: `removal failed: ${oneLine(err.message)}` };
-    }
-    if (!isMergedRemoval) return row;
-    if (!deleteBranch) return { ...row, reason: `${reason}; branch kept` };
-    const tip = git(['rev-parse', '--short', `refs/heads/${w.branch}`], { cwd: root }).stdout;
-    // -D, not -d: after a squash merge git never sees the branch as merged.
-    const deleted = git(['branch', '-D', w.branch], { cwd: root, allowFail: true });
-    if (deleted.code !== 0) {
-      hasFailure = true;
-      return { ...row, reason: `${reason}; branch deletion failed: ${oneLine(deleted.stderr)}` };
-    }
-    return { ...row, reason: `${reason}; branch deleted (was ${tip})` };
-  });
+      if (!deleteBranch) return { ...row, reason: `${reason}; branch kept` };
+      const tip = git(['rev-parse', '--short', `refs/heads/${w.branch}`], { cwd: root }).stdout;
+      // -D, not -d: after a squash merge git never sees the branch as merged.
+      const deleted = git(['branch', '-D', w.branch], { cwd: root, allowFail: true });
+      if (deleted.code !== 0) {
+        hasFailure = true;
+        return { ...row, reason: `${reason}; branch deletion failed: ${oneLine(deleted.stderr)}` };
+      }
+      return { ...row, reason: `${reason}; branch deleted (was ${tip})` };
+    });
+  } finally {
+    for (const path of shielded) git(['worktree', 'unlock', path], { cwd: root, allowFail: true });
+  }
   if (hasFailure) process.exitCode = 1;
   if (values.json) return print(rows);
   if (!rows.length) return print('No worktrees to clean.');
