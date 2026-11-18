@@ -197,7 +197,7 @@ An allowlist entry's state, checked in this order (the first match wins):
 
 | State | Condition | Finding |
 |---|---|---|
-| not counted | the path is missing, ignored by git, excluded, not a regular file, or has no source extension | `on structure.allowlist but not counted (<why>). Remove its entry.` |
+| not counted | the path is missing, ignored by git, excluded, not a regular file, under `.worktrees/`, not listed by git (inside a nested repository), or has no source extension | `on structure.allowlist but not counted (<why>). Remove its entry.` |
 | under the limit | lines ≤ `maxLines` | `<n> lines, under the <max>-line limit. Remove its structure.allowlist entry.` |
 | grew | lines > entry | `<n> lines, allowlisted at <b>. It grew: split it in this PR (stacks/common.md, Size and structure).` |
 | shrank | lines < entry | `<n> lines, allowlisted at <b>. It shrank: set structure.allowlist["<path>"] to <n>.` |
@@ -490,8 +490,8 @@ None.
 
 ## Implementation status
 - [x] plan: [docs/plans/2026-11-17-structure-guards.md](../plans/2026-11-17-structure-guards.md)
-- [ ] #197 structure core
-- [ ] #204 `baton structure` command
-- [ ] #198 guides
-- [ ] #199 skills and reviewer
-- [ ] #205 applies always, baton dogfoods it
+- [x] #197 structure core
+- [x] #204 `baton structure` command
+- [x] #198 guides
+- [x] #199 skills and reviewer
+- [x] #205 applies always, baton dogfoods it
