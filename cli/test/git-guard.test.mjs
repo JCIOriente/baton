@@ -175,8 +175,8 @@ test('git guard refuses a commit in a worktree outside .worktrees', (t) => {
   }
   assert.throws(() => statSync(join(dir, 'baton-calls')), 'the guard refuses before the commit gates run');
 
-  for (const inside of [join(root, '.worktrees/feat'), join(root, '.worktrees/a/b')]) {
-    git(root, 'worktree', 'add', '-q', '-b', basename(inside), inside);
+  for (const [branch, inside] of [['feat', join(root, '.worktrees/feat')], ['ab', join(root, '.worktrees/a/b')], ['dots', join(root, '.worktrees/..x')]]) {
+    git(root, 'worktree', 'add', '-q', '-b', branch, inside);
     const res = commit(inside, passing);
     assert.equal(res.status, 0, res.stderr);
   }
