@@ -202,7 +202,7 @@ function init(argv) {
   mkdirSync(join(top, CONFIG_DIR), { recursive: true });
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
   for (const d of [config.docs.specs, config.docs.plans]) mkdirSync(join(top, d), { recursive: true });
-  // The config just written, not loadConfig(): that reads the main checkout's file.
+  // The config just written, merged over defaults.
   if (values.labels) getProvider(deepMerge(DEFAULT_CONFIG, config), root).ensureLabels();
   print(values.json ? config : `Wrote ${relative(top, path)}\n${JSON.stringify(config, null, 2)}`);
 }
@@ -951,20 +951,22 @@ function doctor(argv) {
   const findings = [];
   const loaded = loadConfig();
   if (!loaded.found) findings.push({ kind: 'config', message: 'No .baton/config.json (run `baton init`)' });
-  const { root, config } = loaded;
+  // The checks of the config and its files read the checkout this runs in (`top`); the guard
+  // checks read the main checkout (`root`).
+  const { root, top, config } = loaded;
 
   for (const step of [...config.setup, ...config.validate]) {
     const tool = step.run.trim().split(/\s+/)[0];
     if (!/^[\w.-]+$/.test(tool)) continue;
     if (runShell(`command -v ${tool} >/dev/null 2>&1`) !== 0)
       findings.push({ kind: 'tool', message: `'${tool}' (used by '${step.name ?? step.run}') is not on PATH` });
-    if (step.cwd && !existsSync(join(root, step.cwd)))
+    if (step.cwd && !existsSync(join(top, step.cwd)))
       findings.push({ kind: 'config', message: `cwd '${step.cwd}' of '${step.name ?? step.run}' does not exist` });
   }
-  const notEnabled = detectStacks(root).stacks.filter((s) => !config.stacks.includes(s));
+  const notEnabled = detectStacks(top).stacks.filter((s) => !config.stacks.includes(s));
   if (notEnabled.length) findings.push({ kind: 'stacks', message: `Detected but not enabled: ${notEnabled.join(', ')}` });
 
-  for (const f of factsVsInstalled(loadProvenance(PLUGIN_ROOT), installedVersions(root))) {
+  for (const f of factsVsInstalled(loadProvenance(PLUGIN_ROOT), installedVersions(top))) {
     findings.push({
       ...f,
       message: `${f.pkg.replace(/^\w+:/, '')} ${f.installed} installed, but ${f.file} assumes ${f.requires} (${f.fact}). Upgrade, or record the exception in the project conventions.`,
@@ -974,10 +976,10 @@ function doctor(argv) {
   if (loaded.found) {
     const files = {};
     for (const path of [...RELEASE_FILES, 'package.json', 'Cargo.toml']) {
-      if (existsSync(join(root, path))) files[path] = readFileSync(join(root, path), 'utf8');
+      if (existsSync(join(top, path))) files[path] = readFileSync(join(top, path), 'utf8');
     }
     findings.push(...releaseFindings({ config, files }));
-    findings.push(...coverageFindings(config, applicableGates({ root, config })));
+    findings.push(...coverageFindings(config, applicableGates({ root: top, config })));
     findings.push(...orderFindings(config.validate.map(normalizeStep)));
   }
 

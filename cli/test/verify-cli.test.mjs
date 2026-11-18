@@ -313,3 +313,54 @@ test('done runs only the local stage and opens the PR past an advisory failure',
   assert.match(body, /^Advisory failed: api \(`echo api >> ran.log; exit 1`\): no baseline yet$/m);
   assert.match(body, /^CI only: e2e \(`echo e2e >> ran.log; exit 1`\)$/m);
 });
+
+/** A linked worktree of `root` on a new branch whose .baton/config.json is `config`. */
+function linkedWithConfig(root, base, config) {
+  const wt = join(base, 'feat');
+  git(root, 'worktree', 'add', '-q', '-b', 'feat', wt, 'main');
+  writeFileSync(join(wt, '.baton/config.json'), JSON.stringify(config));
+  git(wt, 'commit', '-q', '--allow-empty', '-am', 'change the gates');
+  return wt;
+}
+
+test('verify in a linked worktree runs its own validate steps', (t) => {
+  const { root, base } = repo(t, { validate: [step('main-step')] });
+  const wt = linkedWithConfig(root, base, { validate: [step('branch-step')] });
+  const res = baton(wt, 'verify');
+  assert.equal(res.status, 0, res.stderr);
+  assert.deepEqual(ran(wt), ['branch-step']);
+});
+
+test('doctor in a linked worktree checks its own validate steps', (t) => {
+  const { root, base } = repo(t, { validate: [{ name: 'main-step', run: 'baton-main-only-tool' }] });
+  const wt = linkedWithConfig(root, base, { validate: [{ name: 'branch-step', run: 'baton-branch-only-tool' }] });
+  const res = baton(wt, 'doctor', '--json');
+  const tools = JSON.parse(res.stdout)
+    .filter((f) => f.kind === 'tool')
+    .map((f) => f.message);
+  assert.deepEqual(tools, ["'baton-branch-only-tool' (used by 'branch-step') is not on PATH"]);
+});
+
+test('doctor in a linked worktree checks the files of that worktree', (t) => {
+  // Every file the checks read exists only in the linked worktree.
+  const { root, base } = repo(t, { validate: [step('tests', 0, { gates: ['unit-tests'] })] });
+  const wt = linkedWithConfig(root, base, { validate: [step('tests', 0, { gates: ['unit-tests'], cwd: 'pkg' })] });
+  mkdirSync(join(wt, 'pkg'));
+  writeFileSync(join(wt, 'package.json'), JSON.stringify({ dependencies: { react: '19.1.0' } }));
+  writeFileSync(join(wt, 'package-lock.json'), JSON.stringify({ packages: { '': {}, 'node_modules/react': { version: '19.1.0' } } }));
+  writeFileSync(join(wt, 'release-please-config.json'), '{}');
+  const messages = JSON.parse(baton(wt, 'doctor', '--json').stdout).map((f) => `[${f.kind}] ${f.message}`);
+  const has = (prefix) =>
+    assert.ok(
+      messages.some((m) => m.startsWith(prefix)),
+      `${prefix}\n${messages.join('\n')}`,
+    );
+  has("[gates] gate 'install' applies (a package.json with dependencies");
+  has('[stacks] Detected but not enabled: ');
+  has('[release] release.enabled is false but release-please-config.json exists');
+  assert.ok(
+    messages.some((m) => m.includes('react 19.1.0 installed')),
+    messages.join('\n'),
+  );
+  assert.ok(!messages.some((m) => m.includes("cwd 'pkg'")), messages.join('\n'));
+});
