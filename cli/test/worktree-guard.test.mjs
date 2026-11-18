@@ -78,7 +78,16 @@ function repo(t, config = {}) {
 }
 
 const on = { hooks: { worktreeOnly: true } };
-const main = { gitDir: '/r/acme/.git', commonDir: '/r/acme/.git', top: '/r/acme', mainTop: '/r/acme', path: '/r/acme/docs/a.md', ignored: false, config: on, env: {} };
+const main = {
+  gitDir: '/r/acme/.git',
+  commonDir: '/r/acme/.git',
+  top: '/r/acme',
+  mainTop: '/r/acme',
+  path: '/r/acme/docs/a.md',
+  ignored: false,
+  config: on,
+  env: {},
+};
 /** An edit in the linked worktree whose top-level folder is `top`. */
 const linkedAt = (top) => ({ ...main, gitDir: '/r/acme/.git/worktrees/w', top, path: `${top}/docs/a.md` });
 
