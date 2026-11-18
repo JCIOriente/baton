@@ -19,7 +19,7 @@ export const ALWAYS_RULES = [
 // Replaces the task-only first rule while hooks.worktreeOnly is on.
 const TASK_WORKTREE_RULE = 'Never work on a task you have not claimed (`baton start <n>`), and edit only inside its worktree.';
 export const WORKTREE_RULE =
-  'Never edit or commit in the main checkout. Task work happens in the worktree from `baton start <n>`; anything else (specs, plans, docs, config) in one from `baton worktree add <name>`. Never use `git commit --no-verify`.';
+  'Never edit or commit in the main checkout. Task work happens in the worktree from `baton start <n>`; anything else (specs, plans, docs, config) in one from `baton worktree add <name>`. Never use `git commit --no-verify`. Every worktree lives in .worktrees/ at the repo root, made by baton start or baton worktree add; never git worktree add elsewhere.';
 
 /**
  * Build the text injected at session start. Only the stacks and rules the project
