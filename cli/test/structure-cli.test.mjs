@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { splitPathList } from '../lib/structure.mjs';
 
 const cli = new URL('../baton.mjs', import.meta.url).pathname;
 // Isolated from the user's git config (signing, hooks), with a fixed identity.
@@ -88,6 +89,12 @@ test('structure CLI never counts a plain untracked file under .worktrees', (t) =
   const res = baton(root, 'structure');
   assert.equal(res.status, 0, res.stderr);
   assert.equal(res.stderr, 'structure: 1 files checked, limit 3, 0 allowlisted, no failures, 1 files not counted (no guide for their extension)\n');
+
+  const big = '.worktrees/task-1-x/big.js';
+  write(root, { '.baton/config.json': JSON.stringify({ structure: { maxLines: 3, allowlist: { [big]: 9 } } }) });
+  const listed = baton(root, 'structure');
+  assert.equal(listed.status, 1, listed.stderr);
+  assert.deepEqual(findings(listed.stderr), [`✖ ${big}: on structure.allowlist but not counted (under .worktrees/). Remove its entry.`]);
 });
 
 test('structure CLI prints the allowlist block only with --suggest-allowlist', (t) => {
@@ -148,23 +155,27 @@ test('structure CLI does not count ignored, excluded, non-source, deleted, symli
   git(sub, 'add', '-A');
   git(sub, 'commit', '-qm', 'sub');
   git(root, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub, 'vendor.rs');
-  write(root, { 'build/out.js': lines(9) });
+  write(root, { 'build/out.js': lines(9), 'build/out.txt': lines(9) });
   symlinkSync('notes.txt', join(root, 'link.js'));
+  symlinkSync('notes.txt', join(root, 'link.txt'));
+  symlinkSync('api.ts', join(root, 'gen/alias.ts'));
   rmSync(join(root, 'gone.js'));
 
   const res = baton(root, 'structure');
   assert.equal(res.status, 0, res.stderr);
-  // .baton/config.json, .gitignore, .gitmodules and notes.txt are skipped for their extension;
-  // gen/schema.json is excluded, which comes first.
-  assert.equal(res.stderr, 'structure: 1 files checked, limit 3, 0 allowlisted, no failures, 4 files not counted (no guide for their extension)\n');
+  // .baton/config.json, .gitignore, .gitmodules, notes.txt and the link.txt symlink are skipped
+  // for their extension; gen/schema.json and the gen/alias.ts symlink are excluded, which comes first.
+  assert.equal(res.stderr, 'structure: 1 files checked, limit 3, 0 allowlisted, no failures, 5 files not counted (no guide for their extension)\n');
 
-  const allowlist = { 'build/out.js': 9, 'gen/api.ts': 9, 'gone.js': 9, 'link.js': 9, 'notes.txt': 9, 'vendor.rs': 9 };
+  const allowlist = { 'build/out.js': 9, 'build/out.txt': 9, 'gen/alias.ts': 9, 'gen/api.ts': 9, 'gone.js': 9, 'link.js': 9, 'notes.txt': 9, 'vendor.rs': 9 };
   write(root, { '.baton/config.json': JSON.stringify({ structure: { maxLines: 3, exclude: ['gen/**'], allowlist } }) });
   const listed = baton(root, 'structure');
   assert.equal(listed.status, 1, listed.stderr);
   const why = (path, reason) => `✖ ${path}: on structure.allowlist but not counted (${reason}). Remove its entry.`;
   assert.deepEqual(findings(listed.stderr), [
     why('build/out.js', 'ignored by git'),
+    why('build/out.txt', 'no source extension'),
+    why('gen/alias.ts', 'excluded'),
     why('gen/api.ts', 'excluded'),
     why('gone.js', 'missing'),
     why('link.js', 'not a regular file'),
@@ -216,4 +227,79 @@ test('baton help lists the structure command', (t) => {
   const res = baton(root, 'help');
   assert.equal(res.status, 0);
   assert.ok(res.stdout.includes('structure [--json] [--suggest-allowlist]   Check source files against the size limit and allowlist'), res.stdout);
+});
+
+test('structure CLI says why git did not list an allowlisted path', (t) => {
+  const { root } = repo(t, { config: { structure: { maxLines: 3 } }, files: { 'ok.js': lines(1) } });
+  write(root, { 'old.js/readme.txt': 'x\n', 'nested/big.js': lines(9) });
+  git(join(root, 'nested'), 'init', '-q', '-b', 'main');
+  write(root, { '.baton/config.json': JSON.stringify({ structure: { maxLines: 3, allowlist: { 'old.js': 9, 'nested/big.js': 9 } } }) });
+  const res = baton(root, 'structure');
+  assert.equal(res.status, 1, res.stderr);
+  const why = (path, reason) => `✖ ${path}: on structure.allowlist but not counted (${reason}). Remove its entry.`;
+  assert.deepEqual(findings(res.stderr), [why('nested/big.js', 'not listed by git'), why('old.js', 'not a regular file')]);
+  // The nested repo is listed as one folder entry, which isn't a file skipped for its extension.
+  assert.match(summary(res.stderr), /^structure: 1 files checked, .*, 2 files not counted/);
+});
+
+test('structure CLI counts a file in a merge conflict once', (t) => {
+  const { root } = repo(t, { config: { structure: { maxLines: 3 } }, files: { 'big.js': lines(4) } });
+  git(root, 'checkout', '-qb', 'other');
+  write(root, { 'big.js': lines(5) });
+  git(root, 'commit', '-qam', 'other');
+  git(root, 'checkout', '-q', 'main');
+  write(root, { 'big.js': lines(6) });
+  git(root, 'commit', '-qam', 'main');
+  assert.notEqual(spawnSync('git', ['merge', '-q', 'other'], { cwd: root, env }).status, 0);
+  assert.match(git(root, 'ls-files', '--stage', 'big.js'), /\t.*\n.*\t.*\n.*\t/);
+  const res = baton(root, 'structure');
+  assert.equal(res.status, 1, res.stderr);
+  assert.equal(findings(res.stderr).length, 1, res.stderr);
+  assert.match(summary(res.stderr), /^structure: 1 files checked/);
+});
+
+test('structure CLI treats a tracked file whose folder became a file as missing', (t) => {
+  const { root } = repo(t, { files: { 'a/b.js': lines(1) } });
+  rmSync(join(root, 'a'), { recursive: true });
+  write(root, { a: 'x\n' });
+  const res = baton(root, 'structure');
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(res.stderr, 'structure: 0 files checked, limit 500, 0 allowlisted, no failures, 1 files not counted (no guide for their extension)\n');
+});
+
+test('structure CLI names the path it cannot inspect', (t) => {
+  const { root } = repo(t, { files: { 'locked/x.js': lines(1) } });
+  chmodSync(join(root, 'locked'), 0o000);
+  let res;
+  try {
+    res = baton(root, 'structure');
+  } finally {
+    chmodSync(join(root, 'locked'), 0o755); // before the repo's cleanup, which can't enter it
+  }
+  assert.equal(res.status, 1, res.stderr);
+  assert.match(res.stderr, /^baton: Cannot read locked\/x\.js: EACCES/);
+  assert.doesNotMatch(res.stderr, /unexpected error/);
+});
+
+test('structure CLI escapes control characters in the paths it prints as text', (t) => {
+  const path = 'evil\x1b[2K\r\u009bx.js';
+  const { root } = repo(t, { config: { structure: { maxLines: 3 } }, files: { [path]: lines(4) } });
+  const res = baton(root, 'structure', '--suggest-allowlist', '--json');
+  assert.equal(res.status, 1, res.stderr);
+  for (const c of ['\x1b', '\r', '\u009b']) assert.ok(!res.stderr.includes(c), JSON.stringify(res.stderr));
+  assert.deepEqual(findings(res.stderr), [`✖ "evil\\u001b[2K\\r\\u009bx.js": 4 lines, over the 3-line limit. ${SPLIT}`]);
+  assert.ok(res.stderr.includes('\n  "evil\\u001b[2K\\r\\u009bx.js": 4\n'), res.stderr);
+  assert.equal(JSON.parse(res.stdout).files[0].path, path);
+});
+
+test('structure CLI keeps the bytes of a listed path that is not valid UTF-8', () => {
+  // APFS refuses such names (EILSEQ), so this checks the listing the runner reads files by.
+  const bad = Buffer.from([0x62, 0xff, 0x2e, 0x6a, 0x73]);
+  const out = Buffer.concat([Buffer.from('a.js\0'), bad, Buffer.from('\0a.js\0')]);
+  const listed = splitPathList(out);
+  assert.deepEqual(
+    listed.map((p) => p.path),
+    ['a.js', 'b�.js'],
+  );
+  assert.ok(listed[1].raw.equals(bad));
 });
