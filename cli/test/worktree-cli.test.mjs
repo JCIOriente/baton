@@ -606,7 +606,7 @@ test('status_json_gives_null_task_for_a_named_worktree', (t) => {
     rows.map((r) => r.task),
     [3, 12, null, null],
   );
-  assert.deepEqual(rows[3], { task: null, branch: 'orgs-spec', path: join(base, 'orgs-spec'), current: false, dirty: false });
+  assert.deepEqual(rows[3], { task: null, branch: 'orgs-spec', path: join(base, 'orgs-spec'), current: false, dirty: false, outside: false });
 });
 
 test('status_marks_the_current_and_uncommitted_worktrees_of_each_kind', (t) => {
@@ -1037,21 +1037,16 @@ test('clean never touches a worktree outside .worktrees', (t) => {
   const res = gh.run(root, 'worktree', 'clean', '--force');
   assert.equal(res.status, 0, res.stderr);
   assert.match(res.stdout, /^Removed:\n {2}inside-one {2}PR #5 merged; branch kept$/m);
-  assert.ok(
-    res.stdout.endsWith(
-      [
-        `Outside .worktrees/ (not cleaned; every worktree belongs in ${base}/):`,
-        `  old-spec  ${outside.path}`,
-        `  gone-spec  ${gone.path}\n`,
-      ].join('\n'),
-    ),
-    res.stdout,
-  );
+  const [, group] = res.stdout.split(`Outside .worktrees/ (not cleaned; every worktree belongs in ${base}/):\n`);
+  assert.deepEqual(group.trimEnd().split('\n').sort(), [`  gone-spec  ${gone.path}`, `  old-spec  ${outside.path}`], res.stdout);
   assert.ok(!existsSync(inside.path), 'the inside worktree is removed');
   assert.ok(existsSync(outside.path), 'the outside worktree is kept');
   assert.ok(git(root, 'worktree', 'list', '--porcelain').includes(gone.path), 'the stale outside record is kept');
   assert.ok(!gh.log().some((call) => /--head (old|gone)-spec/.test(call)), gh.log().join('\n'));
-  assert.ok(gh.log().some((call) => call.includes('--head inside-one')), gh.log().join('\n'));
+  assert.ok(
+    gh.log().some((call) => call.includes('--head inside-one')),
+    gh.log().join('\n'),
+  );
 });
 
 test('clean treats a hand-made worktree inside .worktrees like its own', (t) => {

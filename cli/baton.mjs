@@ -19,6 +19,7 @@ import {
   ensureExcluded,
   git,
   hasUncommittedChanges,
+  isInWorktrees,
   issueFromBranch,
   listWorktrees,
   repoRoot,
@@ -615,14 +616,15 @@ function worktree(argv) {
 
 /**
  * `worktree clean`: removes the worktrees whose PR is merged (or closed, with --force). The whole
- * plan is made before anything changes, so a gh failure leaves every worktree as it was.
+ * plan is made before anything changes, so a gh failure leaves every worktree as it was. Only
+ * worktrees inside `.worktrees/` are judged; the others are listed and never touched.
  */
 function cleanWorktrees(root, config, values) {
   const provider = getProvider(config, root);
   const here = currentTop();
   const plan = listWorktrees(root)
     .filter((w) => w.path !== root)
-    .map((w) => ({ w, ...cleanDecision(provider, config, w, { here, force: values.force }) }));
+    .map((w) => ({ w, ...cleanDecision(provider, config, w, { root, here, force: values.force }) }));
   const dryRun = values['dry-run'];
   let hasFailure = false;
   // Each row is carried out on its own, so one failure still leaves a full report of what changed.
@@ -667,6 +669,13 @@ function cleanWorktrees(root, config, values) {
     if (!members.length) continue;
     lines.push(`${heading}:`, ...members.map((r) => `  ${r.branch ?? r.path}  ${r.reason}`));
   }
+  const outside = rows.filter((r) => r.action === 'outside');
+  if (outside.length) {
+    lines.push(
+      `Outside .worktrees/ (not cleaned; every worktree belongs in ${worktreeBase(root)}/):`,
+      ...outside.map((r) => `  ${r.branch ?? r.path}  ${r.path}`),
+    );
+  }
   if (dryRun) lines.push('Dry run: nothing changed.');
   print(lines.join('\n'));
 }
@@ -674,10 +683,12 @@ function cleanWorktrees(root, config, values) {
 /**
  * Sorts worktree `w` into exactly one clean-up category. The PR state on GitHub is the signal,
  * since squash merges hide merged branches from `git branch --merged`. Changes nothing.
- * @returns {{ pr: number|null, state: string, action: 'remove'|'prune'|'keep'|'skip', reason: string }}
+ * A worktree outside `.worktrees/` is never judged, so it needs no PR lookup.
+ * @returns {{ pr: number|null, state: string, action: 'remove'|'prune'|'keep'|'skip'|'outside', reason: string }}
  */
-function cleanDecision(provider, config, w, { here, force }) {
+function cleanDecision(provider, config, w, { root, here, force }) {
   const decide = (state, action, reason, pr = null) => ({ pr, state, action, reason });
+  if (!isInWorktrees(root, w.path)) return decide('outside', 'outside', 'outside .worktrees/');
   if (w.path === here) return decide('current', 'keep', 'current worktree');
   // git refuses to remove or prune a locked worktree.
   if (w.locked) return decide('locked', 'skip', `locked; \`git worktree unlock ${w.path}\` to let clean see it`);
@@ -775,9 +786,10 @@ function worktreeRows(root, config) {
 function status(argv) {
   const { values } = opts(argv);
   const { root, config } = requireConfig();
-  const rows = worktreeRows(root, config);
+  // Not in worktreeRows, so handoff's facts keep their shape.
+  const rows = worktreeRows(root, config).map((r) => ({ ...r, outside: !isInWorktrees(root, r.path) }));
   if (values.json) return print(rows.map(({ stale, ...row }) => row));
-  const note = (r) => (r.stale ? ' (missing; baton worktree prune)' : r.dirty ? ' (uncommitted)' : '');
+  const note = (r) => `${r.stale ? ' (missing; baton worktree prune)' : r.dirty ? ' (uncommitted)' : ''}${r.outside ? ' (outside .worktrees/)' : ''}`;
   print(
     rows.length
       ? rows.map((r) => `${r.current ? '*' : ' '} ${r.task ? `#${r.task} ` : ''}${r.branch ?? '(detached)'}${note(r)}\n    ${r.path}`).join('\n')
