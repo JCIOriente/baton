@@ -1009,3 +1009,77 @@ test('isInWorktrees accepts a nested path', (t) => {
   mkdirSync(join(real, '.worktrees', 'a', 'b'), { recursive: true });
   assert.equal(isInWorktrees(real, join(real, '.worktrees', 'a', 'b')), true);
 });
+
+/** A worktree on new branch `name` at `path`, made by hand with git, with one commit pushed to origin. */
+function handMadeWorktree(root, path, name) {
+  git(root, 'worktree', 'add', '-q', '-b', name, path, 'main');
+  git(path, 'commit', '-q', '--allow-empty', '-m', name);
+  git(path, 'push', '-q', '-u', 'origin', name);
+  return { path, head: git(path, 'rev-parse', 'HEAD') };
+}
+
+test('clean never touches a worktree outside .worktrees', (t) => {
+  const { dir, root, base } = repo(t);
+  const inside = pushedWorktree(root, base, 'inside-one');
+  const outside = handMadeWorktree(root, join(dir, 'acme-worktrees', 'old-spec'), 'old-spec');
+  // A stale record outside: its folder is gone, but clean reports it instead of pruning it.
+  const gone = handMadeWorktree(root, join(dir, 'acme-worktrees', 'gone-spec'), 'gone-spec');
+  rmSync(gone.path, { recursive: true, force: true });
+  const gh = withFakeGh(dir);
+  // Closed, so --force would remove it if it were inside.
+  gh.setPrs({ 'inside-one': [pr(5, 'MERGED', inside.head)], 'old-spec': [pr(6, 'CLOSED', outside.head)] });
+  const outsideRow = (branch, path) => ({ branch, path, task: null, pr: null, state: 'outside', action: 'outside', reason: 'outside .worktrees/' });
+
+  const planned = cleanRows(gh.run(root, 'worktree', 'clean', '--dry-run', '--force', '--json'));
+  assert.deepEqual(planned['old-spec'], outsideRow('old-spec', outside.path));
+  assert.deepEqual(planned['gone-spec'], outsideRow('gone-spec', gone.path));
+
+  const res = gh.run(root, 'worktree', 'clean', '--force');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stdout, /^Removed:\n {2}inside-one {2}PR #5 merged; branch kept$/m);
+  assert.ok(
+    res.stdout.endsWith(
+      [
+        `Outside .worktrees/ (not cleaned; every worktree belongs in ${base}/):`,
+        `  old-spec  ${outside.path}`,
+        `  gone-spec  ${gone.path}\n`,
+      ].join('\n'),
+    ),
+    res.stdout,
+  );
+  assert.ok(!existsSync(inside.path), 'the inside worktree is removed');
+  assert.ok(existsSync(outside.path), 'the outside worktree is kept');
+  assert.ok(git(root, 'worktree', 'list', '--porcelain').includes(gone.path), 'the stale outside record is kept');
+  assert.ok(!gh.log().some((call) => /--head (old|gone)-spec/.test(call)), gh.log().join('\n'));
+  assert.ok(gh.log().some((call) => call.includes('--head inside-one')), gh.log().join('\n'));
+});
+
+test('clean treats a hand-made worktree inside .worktrees like its own', (t) => {
+  const { dir, root, base } = repo(t);
+  // Nested and not named after its branch, so only its place marks it as inside.
+  const hand = handMadeWorktree(root, join(base, 'mine', 'scratch'), 'hand-made');
+  const gh = withFakeGh(dir);
+  gh.setPrs({ 'hand-made': [pr(7, 'MERGED', hand.head)] });
+  const rows = cleanRows(gh.run(root, 'worktree', 'clean', '--json'));
+  assert.deepEqual([rows['hand-made'].state, rows['hand-made'].action], ['merged', 'remove']);
+  assert.ok(!existsSync(hand.path), 'the hand-made worktree is removed');
+});
+
+test('status marks a worktree outside .worktrees', (t) => {
+  const { dir, root, base } = repo(t);
+  git(root, 'worktree', 'add', '-q', '-b', 'inside-one', join(base, 'inside-one'), 'main');
+  const outside = join(dir, 'acme-worktrees', 'old-spec');
+  git(root, 'worktree', 'add', '-q', '-b', 'old-spec', outside, 'main');
+  const res = baton(root, 'status');
+  assert.equal(res.status, 0, res.stderr);
+  const lines = res.stdout.split('\n').filter((l) => /^[ *] \S/.test(l));
+  assert.deepEqual(lines, ['  inside-one', '  old-spec (outside .worktrees/)']);
+  const rows = JSON.parse(baton(root, 'status', '--json').stdout);
+  assert.deepEqual(
+    rows.map((r) => [r.branch, r.outside]),
+    [
+      ['inside-one', false],
+      ['old-spec', true],
+    ],
+  );
+});
