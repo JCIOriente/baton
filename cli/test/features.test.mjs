@@ -738,7 +738,8 @@ test('doctor reports a .gitignore without .worktrees', async (t) => {
   commitGitignore('node_modules/\n .worktrees/\n');
   assert.ok(hasGitignoreFinding(doctor().findings));
   for (const form of ['/.worktrees/', '.worktrees/', '/.worktrees', '.worktrees  ']) {
-    commitGitignore(`node_modules/\n${form}\n`);
+    // Not the last line: git show output loses its trailing whitespace.
+    commitGitignore(`${form}\nnode_modules/\n`);
     assert.equal(hasGitignoreFinding(doctor().findings), false, form);
   }
   git('rm', '-q', '.gitignore');
