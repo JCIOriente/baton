@@ -35,12 +35,14 @@ const refusal = (base = 'origin/main') =>
     `  (without baton on PATH: git worktree add --no-track -b <name> .worktrees/<name> ${base})`,
   ].join('\n');
 const REFUSAL = refusal();
+/** `path` as the shell reads it: single-quoted unless it holds only `[\w./-]`. */
+const shq = (path) => (/^[\w./-]+$/.test(path) ? path : `'${path.replaceAll("'", "'\\''")}'`);
 /** The refusal for a commit in the linked worktree `wt`, outside `<root>/.worktrees/`. */
 const outsideRefusal = (wt, root) =>
   [
     `baton: this worktree is outside .worktrees/ (${wt}).`,
     `Every worktree lives in ${root}/.worktrees/. Move it with:`,
-    `  git worktree move ${wt} ${root}/.worktrees/${basename(wt)}`,
+    `  git worktree move ${shq(wt)} ${shq(`${root}/.worktrees/${basename(wt)}`)}`,
   ].join('\n');
 
 function git(cwd, ...args) {
@@ -167,8 +169,12 @@ test('git guard refuses a commit in a worktree outside .worktrees', (t) => {
   const { dir, root } = repo(t);
   install(root);
   const passing = fakeBaton(dir, PASSING);
-  for (const outside of [join(dir, 'acme-worktrees/old'), join(root, '.claude/worktrees/x')]) {
-    git(root, 'worktree', 'add', '-q', '-b', basename(outside), outside);
+  for (const [branch, outside] of [
+    ['old', join(dir, 'acme-worktrees/old')],
+    ['x', join(root, '.claude/worktrees/x')],
+    ['lookalike', join(root, '.worktreesx/feat')],
+  ]) {
+    git(root, 'worktree', 'add', '-q', '-b', branch, outside);
     const res = commit(outside, passing);
     assert.equal(res.status, 1, res.stderr);
     assert.ok(res.stderr.includes(outsideRefusal(outside, root)), res.stderr);
@@ -184,7 +190,7 @@ test('git guard refuses a commit in a worktree outside .worktrees', (t) => {
     const res = commit(inside, passing);
     assert.equal(res.status, 0, res.stderr);
   }
-  // Inside compares real paths: a worktree reached through a symlinked repo path is still inside.
+  // Entered through a symlinked repo path, the worktree is still inside (git hands the guard real paths).
   const link = join(dir, 'link');
   symlinkSync(root, link);
   const res = commit(join(link, '.worktrees/feat'), passing);
@@ -198,6 +204,36 @@ test('git guard refuses a commit in a worktree outside .worktrees', (t) => {
   git(root2, 'worktree', 'add', '-q', '-b', 'feat', join(root2, '.worktrees/feat'));
   const viaLink = commit(join(dir2, 'elsewhere/feat'), fakeBaton(dir2, PASSING));
   assert.equal(viaLink.status, 0, viaLink.stderr);
+
+  // A worktree at .worktrees itself is not inside it.
+  const { dir: dir3, root: root3 } = repo(t);
+  install(root3);
+  git(root3, 'worktree', 'add', '-q', '-b', 'itself', join(root3, '.worktrees'));
+  const itself = commit(join(root3, '.worktrees'), fakeBaton(dir3, PASSING));
+  assert.equal(itself.status, 1, itself.stderr);
+  assert.ok(itself.stderr.includes(outsideRefusal(join(root3, '.worktrees'), root3)), itself.stderr);
+});
+
+test('git guard quotes the move command for paths a shell would split', (t) => {
+  const { dir, root } = repo(t);
+  install(root);
+  const passing = fakeBaton(dir, PASSING);
+  // git worktree move needs the destination's parent folder (outside this guard's message).
+  mkdirSync(join(root, '.worktrees'));
+  for (const [branch, outside] of [
+    ['spaced', join(dir, 'my code/old one')],
+    ['quoted', join(dir, "it's/old")],
+  ]) {
+    git(root, 'worktree', 'add', '-q', '-b', branch, outside);
+    const res = commit(outside, passing);
+    assert.equal(res.status, 1, res.stderr);
+    assert.ok(res.stderr.includes(outsideRefusal(outside, root)), res.stderr);
+    // Pasted into a shell, the printed command moves the worktree.
+    const move = res.stderr.split('\n').find((l) => l.startsWith('  git worktree move '));
+    const moved = spawnSync('sh', ['-c', move.trim()], { cwd: root, env, encoding: 'utf8' });
+    assert.equal(moved.status, 0, moved.stderr);
+    assert.ok(statSync(join(root, '.worktrees', basename(outside))).isDirectory());
+  }
 });
 
 test('git guard reads worktreeOnly from the main checkout HEAD', (t) => {

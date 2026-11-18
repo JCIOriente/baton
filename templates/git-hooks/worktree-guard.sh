@@ -33,12 +33,16 @@ msg=$(git --git-dir="$common_dir" show HEAD:.baton/config.json 2>/dev/null | nod
     const fs = require("fs");
     const path = require("path");
     const [linked, top, main] = process.argv.slice(1);
+    // Quotes a path for pasting into a shell (\x27 is a single quote, which this script cannot hold).
+    const shq = (p) => /^[\w.\/-]+$/.test(p) ? p : "\x27" + p.replace(/\x27/g, "\x27\\\x27\x27") + "\x27";
     const c = JSON.parse(fs.readFileSync(0, "utf8"));
     const hooks = c && typeof c === "object" && !Array.isArray(c) ? (c.hooks ?? {}) : null;
     const on = hooks && typeof hooks === "object" && (hooks.worktreeOnly ?? true) === true;
     if (!on) process.exit(0);
     if (linked === "1") {
       // Real paths on both sides, so a symlink in either path cannot make a worktree look outside.
+      // git already hands over real paths for top and main; resolving them is defensive only. The
+      // .worktrees folder itself may be a symlink, and that one matters.
       const home = path.join(fs.realpathSync(main), ".worktrees");
       const real = fs.realpathSync(top);
       const rel = path.relative(fs.existsSync(home) ? fs.realpathSync(home) : home, real);
@@ -46,7 +50,7 @@ msg=$(git --git-dir="$common_dir" show HEAD:.baton/config.json 2>/dev/null | nod
       process.stdout.write([
         `baton: this worktree is outside .worktrees/ (${real}).`,
         `Every worktree lives in ${home}/. Move it with:`,
-        `  git worktree move ${real} ${path.join(home, path.basename(real))}`,
+        `  git worktree move ${shq(real)} ${shq(path.join(home, path.basename(real)))}`,
       ].join("\n"));
       process.exit(0);
     }
