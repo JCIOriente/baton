@@ -54,7 +54,8 @@ public API exposes no driver types, that `core` does no I/O and that adapters ho
 
 A module with parts is `foo.rs` plus a `foo/` folder, never `foo/mod.rs`. Clippy's
 `mod_module_files` lint enforces it. It is off by default and `-D warnings` doesn't enable it,
-so turn it on: `[workspace.lints.clippy] mod_module_files = "deny"`. Tests go in
+so turn it on: `[workspace.lints.clippy] mod_module_files = "deny"`, with `[lints] workspace = true`
+in each member crate's Cargo.toml (a single crate uses `[lints.clippy]` instead). Tests go in
 `foo/tests.rs` or `tests/`. Review checks it.
 
 cargo-deny enforces the crate boundary with `[bans]`. It fails on a positive match, so a typo
