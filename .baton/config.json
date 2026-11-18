@@ -8,7 +8,6 @@
   "git": {
     "baseBranch": "main",
     "branchPrefix": "task",
-    "worktreeRoot": "../{repo}-worktrees",
     "mergeStrategy": "squash"
   },
   "setup": [
@@ -21,6 +20,7 @@
     { "name": "secrets", "gates": ["secrets"], "run": "make secrets" },
     { "name": "install", "gates": ["install"], "run": "npm ci" },
     { "name": "lint", "gates": ["format", "lint"], "run": "make lint" },
+    { "name": "structure", "gates": ["structure"], "run": "node cli/baton.mjs structure" },
     { "name": "audit", "gates": ["audit"], "run": "npm audit --audit-level=high" },
     { "name": "tests", "gates": ["unit-tests", "integration-tests"], "run": "make test" },
     { "name": "plugin", "gates": ["build"], "run": "make plugin-validate" },
@@ -29,6 +29,15 @@
   "gates": {
     "skip": {
       "unused-deps": "one devDependency (Biome), used by the lint step"
+    }
+  },
+  "structure": {
+    "allowlist": {
+      "cli/baton.mjs": 1111,
+      "cli/test/features.test.mjs": 913,
+      "cli/test/git-guard.test.mjs": 742,
+      "cli/test/release-templates.test.mjs": 718,
+      "cli/test/worktree-cli.test.mjs": 1088
     }
   },
   "workflow": {
