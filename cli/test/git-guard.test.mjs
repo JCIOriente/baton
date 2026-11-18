@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { COMMIT_GATES_LINE, COMMIT_GATES_PATH, commitGatesStatus, guardStatus, MANAGER_LINE } from '../lib/git-guard.mjs';
 
@@ -32,9 +32,16 @@ const refusal = (base = 'origin/main') =>
     'baton: commits in the main checkout are refused (hooks.worktreeOnly in .baton/config.json).',
     'Make the change in a linked worktree:',
     '  baton worktree add <name>',
-    `  (without baton on PATH: git worktree add --no-track -b <name> ../acme-worktrees/<name> ${base})`,
+    `  (without baton on PATH: git worktree add --no-track -b <name> .worktrees/<name> ${base})`,
   ].join('\n');
 const REFUSAL = refusal();
+/** The refusal for a commit in the linked worktree `wt`, outside `<root>/.worktrees/`. */
+const outsideRefusal = (wt, root) =>
+  [
+    `baton: this worktree is outside .worktrees/ (${wt}).`,
+    `Every worktree lives in ${root}/.worktrees/. Move it with:`,
+    `  git worktree move ${wt} ${root}/.worktrees/${basename(wt)}`,
+  ].join('\n');
 
 function git(cwd, ...args) {
   const res = spawnSync('git', args, { cwd, env, encoding: 'utf8' });
@@ -91,6 +98,13 @@ const STUB_0_7_0 = `#!/bin/sh
 ${MANAGER_LINE}
 `;
 
+// The head of the guard `baton hooks install` wrote before worktrees moved into .worktrees/.
+const GUARD_V1 = `# baton worktree-guard v1
+# Refuses commits in the main checkout while hooks.worktreeOnly is on in the committed
+# .baton/config.json. Installed by \`baton hooks install\`, which rewrites this file on every run.
+[ "$CI" = true ] && exit 0
+`;
+
 /**
  * A PATH whose first entry holds a fake `baton` running `body`, standing in for the CLI. The fake
  * records its arguments and working directory in `<dir>/baton-calls`.
@@ -109,11 +123,11 @@ const TOO_OLD_PRE_0_6 =
   "printf '%s\\n' 'baton: unexpected error' \"TypeError [ERR_PARSE_ARGS_UNKNOWN_OPTION]: Unknown option '--stage'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \\\"--stage\\\"\" '    at parseArgs (node:internal/util/parse_args/parse_args:1:1)' >&2; exit 2";
 const TOO_OLD = "printf '%s\\n' \"baton: Unknown option '--stage'\" 'hint: Run `baton help`.' >&2; exit 1";
 
-/** An installed repo and a linked worktree of it. */
+/** An installed repo and a linked worktree of it, inside `.worktrees/`. */
 function linked(t, config = {}) {
   const { dir, root } = repo(t, config);
   install(root);
-  const wt = join(dir, 'acme-worktrees/feat');
+  const wt = join(root, '.worktrees/feat');
   git(root, 'worktree', 'add', '-q', '-b', 'feat', wt);
   return { dir, root, wt };
 }
@@ -138,10 +152,124 @@ test('git_guard_refuses_commit_in_main_checkout', (t) => {
 test('git_guard_allows_linked_worktree', (t) => {
   const { dir, root } = repo(t);
   install(root);
-  const wt = join(dir, 'acme-worktrees/docs');
+  const wt = join(root, '.worktrees/docs');
   git(root, 'worktree', 'add', '-q', '-b', 'docs', wt);
   const res = commit(wt, fakeBaton(dir, PASSING));
   assert.equal(res.status, 0, res.stderr);
+});
+
+/** Runs the installed guard script alone (no commit gates) in `cwd`. */
+function runGuard(script, cwd, extraEnv = {}) {
+  return spawnSync('sh', [script], { cwd, env: { ...env, ...extraEnv }, encoding: 'utf8' });
+}
+
+test('git guard refuses a commit in a worktree outside .worktrees', (t) => {
+  const { dir, root } = repo(t);
+  install(root);
+  const passing = fakeBaton(dir, PASSING);
+  for (const outside of [join(dir, 'acme-worktrees/old'), join(root, '.claude/worktrees/x')]) {
+    git(root, 'worktree', 'add', '-q', '-b', basename(outside), outside);
+    const res = commit(outside, passing);
+    assert.equal(res.status, 1, res.stderr);
+    assert.ok(res.stderr.includes(outsideRefusal(outside, root)), res.stderr);
+  }
+  assert.throws(() => statSync(join(dir, 'baton-calls')), 'the guard refuses before the commit gates run');
+
+  for (const inside of [join(root, '.worktrees/feat'), join(root, '.worktrees/a/b')]) {
+    git(root, 'worktree', 'add', '-q', '-b', basename(inside), inside);
+    const res = commit(inside, passing);
+    assert.equal(res.status, 0, res.stderr);
+  }
+  // Inside compares real paths: a worktree reached through a symlinked repo path is still inside.
+  const link = join(dir, 'link');
+  symlinkSync(root, link);
+  const res = commit(join(link, '.worktrees/feat'), passing);
+  assert.equal(res.status, 0, res.stderr);
+
+  // A .worktrees that is a symlink holds its worktrees at the real folder it points to.
+  const { dir: dir2, root: root2 } = repo(t);
+  install(root2);
+  mkdirSync(join(dir2, 'elsewhere'));
+  symlinkSync(join(dir2, 'elsewhere'), join(root2, '.worktrees'));
+  git(root2, 'worktree', 'add', '-q', '-b', 'feat', join(root2, '.worktrees/feat'));
+  const viaLink = commit(join(dir2, 'elsewhere/feat'), fakeBaton(dir2, PASSING));
+  assert.equal(viaLink.status, 0, viaLink.stderr);
+});
+
+test('git guard reads worktreeOnly from the main checkout HEAD', (t) => {
+  // The branch says on, the main checkout says off: allowed.
+  const { dir, root } = repo(t, { hooks: { worktreeOnly: true } });
+  git(root, 'branch', 'on');
+  writeFileSync(join(root, '.baton/config.json'), JSON.stringify({ hooks: { worktreeOnly: false } }));
+  git(root, 'commit', '-qam', 'off');
+  install(root);
+  const passing = fakeBaton(dir, PASSING);
+  const onBranch = join(dir, 'acme-worktrees/on');
+  git(root, 'worktree', 'add', '-q', onBranch, 'on');
+  const allowed = commit(onBranch, passing);
+  assert.equal(allowed.status, 0, allowed.stderr);
+
+  // The branch says off, the main checkout says on: refused.
+  const { dir: dir2, root: root2 } = repo(t, { hooks: { worktreeOnly: false } });
+  git(root2, 'branch', 'off');
+  writeFileSync(join(root2, '.baton/config.json'), JSON.stringify({ hooks: { worktreeOnly: true } }));
+  git(root2, 'commit', '-qam', 'on');
+  install(root2);
+  const offBranch = join(dir2, 'acme-worktrees/off');
+  git(root2, 'worktree', 'add', '-q', offBranch, 'off');
+  const refused = commit(offBranch, fakeBaton(dir2, PASSING));
+  assert.equal(refused.status, 1, refused.stderr);
+  assert.ok(refused.stderr.includes(outsideRefusal(offBranch, root2)), refused.stderr);
+});
+
+test('git guard skips the outside check without a main checkout', (t) => {
+  // A bare repository: every worktree is linked, and there is no main checkout to hold them.
+  const { dir } = repo(t);
+  const bareWt = join(dir, 'feat');
+  git(join(dir, 'origin.git'), 'worktree', 'add', '-q', '-b', 'feat', bareWt);
+  install(bareWt);
+  const bare = commit(bareWt, fakeBaton(dir, PASSING));
+  assert.equal(bare.status, 0, bare.stderr);
+
+  // A separate git dir: the common dir isn't `<checkout>/.git`.
+  const sepDir = realpathSync(mkdtempSync(join(tmpdir(), 'baton-guard-')));
+  t.after(() => rmSync(sepDir, { recursive: true, force: true }));
+  const proj = join(sepDir, 'proj');
+  git(sepDir, 'init', '-q', '-b', 'main', '--separate-git-dir', join(sepDir, 'sep.git'), proj);
+  mkdirSync(join(proj, '.baton'));
+  writeFileSync(join(proj, '.baton/config.json'), '{}');
+  git(proj, 'add', '-A');
+  git(proj, 'commit', '-qm', 'init');
+  install(proj);
+  const sepWt = join(sepDir, 'proj-wt');
+  git(proj, 'worktree', 'add', '-q', '-b', 'feat', sepWt);
+  const sep = commit(sepWt, fakeBaton(sepDir, PASSING));
+  assert.equal(sep.status, 0, sep.stderr);
+});
+
+test('git guard allows an outside worktree in CI, cloud sessions and on errors', (t) => {
+  const { dir, root } = repo(t);
+  install(root);
+  const outside = join(dir, 'acme-worktrees/old');
+  git(root, 'worktree', 'add', '-q', '-b', 'old', outside);
+  const passing = fakeBaton(dir, PASSING);
+  assert.equal(commit(outside, { ...passing, CI: 'true' }).status, 0);
+  assert.equal(commit(outside, { ...passing, CLAUDE_CODE_REMOTE: 'true' }).status, 0);
+
+  // Without node the guard can't read the config, so it lets the commit through.
+  const bin = join(dir, 'bin');
+  mkdirSync(bin);
+  symlinkSync(join(git(root, '--exec-path'), 'git'), join(bin, 'git'));
+  symlinkSync('/bin/sh', join(bin, 'sh'));
+  assert.equal(runGuard(scriptPath(root), outside, { PATH: bin }).status, 0);
+  // The same PATH plus node refuses, so the case above did run the guard.
+  symlinkSync(process.execPath, join(bin, 'node'));
+  assert.equal(runGuard(scriptPath(root), outside, { PATH: bin }).status, 1);
+
+  // An unparseable config at the main checkout's HEAD fails open.
+  writeFileSync(join(root, '.baton/config.json'), '{not json');
+  git(root, '-c', 'core.hooksPath=/dev/null', 'commit', '-qam', 'broken');
+  assert.equal(runGuard(scriptPath(root), outside).status, 0);
 });
 
 test('commit in a linked worktree fails on a failing blocking commit step', (t) => {
@@ -205,7 +333,7 @@ test('commit gates stand down in a worktree without a baton config', (t) => {
   rmSync(join(root, '.baton'), { recursive: true });
   git(root, 'commit', '-qm', 'before baton');
   git(root, 'checkout', '-q', 'main');
-  const wt = join(dir, 'acme-worktrees/old');
+  const wt = join(root, '.worktrees/old');
   git(root, 'worktree', 'add', '-q', wt, 'old');
   const res = commit(wt, fakeBaton(dir, FAILING));
   assert.equal(res.status, 0, res.stderr);
@@ -283,7 +411,7 @@ test('install_writes_stub_into_empty_hooks_dir', (t) => {
   const res = install(root);
   const stub = join(commonDir(root), 'hooks/pre-commit');
   assert.equal(readFileSync(scriptPath(root), 'utf8'), readFileSync(template, 'utf8'));
-  assert.equal(readFileSync(scriptPath(root), 'utf8').split('\n')[0], '# baton worktree-guard v1');
+  assert.equal(readFileSync(scriptPath(root), 'utf8').split('\n')[0], '# baton worktree-guard v2');
   const stubText = readFileSync(stub, 'utf8');
   assert.ok(stubText.includes('# baton:worktree-guard'));
   assert.ok(stubText.includes(MANAGER_LINE));
@@ -477,6 +605,16 @@ test('install rewrites a stale commit-gates script', (t) => {
   assert.equal(readFileSync(gatesPath(root), 'utf8'), readFileSync(gatesTemplate, 'utf8'));
   assert.doesNotMatch(res.stdout, /already installed; behavior is unchanged/);
   assert.match(install(root).stdout, /already installed; behavior is unchanged/);
+});
+
+test('install rewrites a v1 guard script, which guardStatus calls outdated', (t) => {
+  const { root } = repo(t);
+  install(root);
+  writeFileSync(scriptPath(root), GUARD_V1);
+  assert.equal(guardStatus(root), 'outdated');
+  assert.doesNotMatch(install(root).stdout, /already installed; behavior is unchanged/);
+  assert.equal(readFileSync(scriptPath(root), 'utf8'), readFileSync(template, 'utf8'));
+  assert.equal(guardStatus(root), 'installed');
 });
 
 test('guardStatus_detects_outdated_script', (t) => {
