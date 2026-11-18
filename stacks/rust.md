@@ -39,6 +39,31 @@ Project conventions override this. For database code also read `rust-tokio-postg
 - Keep modules small with a clear public surface. `pub(crate)` by default.
 - Derive `Debug` everywhere, but **redact secrets** (custom `Debug`, or `secrecy::SecretString`).
 
+## Layout
+
+A workspace grows on the triggers in the common guide's Size and structure into four kinds of
+crate:
+
+- `core`: the domain, with no I/O.
+- `store`: the only crate with the database. Its public API exposes no driver types.
+- `service`: the use cases, with no UI-framework or web-framework types.
+- Thin adapters (Tauri, Axum, CLI, MCP) that hold no rules.
+
+A module with parts is `foo.rs` plus a `foo/` folder, never `foo/mod.rs`. Clippy's
+`mod_module_files` lint enforces it. Tests go in `foo/tests.rs` or `tests/`.
+
+cargo-deny enforces the crate boundary with `[bans]`. It fails on a positive match, so a typo
+in a crate name doesn't pass by accident, as an inverted `cargo tree` check would:
+
+```toml
+[bans]
+deny = [{ name = "tauri", wrappers = ["app"] }]
+```
+
+Use the web framework and its adapter crate where the project has no UI framework. The
+`validate` step that runs `cargo deny check` lists both `structure` and `audit` in its `gates`.
+File size is enforced by the `structure` gate.
+
 ## Async (tokio)
 
 - Never block the runtime: no `std::thread::sleep`, blocking I/O or heavy CPU work in async
