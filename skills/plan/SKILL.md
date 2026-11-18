@@ -23,6 +23,12 @@ spec and the stack guides, and nothing else.
    - own a declared set of files/modules. Two tasks that can run at the same time must not
      own the same file. Shared foundations (schema, shared types, permission definitions)
      become their own task that others depend on.
+   - Check the line counts of the files it will grow (`wc -l`, or `baton structure --json`
+     for files already over). A task that would push a file past `structure.maxLines`
+     includes the split as its first, move-only commit and lists the new sibling files in
+     Owns. `structure.allowlist` entries are exempt from ownership (two tasks may each lower
+     or drop their own); resolve a merge conflict there by rerunning `baton structure` and
+     taking its numbers.
    - **Contract first:** when frontend and backend work (or two services) happen in parallel,
      the API contract is its own first task. It produces the OpenAPI document (see the
      `openapi` guide). Consumer and provider tasks both depend on it and build against it,

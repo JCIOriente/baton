@@ -54,6 +54,9 @@ If you notice you did it, delete that code and redo the step properly.
 
 ## 4. Stay in bounds
 
+- Place new files by the stack guide's Layout section.
+- When a change would push a file past `structure.maxLines`, split it first in a move-only
+  commit, then grow it.
 - Only modify the files the task owns. Additive changes to "touches" files (registering a
   route, exporting a module) are fine. Restructuring them is not.
 - Inside owned files too, every changed line traces back to the task: no drive-by

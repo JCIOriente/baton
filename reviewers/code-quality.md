@@ -28,8 +28,13 @@ handled one frame up or ruled out by a type.
    commented-out code, debug prints (`console.log`, `dbg!`, `println!`) left in.
 6. Naming: a name that says something different from what the code does (`validate` that
    also writes, `getUser` that creates). Not taste-level renames.
-7. Structure: each new file has one clear responsibility. Flag a new or heavily grown file
-   or function only when its size hides a bug or makes the change hard to verify.
+7. Structure: flag any of these five:
+   - business logic placed in an adapter (a handler, a Tauri command, a React component);
+   - an import across layers that no lint rule covers;
+   - a split commit that also changes code (review the split commit on its own);
+   - a refactor PR that both moves and changes code;
+   - a diff that adds or raises a `structure.allowlist` entry, raises `maxLines` or adds an
+     `exclude` without the owner's approval noted in the task or PR.
 8. Tests present: every new behavior and bug fix in the diff has a test. Depth of test
    quality belongs to the tests reviewer; here, only flag absence.
 9. Consistency: the change follows the patterns of the surrounding code and the stack guides
