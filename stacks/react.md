@@ -3,6 +3,16 @@
 Read together with the TypeScript guide. For translated text, dates and RTL see the i18n guide.
 For browser journeys see the E2E guide. Project conventions override this.
 
+## Layout
+
+- `app/`, `features/<name>/`, `domain/` and `shared/`. A desktop app adds `surfaces/`, one per
+  window.
+- Imports go only downward: `app` to `features` to `domain` to `shared`. Features never import
+  each other. The TypeScript guide's Layout rule (the linter) enforces it.
+- A feature is imported only through its one public entry. There are no other barrel files.
+  The linter enforces the entry, and review checks there are no other barrels.
+- File size is enforced by the `structure` gate.
+
 ## Components
 
 - Function components only. One component per file for anything exported. Small private
