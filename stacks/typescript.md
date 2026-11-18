@@ -39,6 +39,23 @@ Applies to all TypeScript code (frontend and backend). Project conventions overr
   create import cycles.
 - Use `import type` for type-only imports.
 
+## Layout
+
+- Folders by feature, not by file type. The `structure` gate enforces file size, not layout.
+  Review checks the layout.
+- One import alias per layer, in package.json `imports` (`#domain/*`) rather than tsconfig
+  `paths`: subpath imports also resolve at runtime without a bundler.
+- Generated code lives in one folder, listed in `structure.exclude`.
+- Tests sit beside the file and split by behavior: `<File>.<behavior>.test.ts`.
+- Layers import only downward, enforced by the linter. Biome: `overrides` per layer folder with
+  `noRestrictedImports` patterns. ESLint: `import/no-restricted-paths` zones, or
+  `eslint-plugin-boundaries`. Plain `no-restricted-imports` can't say "from layer X", so it
+  isn't the directional rule.
+- Each enforcing rule has a fixture, a recipe to copy: a file that breaks the rule, kept out of
+  the normal lint run, plus a small script that lints it and fails if the linter passes. The
+  script runs as its own `validate` step with `gates: ["structure"]`, beside the
+  `baton structure` step, never instead of it. The fixture folder goes in `structure.exclude`.
+
 ## Errors
 
 - Throw `Error` subclasses (or return a `Result` union where the codebase uses that), never
