@@ -44,9 +44,10 @@ Applies to all TypeScript code (frontend and backend). Project conventions overr
 - Folders by feature, not by file type. The `structure` gate enforces file size, not layout.
   Review checks the layout.
 - One import alias per layer, in package.json `imports` (`#domain/*`) rather than tsconfig
-  `paths`: subpath imports also resolve at runtime without a bundler.
+  `paths`: subpath imports also resolve at runtime without a bundler. Review checks it.
 - Generated code lives in one folder, listed in `structure.exclude`.
-- Tests sit beside the file and split by behavior: `<File>.<behavior>.test.ts`.
+- Tests sit beside the file and split by behavior: `<File>.<behavior>.test.ts`. Review checks the split by behavior. The `structure` gate checks
+  only the size of each test file.
 - Layers import only downward, enforced by the linter. Biome: `overrides` per layer folder with
   `noRestrictedImports` patterns. ESLint: `import/no-restricted-paths` zones, or
   `eslint-plugin-boundaries`. Plain `no-restricted-imports` can't say "from layer X", so it

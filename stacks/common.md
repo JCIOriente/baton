@@ -56,7 +56,7 @@ unstated assumptions, overbuild, and change code they don't understand as a side
   `git diff --color-moved` shows it. Review checks this.
 - **Organize by feature, not by file type.** Shared code is promoted once a second feature
   needs it. Dependencies point one way. Each stack's Layout section says what enforces that.
-- **Structure is added on a trigger, not predicted:**
+- **Structure is added on a trigger, not predicted.** Review checks it:
 
 | Trigger | Change |
 |---|---|
