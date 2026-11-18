@@ -6,6 +6,7 @@
 export const SOURCE_EXTENSIONS = Object.freeze(['.js', '.mjs', '.cjs', '.jsx', '.ts', '.mts', '.cts', '.tsx', '.rs']);
 
 const NEWLINE = 0x0a;
+const NO_REASON = 'no reason given';
 const SPLIT = 'Split it in this PR (stacks/common.md, Size and structure).';
 
 /**
@@ -40,7 +41,8 @@ function globToRegex(pattern) {
     else if (c === '?') out += '[^/]';
     else out += c.replace(/[\\^$.|+()[\]{}]/g, '\\$&');
   }
-  return new RegExp(`^${out}$`);
+  // `s` lets `.` match a newline and `u` makes `?` one code point, as `[^/]` already does.
+  return new RegExp(`^${out}$`, 'su');
 }
 
 /**
@@ -61,7 +63,8 @@ const hasSourceExtension = (path) => SOURCE_EXTENSIONS.some((ext) => path.endsWi
 const byPath = (a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 
 /**
- * @typedef {{ path: string, lines: number | null, why?: string }} FileInput
+ * A counted file has `lines`. A path the runner couldn't count has `lines: null` and `why`.
+ * @typedef {{ path: string, lines: number, why?: undefined } | { path: string, lines: null, why: string }} FileInput
  * @typedef {'unlisted' | 'not-counted' | 'under-limit' | 'grew' | 'shrank' | 'held'} State
  * @typedef {{ path: string, lines: number | null, allowlisted: number | null, state: State, why?: string }} FileResult
  * @typedef {{ ok: boolean, maxLines: number, checked: number, notCounted: number, files: FileResult[] }} StructureResult
@@ -76,7 +79,7 @@ const byPath = (a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
  * @returns {string | null}
  */
 function notCountedReason(path, entry, exclude) {
-  if (entry && entry.lines === null) return entry.why ?? 'missing';
+  if (entry && entry.lines === null) return entry.why || NO_REASON;
   if (exclude.some((glob) => matchGlob(glob, path))) return 'excluded';
   if (!hasSourceExtension(path)) return 'no source extension';
   if (!entry) return 'missing';
@@ -94,7 +97,7 @@ function notCountedReason(path, entry, exclude) {
 function classifyEntry(path, allowlisted, entry, { maxLines, exclude }) {
   const why = notCountedReason(path, entry, exclude);
   if (why !== null || !entry || entry.lines === null) {
-    return { path, lines: null, allowlisted, state: 'not-counted', why: why ?? 'missing' };
+    return { path, lines: null, allowlisted, state: 'not-counted', why: why ?? NO_REASON };
   }
   const { lines } = entry;
   if (lines <= maxLines) return { path, lines, allowlisted, state: 'under-limit' };
@@ -146,15 +149,17 @@ function finding(f, max) {
     case 'unlisted':
       return `${f.lines} lines, over the ${max}-line limit. ${SPLIT}`;
     case 'not-counted':
-      return `on structure.allowlist but not counted (${f.why ?? 'missing'}). Remove its entry.`;
+      return `on structure.allowlist but not counted (${f.why ?? NO_REASON}). Remove its entry.`;
     case 'under-limit':
       return `${f.lines} lines, under the ${max}-line limit. Remove its structure.allowlist entry.`;
     case 'grew':
       return `${f.lines} lines, allowlisted at ${f.allowlisted}. It grew: split it in this PR (stacks/common.md, Size and structure).`;
     case 'shrank':
       return `${f.lines} lines, allowlisted at ${f.allowlisted}. It shrank: set structure.allowlist[${JSON.stringify(f.path)}] to ${f.lines}.`;
-    default:
+    case 'held':
       return null;
+    default:
+      throw new Error(`unknown structure state: ${f.state}`);
   }
 }
 

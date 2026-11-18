@@ -207,3 +207,36 @@ test('formatFindings paste block records every unlisted file and nothing else', 
   ]);
   assert.deepEqual(formatFindings(run({ files: [{ path: 'a.js', lines: 12 }], allowlist: { 'a.js': 13 } })).pasteBlock, []);
 });
+
+test('checkStructure reports not counted before under the limit', () => {
+  const result = run({
+    files: [
+      { path: 'gen/a.js', lines: 3 },
+      { path: 'notes.md', lines: 2 },
+    ],
+    exclude: ['gen/**'],
+    allowlist: { 'gen/a.js': 20, 'notes.md': 20 },
+  });
+  assert.deepEqual(states(result), ['gen/a.js:not-counted', 'notes.md:not-counted']);
+  assert.deepEqual(formatFindings(result).lines, [
+    '✖ gen/a.js: on structure.allowlist but not counted (excluded). Remove its entry.',
+    '✖ notes.md: on structure.allowlist but not counted (no source extension). Remove its entry.',
+  ]);
+});
+
+test('formatFindings rejects an unknown state instead of failing silently', () => {
+  const result = { ok: false, maxLines: 10, checked: 0, notCounted: 0, files: [{ path: 'a.js', lines: 1, allowlisted: 1, state: 'bogus' }] };
+  assert.throws(() => formatFindings(/** @type {any} */ (result)), /unknown structure state: bogus/);
+});
+
+test('checkStructure names a missing runner reason instead of calling the file missing', () => {
+  const result = run({ files: [{ path: 'odd.js', lines: null }], allowlist: { 'odd.js': 20 } });
+  assert.deepEqual(formatFindings(result).lines, ['✖ odd.js: on structure.allowlist but not counted (no reason given). Remove its entry.']);
+});
+
+test('matchGlob matches newlines and astral characters like any other character', () => {
+  assert.equal(matchGlob('**', 'a\nb/c.js'), true);
+  assert.equal(matchGlob('src/**/x.js', 'src/a\nb/x.js'), true);
+  assert.equal(matchGlob('src/?.js', 'src/😀.js'), true);
+  assert.equal(matchGlob('src/??.js', 'src/😀.js'), false);
+});
