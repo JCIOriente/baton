@@ -138,6 +138,11 @@ For the ecosystems the project uses (JS: npm, pnpm, yarn; Rust: cargo):
 - Test behavior through public interfaces, not implementation details.
 - Tests are deterministic: no real clocks, random seeds or network unless the test is about them.
 
+## Worktrees folder
+
+- Worktrees live in `.worktrees/` inside the repo. Tools that don't read git's ignore files
+  exclude it: tsconfig `exclude`, vitest or jest `exclude`, ESLint `ignores`.
+
 ## Commits
 
 - Conventional Commits: `type(scope): imperative summary` (`feat`, `fix`, `refactor`,

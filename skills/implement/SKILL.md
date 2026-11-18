@@ -14,7 +14,7 @@ baton start <n>      # race-safe claim + worktree + branch, runs `setup`, then a
 
 - If it says the task is claimed by someone else or has open dependencies, **stop** and
   report. Don't work around it. `--force` on dependencies only with the user's explicit OK.
-- `cd` into the printed worktree path. From now on, **every edit happens in that directory.**
+- `cd` into the printed worktree path (under `.worktrees/` in the main checkout). From now on, **every edit happens in that directory.**
   The main checkout and other worktrees are off limits.
 - `setup` commands from the config (e.g. `pnpm install`) already ran in the worktree.
   Worktrees don't share `node_modules`. Cargo's `target/` can be shared via `CARGO_TARGET_DIR`.

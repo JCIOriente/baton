@@ -6,7 +6,7 @@ guards that keep the workflow honest.
 | Concern | Where it lives |
 |---|---|
 | Shared task state (ownership, status, dependencies, history) | GitHub Issues: labels, assignees, `Depends on: #N`, claim marker comments |
-| Local execution | Every change happens in a linked worktree. `baton start <n>` creates one per task (`../<repo>-worktrees/task-<n>-<slug>`) and runs `setup` and a baseline. `baton worktree add <name>` creates one per spec, plan or other non-task change. `baton worktree clean` removes worktrees whose PRs are merged. It keeps dirty worktrees and those with open PRs or no PR (`--dry-run` previews the cleanup). The main checkout stays on the base branch and only fast-forwards. No shared mutable local files |
+| Local execution | Every change happens in a linked worktree. `baton start <n>` creates one per task (`.worktrees/task-<n>-<slug>`) and runs `setup` and a baseline. `baton worktree add <name>` creates one per spec, plan or other non-task change. `baton worktree clean` removes worktrees whose PRs are merged. It keeps dirty worktrees and those with open PRs or no PR (`--dry-run` previews the cleanup). The main checkout stays on the base branch and only fast-forwards. No shared mutable local files |
 | Integration | `baton verify` (project-defined commands) -> review (spec compliance, then quality angles) -> `baton done` (PR `Closes #N`) -> merge policy |
 | Learning | `baton:retro` turns review and verification evidence into convention/ADR changes, reviewed like code. Nothing is learned privately |
 | Workflow definition | `.baton/config.json` in each project, falling back to defaults |
@@ -37,7 +37,8 @@ else.
 `baton hooks install` adds a git `pre-commit` guard per clone that refuses commits there from
 anyone. It never changes an existing hook, a hook manager's setup or a hooks directory in the
 working tree (`.husky/`, `.githooks/`); it prints the line to add instead. `baton doctor` and
-the session-start hook report when a clone lacks the guard.
+the session-start hook report when a clone lacks the guard. The guards also refuse edits and
+commits in a worktree outside `.worktrees/` and print the `git worktree move` command that fixes it.
 
 Both guards read the switch from the main checkout's committed `HEAD`, allow the action on any
 internal error, and are disabled when `CI` or `CLAUDE_CODE_REMOTE` is `true`. A repo turns them
