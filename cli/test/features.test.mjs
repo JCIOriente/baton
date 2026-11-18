@@ -241,7 +241,7 @@ test('context: mentions releases only when release.enabled', async (t) => {
 });
 
 const WORKTREE_RULE =
-  'Never edit or commit in the main checkout. Task work happens in the worktree from `baton start <n>`; anything else (specs, plans, docs, config) in one from `baton worktree add <name>`. Never use `git commit --no-verify`.';
+  'Never edit or commit in the main checkout. Task work happens in the worktree from `baton start <n>`; anything else (specs, plans, docs, config) in one from `baton worktree add <name>`. Never use `git commit --no-verify`. Every worktree lives in .worktrees/ at the repo root, made by baton start or baton worktree add; never git worktree add elsewhere.';
 
 test('context_uses_worktree_rule_when_on', async (t) => {
   const { buildContext, ALWAYS_RULES } = await import('../lib/context.mjs');
@@ -638,20 +638,25 @@ async function gatesRepo(t, config, files = {}) {
   const cli = new URL('../baton.mjs', import.meta.url).pathname;
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'baton-gates-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t' };
+  Object.assign(env, { GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' });
   delete env.CI;
   delete env.CLAUDE_CODE_REMOTE;
-  spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, env });
+  const git = (...args) => spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
   mkdirSync(join(root, '.baton'));
   writeFileSync(join(root, '.baton/config.json'), JSON.stringify(config));
-  for (const [path, text] of Object.entries(files)) writeFileSync(join(root, path), text);
+  // A committed .gitignore that ignores .worktrees/, so doctor has nothing to say about it.
+  for (const [path, text] of Object.entries({ '.gitignore': '/.worktrees/\n', ...files })) writeFileSync(join(root, path), text);
+  git('add', '-A');
+  git('commit', '-qm', 'init');
   const baton = (...args) => spawnSync(process.execPath, [cli, ...args], { cwd: root, env, encoding: 'utf8' });
   const doctor = () => {
     const res = baton('doctor', '--json');
     assert.ok(res.stdout.trim(), res.stderr);
     return { status: res.status, findings: JSON.parse(res.stdout) };
   };
-  return { root, baton, doctor };
+  return { root, git, baton, doctor };
 }
 const kindMessages = (findings, kind) => findings.filter((f) => f.kind === kind).map((f) => f.message);
 const DEV_PACKAGE = { 'package.json': JSON.stringify({ devDependencies: { knip: '5' } }) };
@@ -711,6 +716,78 @@ test('doctor reports missing commit gates', async (t) => {
   assert.deepEqual(
     kindMessages(localOnly().findings, 'worktree').filter((m) => m.includes('commit-gates')),
     [],
+  );
+});
+
+const GITIGNORE_FINDING = ".gitignore doesn't ignore .worktrees/ (add the line /.worktrees/ in a PR)";
+const hasGitignoreFinding = (findings) => kindMessages(findings, 'worktree').includes(GITIGNORE_FINDING);
+
+test('doctor reports a .gitignore without .worktrees', async (t) => {
+  const { root, git, doctor } = await gatesRepo(t, {});
+  assert.equal(hasGitignoreFinding(doctor().findings), false, 'the fixture ignores the folder');
+  const commitGitignore = (text) => {
+    writeFileSync(join(root, '.gitignore'), text);
+    git('commit', '-qam', 'gitignore');
+  };
+  commitGitignore('node_modules/\n');
+  assert.ok(hasGitignoreFinding(doctor().findings));
+  // Only HEAD counts: a line not yet committed is not in the PR.
+  writeFileSync(join(root, '.gitignore'), '/.worktrees/\n');
+  assert.ok(hasGitignoreFinding(doctor().findings));
+  // git keeps a leading space in the pattern, but drops trailing whitespace.
+  commitGitignore(' .worktrees/\n');
+  assert.ok(hasGitignoreFinding(doctor().findings));
+  for (const form of ['/.worktrees/', '.worktrees/', '/.worktrees', '.worktrees  ']) {
+    commitGitignore(`node_modules/\n${form}\n`);
+    assert.equal(hasGitignoreFinding(doctor().findings), false, form);
+  }
+  git('rm', '-q', '.gitignore');
+  git('commit', '-qm', 'no gitignore');
+  assert.ok(hasGitignoreFinding(doctor().findings));
+
+  const { doctor: off } = await gatesRepo(t, { hooks: { worktreeOnly: false } }, { '.gitignore': 'node_modules/\n' });
+  assert.equal(hasGitignoreFinding(off().findings), false);
+});
+
+test('doctor reports each worktree outside .worktrees', async (t) => {
+  const config = { validate: [{ name: 'all', run: 'true', gates: ['secrets', 'format', 'lint', 'unit-tests'] }] };
+  const withWorktrees = async (cfg) => {
+    const repo = await gatesRepo(t, cfg);
+    repo.git('worktree', 'add', '-q', '-b', 'inside-one', join(repo.root, '.worktrees', 'inside-one'));
+    repo.git('worktree', 'add', '-q', '-b', 'old-spec', join(repo.root, 'old-spec'));
+    repo.git('worktree', 'add', '-q', '--detach', join(repo.root, 'scratch'));
+    return repo;
+  };
+  const { root, baton, doctor } = await withWorktrees(config);
+  assert.equal(baton('hooks', 'install').status, 0);
+  const { status, findings } = doctor();
+  assert.deepEqual(findings, [
+    { kind: 'worktree', message: `worktree old-spec is outside .worktrees/ (${join(root, 'old-spec')})` },
+    { kind: 'worktree', message: `worktree (detached) is outside .worktrees/ (${join(root, 'scratch')})` },
+  ]);
+  assert.equal(status, 1);
+
+  const { doctor: off } = await withWorktrees({ ...config, hooks: { worktreeOnly: false } });
+  assert.deepEqual(kindMessages(off().findings, 'worktree'), []);
+});
+
+test('doctor reports a leftover worktreeRoot', async (t) => {
+  const leftover = 'git.worktreeRoot is no longer used; worktrees always live in .worktrees/ (delete the key)';
+  for (const hooks of [{}, { worktreeOnly: false }]) {
+    const { doctor } = await gatesRepo(t, { git: { worktreeRoot: '../{repo}-worktrees' }, hooks });
+    assert.ok(kindMessages(doctor().findings, 'config').includes(leftover), JSON.stringify(hooks));
+  }
+  const { doctor } = await gatesRepo(t, {});
+  assert.ok(!kindMessages(doctor().findings, 'config').includes(leftover));
+});
+
+test('context states that every worktree lives in .worktrees', async () => {
+  const { buildContext } = await import('../lib/context.mjs');
+  const root = mkdtempSync(join(tmpdir(), 'baton-ctx-'));
+  const text = buildContext({ root, found: true, config: DEFAULT_CONFIG }, { pluginRoot: '/p', cwd: root });
+  assert.ok(
+    text.includes('Every worktree lives in .worktrees/ at the repo root, made by baton start or baton worktree add; never git worktree add elsewhere.'),
+    text,
   );
 });
 
