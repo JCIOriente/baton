@@ -54,6 +54,8 @@ export const DEFAULT_CONFIG = {
   validate: [],
   // gates.skip: { "<gate>": "<reason>" } — catalog gates this repo deliberately doesn't run.
   gates: { skip: {} },
+  // The `structure` gate's guard (baton structure): size limit, generated-code globs, files kept over it.
+  structure: { maxLines: 500, exclude: [], allowlist: {} },
   workflow: {
     phases: ['spec', 'plan', 'backlog', 'implement', 'verify', 'review', 'integrate'],
     // Project-defined phases: { "<phase>": "<path to instructions .md, relative to repo root>" }
@@ -149,6 +151,35 @@ export function validateConfig(config) {
   }
   if (typeof config.hooks?.worktreeOnly !== 'boolean') problems.push('hooks.worktreeOnly must be a boolean');
   problems.push(...validateRelease(config));
+  problems.push(...validateStructure(config.structure));
+  return problems;
+}
+
+const STRUCTURE_KEYS = Object.keys(DEFAULT_CONFIG.structure);
+const isCount = (v) => Number.isInteger(v) && v >= 1;
+
+/** Problems in `structure`, each as `structure.<key>: <problem>`. */
+function validateStructure(structure) {
+  if (!isPlainObject(structure)) return ['structure: must be an object'];
+  const problems = [];
+  for (const key of Object.keys(structure)) {
+    if (!STRUCTURE_KEYS.includes(key)) problems.push(`structure.${key}: unknown key (known: ${STRUCTURE_KEYS.join(', ')})`);
+  }
+  const { maxLines, exclude, allowlist } = structure;
+  if (!isCount(maxLines)) problems.push(`structure.maxLines: must be an integer ≥ 1 (got ${JSON.stringify(maxLines)})`);
+  if (!Array.isArray(exclude) || exclude.some((g) => typeof g !== 'string' || g === '')) {
+    problems.push('structure.exclude: must be an array of non-empty glob strings');
+  }
+  if (!isPlainObject(allowlist)) {
+    problems.push('structure.allowlist: must be an object mapping paths to line counts');
+    return problems;
+  }
+  for (const [path, lines] of Object.entries(allowlist)) {
+    const at = `structure.allowlist: ${JSON.stringify(path)}`;
+    if (path === '' || path.startsWith('./') || path.startsWith('/')) {
+      problems.push(`${at} must be a non-empty repo-relative POSIX path with no leading ./ or /`);
+    } else if (!isCount(lines)) problems.push(`${at} must be an integer ≥ 1 (got ${JSON.stringify(lines)})`);
+  }
   return problems;
 }
 

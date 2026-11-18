@@ -104,3 +104,67 @@ test('config has no worktreeRoot, and a config that still sets it is valid', () 
   const example = JSON.parse(readFileSync(new URL('../../templates/config.example.json', import.meta.url), 'utf8'));
   assert.equal(Object.hasOwn(example.git, 'worktreeRoot'), false);
 });
+
+const structure = (over) => problems({ structure: over });
+
+test('config defaults structure to a 500-line limit with no exclusions or allowlist', () => {
+  assert.deepEqual(DEFAULT_CONFIG.structure, { maxLines: 500, exclude: [], allowlist: {} });
+  assert.deepEqual(problems({}), []);
+});
+
+test('config rejects a maxLines that is not an integer of at least 1', () => {
+  for (const bad of [0, -1, 1.5, '500', null]) {
+    const p = structure({ maxLines: bad });
+    assert.equal(p.length, 1, `maxLines ${JSON.stringify(bad)}: ${p}`);
+    assert.match(p[0], /^structure\.maxLines: /);
+  }
+  assert.deepEqual(structure({ maxLines: 1 }), []);
+});
+
+test('config rejects an exclude that is not an array of non-empty strings', () => {
+  for (const bad of ['dist/**', [''], [3], {}]) {
+    const p = structure({ exclude: bad });
+    assert.equal(p.length, 1, `exclude ${JSON.stringify(bad)}: ${p}`);
+    assert.match(p[0], /^structure\.exclude: /);
+  }
+  assert.deepEqual(structure({ exclude: ['dist/**', 'gen/*.ts'] }), []);
+});
+
+test('config rejects an allowlist that is not an object', () => {
+  for (const bad of [[], 'a.js', 3]) {
+    const p = structure({ allowlist: bad });
+    assert.equal(p.length, 1, `allowlist ${JSON.stringify(bad)}: ${p}`);
+    assert.match(p[0], /^structure\.allowlist: /);
+  }
+});
+
+test('config rejects an allowlist key that is empty or starts with ./ or /', () => {
+  for (const key of ['', './a.js', '/a.js']) {
+    const p = structure({ allowlist: { [key]: 600 } });
+    assert.equal(p.length, 1, `key ${JSON.stringify(key)}: ${p}`);
+    assert.match(p[0], /^structure\.allowlist: /);
+    assert.ok(p[0].includes(JSON.stringify(key)), p[0]);
+  }
+});
+
+test('config rejects an allowlist value that is not an integer of at least 1', () => {
+  for (const bad of [0, -3, 600.5, '600', null]) {
+    const p = structure({ allowlist: { 'src/a.js': bad } });
+    assert.equal(p.length, 1, `value ${JSON.stringify(bad)}: ${p}`);
+    assert.match(p[0], /^structure\.allowlist: "src\/a\.js" /);
+  }
+});
+
+test('config accepts an allowlist value at or under maxLines', () => {
+  assert.deepEqual(structure({ maxLines: 500, allowlist: { 'a.js': 500, 'b.js': 1, 'c d/é.rs': 900 } }), []);
+});
+
+test('config rejects an unknown key under structure', () => {
+  const p = structure({ maxline: 400 });
+  assert.equal(p.length, 1, String(p));
+  assert.match(p[0], /^structure\.maxline: unknown key/);
+});
+
+test('config rejects a structure that is not an object', () => {
+  assert.deepEqual(problems({ structure: [] }), ['structure: must be an object']);
+});
