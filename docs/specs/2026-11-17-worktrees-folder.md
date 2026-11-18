@@ -193,7 +193,8 @@ New findings:
 - kind `worktree`: `.gitignore doesn't ignore .worktrees/ (add the line /.worktrees/ in a PR)`.
   `.gitignore` is read from the main checkout's `HEAD` (`git show HEAD:.gitignore`). Only a
   root `.gitignore` line equal to `/.worktrees/`, `.worktrees/`, `/.worktrees` or `.worktrees`
-  (trimmed) counts (author's call: no glob evaluation).
+  (trailing whitespace dropped; a leading space stays, as git keeps it in the pattern) counts
+  (author's call: no glob evaluation).
 
 As today, any finding exits 1.
 
@@ -330,7 +331,7 @@ None.
 
 ## Implementation status
 - [x] plan: [docs/plans/2026-11-17-worktrees-folder.md](../plans/2026-11-17-worktrees-folder.md)
-- [ ] #200 worktrees live in `.worktrees/`
-- [ ] #202 clean, status and doctor reports
-- [ ] #201 git guard v2 and edit guard
-- [ ] #203 docs, skills and `.gitignore`
+- [x] #200 worktrees live in `.worktrees/`
+- [x] #202 clean, status and doctor reports
+- [x] #201 git guard v2 and edit guard
+- [x] #203 docs, skills and `.gitignore`
