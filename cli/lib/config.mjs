@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GATES, STAGES } from './gates.mjs';
-import { currentTop, repoRoot } from './git.mjs';
+import { git, repoRoot } from './git.mjs';
 import { BatonError, deepMerge, isPlainObject } from './util.mjs';
 
 export const CONFIG_DIR = '.baton';
@@ -99,7 +99,9 @@ export function configPath(root) {
  */
 export function loadConfig(cwd = process.cwd()) {
   const root = repoRoot(cwd);
-  const top = currentTop(cwd);
+  // Without a work tree (cwd inside the git dir) there is no checkout of its own: use the main one.
+  const shown = git(['rev-parse', '--show-toplevel'], { cwd, allowFail: true });
+  const top = shown.code === 0 ? shown.stdout : root;
   const path = configPath(top);
   if (!existsSync(path)) return { root, top, path, found: false, config: DEFAULT_CONFIG };
   let raw;

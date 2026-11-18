@@ -767,3 +767,56 @@ test('hooks install names both scripts in its instructions', async (t) => {
   assert.ok(hint.includes(join(managed.root, '.git/baton/commit-gates.sh')), out);
   assert.match(hint, /those lines/);
 });
+
+// A git repo whose main holds .baton/config.json as `config`, with a linked worktree `feat`, for
+// black-box `baton context` runs. Git and the CLI are isolated from the user's git config.
+async function contextRepo(t, config) {
+  const { spawnSync } = await import('node:child_process');
+  const { realpathSync, rmSync } = await import('node:fs');
+  const cli = new URL('../baton.mjs', import.meta.url).pathname;
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'baton-ctx-wt-')));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const env = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 't',
+    GIT_AUTHOR_EMAIL: 't@t',
+    GIT_COMMITTER_NAME: 't',
+    GIT_COMMITTER_EMAIL: 't@t',
+  };
+  const git = (cwd, ...args) => assert.equal(spawnSync('git', args, { cwd, env }).status, 0, `git ${args.join(' ')}`);
+  const root = join(dir, 'acme');
+  mkdirSync(join(root, '.baton'), { recursive: true });
+  git(root, 'init', '-q', '-b', 'main');
+  writeFileSync(join(root, '.baton/config.json'), JSON.stringify(config));
+  git(root, 'add', '-A');
+  git(root, 'commit', '-qm', 'init');
+  const wt = join(dir, 'acme-worktrees/feat');
+  git(root, 'worktree', 'add', '-q', '-b', 'feat', wt);
+  const context = (cwd) => spawnSync(process.execPath, [cli, 'context'], { cwd, env, encoding: 'utf8' }).stdout;
+  return { root, wt, context };
+}
+
+test('context in a linked worktree points at the files of that worktree', async (t) => {
+  const { wt, context } = await contextRepo(t, {
+    conventions: ['docs/conventions.md'],
+    workflow: { phases: ['design', 'implement'], custom: { design: 'docs/design.md' } },
+  });
+  // Files that exist only on the branch.
+  mkdirSync(join(wt, 'docs'));
+  writeFileSync(join(wt, 'docs/conventions.md'), '# conventions');
+  writeFileSync(join(wt, 'docs/common-issues.md'), '# issues');
+  writeFileSync(join(wt, 'package.json'), JSON.stringify({ dependencies: { react: '19' } }));
+  const text = context(wt);
+  assert.ok(text.includes(`- ${join(wt, 'docs/conventions.md')}`), text);
+  assert.ok(text.includes(`Check before coding: ${join(wt, 'docs/common-issues.md')}`), text);
+  assert.ok(text.includes(`follow ${join(wt, 'docs/design.md')}`), text);
+  assert.match(text, /Detected but not enabled: .*react/);
+});
+
+test('context run inside the .git directory still reads the config', async (t) => {
+  const { root, context } = await contextRepo(t, { project: 'acme-project' });
+  const text = context(join(root, '.git'));
+  assert.match(text, /Project: acme-project\./);
+});
