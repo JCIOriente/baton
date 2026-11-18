@@ -1025,6 +1025,9 @@ test('clean never touches a worktree outside .worktrees', (t) => {
   // A stale record outside: its folder is gone, but clean reports it instead of pruning it.
   const gone = handMadeWorktree(root, join(dir, 'acme-worktrees', 'gone-spec'), 'gone-spec');
   rmSync(gone.path, { recursive: true, force: true });
+  // A stale record inside is pruned, and that prune must not clear the outside one.
+  assert.equal(baton(root, 'worktree', 'add', 'gone-inside').status, 0);
+  rmSync(join(base, 'gone-inside'), { recursive: true, force: true });
   const gh = withFakeGh(dir);
   // Closed, so --force would remove it if it were inside.
   gh.setPrs({ 'inside-one': [pr(5, 'MERGED', inside.head)], 'old-spec': [pr(6, 'CLOSED', outside.head)] });
@@ -1036,12 +1039,17 @@ test('clean never touches a worktree outside .worktrees', (t) => {
 
   const res = gh.run(root, 'worktree', 'clean', '--force');
   assert.equal(res.status, 0, res.stderr);
-  assert.match(res.stdout, /^Removed:\n {2}inside-one {2}PR #5 merged; branch kept$/m);
+  assert.match(res.stdout, /^Removed:\n/);
+  assert.match(res.stdout, /^ {2}gone-inside {2}folder missing; record cleared$/m);
+  assert.match(res.stdout, /^ {2}inside-one {2}PR #5 merged; branch kept$/m);
   const [, group] = res.stdout.split(`Outside .worktrees/ (not cleaned; every worktree belongs in ${base}/):\n`);
   assert.deepEqual(group.trimEnd().split('\n').sort(), [`  gone-spec  ${gone.path}`, `  old-spec  ${outside.path}`], res.stdout);
   assert.ok(!existsSync(inside.path), 'the inside worktree is removed');
   assert.ok(existsSync(outside.path), 'the outside worktree is kept');
-  assert.ok(git(root, 'worktree', 'list', '--porcelain').includes(gone.path), 'the stale outside record is kept');
+  const records = git(root, 'worktree', 'list', '--porcelain');
+  assert.ok(records.includes(gone.path), 'the stale outside record is kept');
+  assert.ok(!records.includes(join(base, 'gone-inside')), 'the stale inside record is pruned');
+  assert.match(records, new RegExp(`worktree ${gone.path}\\nHEAD \\w+\\nbranch refs/heads/gone-spec\\nprunable`), 'the outside record is left unlocked');
   assert.ok(!gh.log().some((call) => /--head (old|gone)-spec/.test(call)), gh.log().join('\n'));
   assert.ok(
     gh.log().some((call) => call.includes('--head inside-one')),
