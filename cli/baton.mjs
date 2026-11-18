@@ -41,6 +41,7 @@ import {
 } from './lib/handoff.mjs';
 import { factsVsInstalled, installedVersions, loadProvenance, upstreamFindings } from './lib/provenance.mjs';
 import { getProvider } from './lib/providers/github.mjs';
+import { runStructure } from './lib/structure.mjs';
 import {
   changelogGuard,
   labelNames,
@@ -97,6 +98,7 @@ Execution
 Integration
   verify [--stage S] [--only NAME] Run the validation steps of stage S (commit|local|ci, default local);
                                    --only NAME keeps the steps named NAME or covering gate NAME
+  structure [--json] [--suggest-allowlist]   Check source files against the size limit and allowlist
   reviewers [--all]                Reviewer briefs to dispatch, with the changed files each should focus on
   done [--draft] [--title T] [--body-file F] [--skip-review REASON]
                                    Verify, push and open a PR for the current task, mark it review.
@@ -130,6 +132,11 @@ const commands = {
   status,
   handoff,
   verify,
+  structure: (argv) => {
+    const { values } = opts(argv, { 'suggest-allowlist': { type: 'boolean' } });
+    const { top, config } = loadConfig();
+    if (!runStructure(top, config, { json: !!values.json, suggestAllowlist: !!values['suggest-allowlist'] }).ok) process.exitCode = 1;
+  },
   done,
   doctor,
   upstream,

@@ -1,6 +1,12 @@
 // @ts-check
-// Pure core of `baton structure`: line counting, glob matching and classification against
-// the size limit and allowlist (docs/specs/2026-11-17-structure-guards.md). No I/O here.
+// `baton structure` (docs/specs/2026-11-17-structure-guards.md): a pure core (line counting,
+// glob matching, classification against the size limit and allowlist) and `runStructure`, the
+// thin runner that lists and reads the files and prints. Only the runner does I/O.
+
+import { spawnSync } from 'node:child_process';
+import { lstatSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { BatonError } from './util.mjs';
 
 /** Extensions of the stacks baton has guides for. Adding one is a baton change. */
 export const SOURCE_EXTENSIONS = Object.freeze(['.js', '.mjs', '.cjs', '.jsx', '.ts', '.mts', '.cts', '.tsx', '.rs']);
@@ -190,4 +196,105 @@ export function formatFindings(result) {
           ...unlisted.map((f, i) => `  ${JSON.stringify(f.path)}: ${f.lines}${i < unlisted.length - 1 ? ',' : ''}`),
         ];
   return { lines, summary, pasteBlock };
+}
+
+/** Never counted: the linked worktrees' folder (docs/specs/2026-11-17-worktrees-folder.md, Goal 10). */
+const WORKTREES = '.worktrees/';
+
+/**
+ * Runs git in `top` and returns its raw stdout. Raw, because `-z` output keeps paths byte-exact
+ * (the shared `git` helper trims, which would cut a leading or trailing space off a path).
+ * @param {string} top
+ * @param {string[]} args
+ * @param {{ allowFail?: boolean }} [opts]
+ */
+function gitRaw(top, args, { allowFail = false } = {}) {
+  const res = spawnSync('git', args, { cwd: top, maxBuffer: 256 * 1024 * 1024 });
+  if (res.error) throw new BatonError(`git ${args.join(' ')}: ${res.error.message}`);
+  if (res.status !== 0 && !allowFail) {
+    throw new BatonError(`git ${args.join(' ')} failed (exit ${res.status})\n${res.stderr.toString().trim()}`);
+  }
+  return { code: res.status, stdout: res.stdout.toString('utf8') };
+}
+
+/** Tracked and untracked-but-not-ignored paths of the checkout, minus `.worktrees/`. @param {string} top */
+function listPaths(top) {
+  const out = gitRaw(top, ['ls-files', '-z', '--cached', '--others', '--exclude-standard']).stdout;
+  // A path in conflict is listed once per stage.
+  return [...new Set(out.split('\0'))].filter((p) => p !== '' && !p.startsWith(WORKTREES));
+}
+
+/** @param {string} top @param {string} path @returns {'missing' | 'file' | 'other'} */
+function kindOf(top, path) {
+  const st = lstatSync(join(top, path), { throwIfNoEntry: false });
+  if (!st) return 'missing';
+  return st.isFile() ? 'file' : 'other';
+}
+
+/**
+ * Why git didn't list an allowlisted path that exists, or null when it doesn't exist (so
+ * checkStructure reports it as missing).
+ * @param {string} top
+ * @param {string} path
+ * @returns {string | null}
+ */
+function unlistedReason(top, path) {
+  if (path.startsWith(WORKTREES)) return 'under .worktrees/';
+  const kind = kindOf(top, path);
+  if (kind === 'missing') return null;
+  if (kind === 'other') return 'not a regular file';
+  return gitRaw(top, ['check-ignore', '-q', '--', path], { allowFail: true }).code === 0 ? 'ignored by git' : 'not listed by git';
+}
+
+/**
+ * `baton structure`: checks every counted file of the checkout at `top` against
+ * `config.structure`. Text goes to stderr; `--json` also prints the result on stdout. Writes no file.
+ * @param {string} top
+ * @param {{ structure: { maxLines: number, exclude: string[], allowlist: Record<string, number> } }} config
+ * @param {{ json: boolean, suggestAllowlist: boolean }} opts
+ * @returns {{ ok: boolean }}
+ */
+export function runStructure(top, config, { json, suggestAllowlist }) {
+  const { exclude, allowlist } = config.structure;
+  const listed = listPaths(top);
+  /** @type {FileInput[]} */
+  const files = [];
+  let skippedForExtension = 0;
+  for (const path of listed) {
+    const kind = kindOf(top, path);
+    if (kind === 'missing') continue; // deleted in the working tree: checkStructure says `missing`
+    if (kind === 'other') {
+      files.push({ path, lines: null, why: 'not a regular file' }); // symlink, submodule, nested repo
+      continue;
+    }
+    if (exclude.some((glob) => matchGlob(glob, path))) continue;
+    if (!hasSourceExtension(path)) {
+      skippedForExtension++;
+      continue;
+    }
+    let buf;
+    try {
+      buf = readFileSync(join(top, path));
+    } catch (err) {
+      throw new BatonError(`Cannot read ${path}: ${err instanceof Error ? err.message : err}`);
+    }
+    files.push({ path, lines: countLines(buf) });
+  }
+  const seen = new Set(listed);
+  for (const path of Object.keys(allowlist)) {
+    if (seen.has(path)) continue;
+    const why = unlistedReason(top, path);
+    if (why !== null) files.push({ path, lines: null, why });
+  }
+
+  const result = checkStructure({ files, skippedForExtension, config: config.structure });
+  const { lines, summary, pasteBlock } = formatFindings(result);
+  const text = [...lines, summary, ...(suggestAllowlist ? pasteBlock : [])];
+  process.stderr.write(`${text.join('\n')}\n`);
+  if (json) {
+    // The contract's row is exactly { path, lines, allowlisted, state }: `why` stays in the text.
+    const rows = result.files.map(({ path, lines: n, allowlisted, state }) => ({ path, lines: n, allowlisted, state }));
+    process.stdout.write(`${JSON.stringify({ ...result, files: rows }, null, 2)}\n`);
+  }
+  return { ok: result.ok };
 }
