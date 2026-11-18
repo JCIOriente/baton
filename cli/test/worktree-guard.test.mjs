@@ -97,6 +97,9 @@ test('decide_allows_linked_worktree_inside_worktrees', () => {
   assert.equal(decide(linkedAt('/r/acme/.worktrees/docs')), null);
   assert.equal(decide(linkedAt('/r/acme/.worktrees/a/b')), null, 'nested');
   assert.equal(decide(linkedAt('/r/acme/.worktrees/..x')), null, 'a name starting with two dots');
+  // main() passes the folder's real path when .worktrees is a symlink.
+  assert.equal(decide({ ...linkedAt('/r/elsewhere/docs'), worktrees: '/r/elsewhere' }), null, 'the resolved folder');
+  assert.notEqual(decide({ ...linkedAt('/r/acme/.worktrees/docs'), worktrees: '/r/elsewhere' }), null, 'only the resolved folder');
 });
 
 test('decide_denies_linked_worktree_outside_worktrees', () => {
@@ -113,6 +116,7 @@ test('decide_denies_linked_worktree_outside_worktrees', () => {
   );
   assert.notEqual(decide(linkedAt('/r/acme/.claude/worktrees/x')), null, "Claude Code's worktree folder");
   assert.notEqual(decide(linkedAt('/r/acme/.worktreesx/docs')), null, 'a folder named like it');
+  assert.notEqual(decide(linkedAt('/r/acme/.worktrees')), null, 'the folder itself');
   assert.notEqual(decide({ ...linkedAt('/r/acme-worktrees/docs'), config: { project: 'acme' } }), null, 'no key means on');
 
   assert.equal(decide({ ...linkedAt('/r/acme-worktrees/docs'), mainTop: null }), null, 'no main checkout');
@@ -241,6 +245,18 @@ test('edit guard allows edits in an outside worktree when off, ignored, in CI or
   writeFileSync(join(sibling, '.baton/config.json'), JSON.stringify({ hooks: { worktreeOnly: true } }));
   git(sibling, 'commit', '-qam', 'on in the branch');
   assert.equal(runHook(input(join(sibling, 'README.md'))), '');
+});
+
+test('hook_reports_failed_config_read_on_stderr', (t) => {
+  // A git killed while reading the committed config (as a timeout would) allows the edit with a trace.
+  const { dir, root } = repo(t);
+  const bin = join(dir, 'fake-git');
+  mkdirSync(bin);
+  const realGit = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
+  writeFileSync(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" show "*) kill -9 $$ ;; esac\nexec '${realGit}' "$@"\n`, { mode: 0o755 });
+  const res = spawnHook({ tool_name: 'Edit', cwd: root, tool_input: { file_path: join(root, 'README.md') } }, { PATH: `${bin}:${env.PATH}` });
+  assert.equal(res.stdout, '');
+  assert.match(res.stderr, /^baton worktree-guard: allowing edit, git show failed \(signal SIGKILL\)/);
 });
 
 test('edit guard skips the outside check without a main checkout', (t) => {

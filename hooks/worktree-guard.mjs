@@ -43,16 +43,17 @@ export function outsideDenyText(path, top, main) {
  * Decides one edit from git's answers. Returns the deny reason, or null to allow.
  * `gitDir`/`commonDir`/`top` are null when git failed; `mainTop` is the real path of a linked
  * worktree's main checkout, or null when there is none (a bare repository or a separate git
- * dir); `config` is the parsed .baton/config.json at the main checkout's HEAD, or null when
- * HEAD has none or it doesn't parse.
+ * dir); `worktrees` is the real path of its `.worktrees` folder (default `<mainTop>/.worktrees`);
+ * `config` is the parsed .baton/config.json at the main checkout's HEAD, or null when HEAD has
+ * none or it doesn't parse. Pure: it reads nothing.
  */
-export function decide({ path, gitDir, commonDir, top, mainTop, ignored, config, env }) {
+export function decide({ path, gitDir, commonDir, top, mainTop, worktrees, ignored, config, env }) {
   if (env.CI === 'true' || env.CLAUDE_CODE_REMOTE === 'true') return null;
   if (!gitDir || !commonDir || !top) return null;
   if (ignored || !worktreeOnly(config)) return null;
   if (gitDir === commonDir) return denyText(relative(top, path), top);
   // A linked worktree: only one outside the main checkout's .worktrees/ is denied.
-  if (!mainTop || isInWorktrees(top, mainTop)) return null;
+  if (!mainTop || isInside(top, worktrees ?? join(mainTop, '.worktrees'))) return null;
   return outsideDenyText(relative(top, path), top, mainTop);
 }
 
@@ -63,11 +64,16 @@ function worktreeOnly(config) {
   return isPlainObject(config.hooks) && (!('worktreeOnly' in config.hooks) || config.hooks.worktreeOnly === true);
 }
 
-/** Whether the worktree folder `top` is inside `<mainTop>/.worktrees/`, comparing real paths when the folder exists. */
-function isInWorktrees(top, mainTop) {
-  const folder = join(mainTop, '.worktrees');
-  const rel = relative(existsSync(folder) ? realpathSync(folder) : folder, top);
+/** Whether `dir` is strictly inside `parent`. */
+function isInside(dir, parent) {
+  const rel = relative(parent, dir);
   return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+/** The real path of `<mainTop>/.worktrees` (it may be a symlink), or that path when it doesn't exist. */
+function worktreesFolder(mainTop) {
+  const folder = join(mainTop, '.worktrees');
+  return existsSync(folder) ? realpathSync(folder) : folder;
 }
 
 function isPlainObject(v) {
@@ -111,6 +117,11 @@ function nearestExistingDir(path) {
 /** The parsed .baton/config.json at the HEAD of the main checkout, whose git dir is `commonDir`. */
 function committedConfig(cwd, commonDir) {
   const res = git(cwd, '--git-dir', commonDir, 'show', 'HEAD:.baton/config.json');
+  // A git that didn't run or was killed (the timeout) leaves a trace; a plain exit means no config.
+  if (res.error || res.signal) {
+    allowing(gitFailure('show', res));
+    return null;
+  }
   if (res.status !== 0) return null;
   try {
     return JSON.parse(res.stdout);
@@ -137,17 +148,20 @@ function main() {
   if (rev.status !== 0) return; // not a repo, or inside .git
   const [gitDir, commonDir, top] = rev.stdout.trim().split('\n');
   let mainTop = null;
+  let worktrees = null;
   if (gitDir !== commonDir) {
     // A linked worktree's main checkout holds the common dir as its .git; without one, nothing to check.
     if (basename(commonDir) !== '.git') return;
+    // git already hands over a real path; resolving it is defensive only.
     mainTop = realpathSync(dirname(commonDir));
-    if (isInWorktrees(top, mainTop)) return; // skip the remaining git calls
+    worktrees = worktreesFolder(mainTop);
+    if (isInside(top, worktrees)) return; // skip the remaining git calls
   }
 
   const ignore = git(existing, 'check-ignore', '-q', path);
   if (ignore.status !== 0 && ignore.status !== 1) return allowing(gitFailure('check-ignore', ignore));
   const config = committedConfig(existing, commonDir);
-  const reason = decide({ path, gitDir, commonDir, top, mainTop, ignored: ignore.status === 0, config, env: process.env });
+  const reason = decide({ path, gitDir, commonDir, top, mainTop, worktrees, ignored: ignore.status === 0, config, env: process.env });
   if (!reason) return;
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
 }
