@@ -545,3 +545,16 @@ test('doctor_has_no_main_checkout_in_a_bare_repo', (t) => {
   const ctx = baton(wt, {}, 'context');
   assert.ok(!ctx.stdout.includes('baton hooks install'), ctx.stdout);
 });
+
+test('commit gates in a linked worktree run its own commit steps', (t) => {
+  // Main's commit step fails; the branch replaces it with a passing one. The real CLI runs them.
+  const failing = { name: 'main-step', run: 'exit 1', stages: ['commit'] };
+  const { dir, wt } = linked(t, { validate: [failing] });
+  writeFileSync(join(wt, '.baton/config.json'), JSON.stringify({ validate: [{ name: 'branch-step', run: 'true', stages: ['commit'] }] }));
+  const bin = mkdtempSync(join(dir, 'real-baton-'));
+  writeFileSync(join(bin, 'baton'), `#!/bin/sh\nexec '${process.execPath}' '${cli}' "$@"\n`, { mode: 0o755 });
+  const res = commit(wt, { PATH: `${bin}:${env.PATH}` });
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stderr, /✔ branch-step/);
+  assert.doesNotMatch(res.stderr, /main-step/);
+});

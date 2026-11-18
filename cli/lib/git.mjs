@@ -8,7 +8,7 @@ export function git(args, opts = {}) {
 
 /**
  * The main checkout's root, even when called from inside a linked worktree.
- * Config and worktree paths are always resolved against this.
+ * Worktree paths are always resolved against this; config is read from `currentTop`.
  */
 export function repoRoot(cwd = process.cwd()) {
   const res = git(['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, allowFail: true });

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GATES, STAGES } from './gates.mjs';
-import { repoRoot } from './git.mjs';
+import { git, repoRoot } from './git.mjs';
 import { BatonError, deepMerge, isPlainObject } from './util.mjs';
 
 export const CONFIG_DIR = '.baton';
@@ -91,11 +91,19 @@ export function configPath(root) {
   return join(root, CONFIG_DIR, CONFIG_FILE);
 }
 
-/** Load the project config merged over defaults. `found` tells callers whether the repo opted in. */
+/**
+ * Load the project config merged over defaults. `found` tells callers whether the repo opted in.
+ * The config is read from `top`, the checkout `cwd` is in, so a branch's own steps are the ones
+ * that run. `root` is the main checkout's root, for worktree paths, the git guard and anything
+ * else that belongs to the repository rather than to one checkout.
+ */
 export function loadConfig(cwd = process.cwd()) {
   const root = repoRoot(cwd);
-  const path = configPath(root);
-  if (!existsSync(path)) return { root, path, found: false, config: DEFAULT_CONFIG };
+  // Without a work tree (cwd inside the git dir) there is no checkout of its own: use the main one.
+  const shown = git(['rev-parse', '--show-toplevel'], { cwd, allowFail: true });
+  const top = shown.code === 0 ? shown.stdout : root;
+  const path = configPath(top);
+  if (!existsSync(path)) return { root, top, path, found: false, config: DEFAULT_CONFIG };
   let raw;
   try {
     raw = JSON.parse(readFileSync(path, 'utf8'));
@@ -107,7 +115,7 @@ export function loadConfig(cwd = process.cwd()) {
   if (problems.length) {
     throw new BatonError(`Invalid ${path}:\n  - ${problems.join('\n  - ')}`);
   }
-  return { root, path, found: true, config };
+  return { root, top, path, found: true, config };
 }
 
 export function validateConfig(config) {

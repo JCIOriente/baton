@@ -25,7 +25,7 @@ export const WORKTREE_RULE =
  * Build the text injected at session start. Only the stacks and rules the project
  * enabled are referenced, so unrelated guidance never enters the context.
  */
-export function buildContext({ root, found, config }, { pluginRoot, cwd = process.cwd() }) {
+export function buildContext({ root, top = root, found, config }, { pluginRoot, cwd = process.cwd() }) {
   if (!found) {
     return [
       '<baton>',
@@ -51,7 +51,7 @@ export function buildContext({ root, found, config }, { pluginRoot, cwd = proces
   if (config.workflow.requireReview) gates.push('review before merge');
   lines.push(`Phases: ${config.workflow.phases.join(' -> ')}${gates.length ? ` (gates: ${gates.join(', ')})` : ''}`);
   const custom = Object.entries(config.workflow.custom ?? {}).filter(([p]) => config.workflow.phases.includes(p));
-  for (const [phase, file] of custom) lines.push(`- Custom phase '${phase}': follow ${join(root, file)}`);
+  for (const [phase, file] of custom) lines.push(`- Custom phase '${phase}': follow ${join(top, file)}`);
   if (config.release.enabled) {
     lines.push('Releases: on demand with baton:release. Never edit CHANGELOG.md or version files in a task PR; the PR title is the changelog entry.');
   }
@@ -60,16 +60,16 @@ export function buildContext({ root, found, config }, { pluginRoot, cwd = proces
     lines.push('', 'Enabled stack guides. Read the relevant ones before writing or reviewing code in that stack:');
     for (const s of [BASELINE_GUIDE, ...config.stacks]) lines.push(`- ${s}: ${join(pluginRoot, 'stacks', `${s}.md`)}`);
   }
-  const notEnabled = safeDetect(root).filter((s) => !config.stacks.includes(s));
+  const notEnabled = safeDetect(top).filter((s) => !config.stacks.includes(s));
   if (notEnabled.length) {
     lines.push(`Detected but not enabled: ${notEnabled.join(', ')}. Suggest adding them to "stacks" in .baton/config.json if the project uses them.`);
   }
-  const conventions = config.conventions.map((c) => join(root, c)).filter((p) => existsSync(p));
+  const conventions = config.conventions.map((c) => join(top, c)).filter((p) => existsSync(p));
   if (conventions.length) {
     lines.push('', 'Project conventions (these override the stack guides when they conflict):');
     for (const c of conventions) lines.push(`- ${c}`);
   }
-  const issues = config.docs.commonIssues && join(root, config.docs.commonIssues);
+  const issues = config.docs.commonIssues && join(top, config.docs.commonIssues);
   if (issues && existsSync(issues)) {
     lines.push('', `Known recurring bug patterns in this repo. Check before coding: ${issues}`);
   }
