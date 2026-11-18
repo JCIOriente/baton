@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DEFAULT_CONFIG, validateConfig } from '../lib/config.mjs';
 import { deepMerge } from '../lib/util.mjs';
@@ -95,4 +96,11 @@ test('config rejects a non-object gates.skip and a non-array gates, and keeps ch
 
 test('config does not check setup steps against the gate rules', () => {
   assert.deepEqual(problems({ setup: [{ name: 'i', run: 'x', gates: ['nope'], blocking: 'z' }] }), []);
+});
+
+test('config has no worktreeRoot, and a config that still sets it is valid', () => {
+  assert.equal(Object.hasOwn(DEFAULT_CONFIG.git, 'worktreeRoot'), false);
+  assert.deepEqual(problems({ git: { worktreeRoot: '../{repo}-worktrees' } }), []);
+  const example = JSON.parse(readFileSync(new URL('../../templates/config.example.json', import.meta.url), 'utf8'));
+  assert.equal(Object.hasOwn(example.git, 'worktreeRoot'), false);
 });

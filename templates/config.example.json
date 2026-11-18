@@ -26,7 +26,6 @@
     "baseBranch": "main",
     "remote": "origin",
     "branchPrefix": "task",
-    "worktreeRoot": "../{repo}-worktrees",
     "mergeStrategy": "squash"
   },
   "setup": [

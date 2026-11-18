@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
+import { basename, dirname, join, sep } from 'node:path';
 import { BatonError, run, slugify } from './util.mjs';
 
 export function git(args, opts = {}) {
@@ -49,9 +49,53 @@ export function listWorktrees(root) {
   return parseWorktreeList(git(['worktree', 'list', '--porcelain'], { cwd: root }).stdout);
 }
 
-export function worktreeBase(root, config) {
-  const pattern = config.git.worktreeRoot.replace('{repo}', basename(root));
-  return isAbsolute(pattern) ? pattern : resolve(root, pattern);
+/** The folder every linked worktree lives in: `.worktrees/` at the main checkout's root. */
+export function worktreeBase(root) {
+  return join(root, '.worktrees');
+}
+
+/** The ignore lines that count as ignoring the worktrees folder, in `.gitignore` or `info/exclude`. */
+export const GITIGNORE_FORMS = Object.freeze(['/.worktrees/', '.worktrees/', '/.worktrees', '.worktrees']);
+
+/** Whether `path` is inside `worktreeBase(root)`, comparing real paths (macOS `/tmp` is `/private/tmp`). */
+export function isInWorktrees(root, path) {
+  return realPath(path).startsWith(`${realPath(worktreeBase(root))}${sep}`);
+}
+
+/** The real path of `p`; for a path that doesn't exist yet, its nearest existing parent's, with the rest appended. */
+function realPath(p) {
+  try {
+    return realpathSync(p);
+  } catch (err) {
+    if (err.code !== 'ENOENT' || dirname(p) === p) throw err;
+    return join(realPath(dirname(p)), basename(p));
+  }
+}
+
+/**
+ * Appends `/.worktrees/` to the ignore file `file` unless it already holds an accepted form,
+ * adding a newline first when the file doesn't end with one. Returns whether it wrote the line.
+ */
+export function addWorktreesLine(file) {
+  const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
+  if (text.split('\n').some((line) => GITIGNORE_FORMS.includes(line.trim()))) return false;
+  appendFileSync(file, `${text && !text.endsWith('\n') ? '\n' : ''}/.worktrees/\n`);
+  return true;
+}
+
+/**
+ * Makes `<common dir>/info/exclude` ignore the worktrees folder, creating `info/` if needed. A
+ * failed write is returned as a warning: an unignored folder must not block work.
+ */
+export function ensureExcluded(root) {
+  const common = git(['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: root }).stdout;
+  const file = join(common, 'info', 'exclude');
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    return { added: addWorktreesLine(file) };
+  } catch (err) {
+    return { added: false, warning: `could not write ${file} (${err.code ?? err.message}); add the line /.worktrees/ to it by hand.` };
+  }
 }
 
 export function branchName(config, issueNumber, title) {

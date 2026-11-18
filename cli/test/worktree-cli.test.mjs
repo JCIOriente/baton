@@ -4,6 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { ensureExcluded, GITIGNORE_FORMS, isInWorktrees } from '../lib/git.mjs';
 
 const cli = new URL('../baton.mjs', import.meta.url).pathname;
 // Isolated from the user's git config (signing, hooks), with a fixed identity.
@@ -91,7 +92,7 @@ function repo(t, config = {}) {
   git(root, 'add', '-A');
   git(root, 'commit', '-qm', 'init');
   git(root, 'push', '-q', 'origin', 'main');
-  return { dir, root, base: join(dir, 'acme-worktrees') };
+  return { dir, root, base: join(root, '.worktrees') };
 }
 
 test('worktree_add_creates_untracked_branch_from_remote_base', (t) => {
@@ -337,7 +338,8 @@ test('init_writes_into_current_worktree', (t) => {
   assert.ok(existsSync(join(path, 'docs/specs')) && existsSync(join(path, 'docs/plans')));
   assert.ok(!existsSync(join(root, '.baton')), 'no config in the main checkout');
   assert.ok(!existsSync(join(root, 'docs')), 'no docs dirs in the main checkout');
-  assert.equal(git(root, 'status', '--porcelain'), '');
+  // The worktree, made by bare git here, is the only thing under .worktrees/.
+  assert.equal(git(root, 'status', '--porcelain', '--', '.', ':!.worktrees'), '');
 });
 
 test('init in the main checkout writes worktreeOnly explicitly', (t) => {
@@ -825,7 +827,7 @@ test('worktree_clean_text_lists_kept_worktrees_and_the_newest_pr_decides', (t) =
   assert.ok(existsSync(reopened.path) && existsSync(task));
 });
 
-/** A repo with a linked worktree `feat`. worktreeRoot is relative, so resolving it against `feat` would nest new worktrees in it. */
+/** A repo with a linked worktree `feat`. Resolving `.worktrees` against `feat` would nest new worktrees in it. */
 function repoWithLinked(t) {
   const made = repo(t);
   const from = join(made.base, 'feat');
@@ -845,4 +847,106 @@ test('start_from_a_linked_worktree_creates_under_the_main_checkout', (t) => {
   const res = withFakeGh(dir, { title: 'Task' }).run(from, 'start', '12', '--no-baseline', '--json');
   assert.equal(res.status, 0, res.stderr);
   assert.equal(JSON.parse(res.stdout).path, join(base, 'task-12-task'));
+});
+
+test('worktree add creates under .worktrees even with worktreeRoot set', (t) => {
+  const { dir, root } = repo(t, { git: { worktreeRoot: '../{repo}-worktrees' } });
+  const add = baton(root, 'worktree', 'add', 'x', '--json');
+  assert.equal(add.status, 0, add.stderr);
+  assert.equal(JSON.parse(add.stdout).path, join(root, '.worktrees', 'x'));
+  const start = withFakeGh(dir, { title: 'Task' }).run(root, 'start', '12', '--no-baseline', '--json');
+  assert.equal(start.status, 0, start.stderr);
+  assert.equal(JSON.parse(start.stdout).path, join(root, '.worktrees', 'task-12-task'));
+  assert.ok(!existsSync(join(dir, 'acme-worktrees')), 'nothing under the configured root');
+});
+
+const excludeOf = (root) => join(root, '.git', 'info', 'exclude');
+const worktreesLines = (text) => text.split('\n').filter((l) => GITIGNORE_FORMS.includes(l.trim()));
+
+test('ensureExcluded adds the line once', (t) => {
+  const { root } = repo(t);
+  writeFileSync(excludeOf(root), '# mine');
+  assert.deepEqual(ensureExcluded(root), { added: true });
+  assert.deepEqual(ensureExcluded(root), { added: false });
+  assert.equal(readFileSync(excludeOf(root), 'utf8'), '# mine\n/.worktrees/\n');
+  // Any accepted form already there counts.
+  writeFileSync(excludeOf(root), '.worktrees\n');
+  assert.deepEqual(ensureExcluded(root), { added: false });
+  assert.equal(readFileSync(excludeOf(root), 'utf8'), '.worktrees\n');
+});
+
+test('worktree add twice leaves one exclude line and a clean main checkout', (t) => {
+  const { root } = repo(t);
+  assert.equal(baton(root, 'worktree', 'add', 'a').status, 0);
+  assert.equal(baton(root, 'worktree', 'add', 'b').status, 0);
+  assert.deepEqual(worktreesLines(readFileSync(excludeOf(root), 'utf8')), ['/.worktrees/']);
+  assert.equal(git(root, 'status', '--porcelain', '--untracked-files=all'), '');
+});
+
+test('ensureExcluded creates the info folder', (t) => {
+  const { root } = repo(t);
+  rmSync(join(root, '.git', 'info'), { recursive: true, force: true });
+  assert.deepEqual(ensureExcluded(root), { added: true });
+  assert.equal(readFileSync(excludeOf(root), 'utf8'), '/.worktrees/\n');
+});
+
+test('worktree add warns when info/exclude is not writable', (t) => {
+  if (process.getuid?.() === 0) return t.skip('root ignores file modes');
+  const { root, base } = repo(t);
+  writeFileSync(excludeOf(root), '');
+  chmodSync(excludeOf(root), 0o444);
+  const res = baton(root, 'worktree', 'add', 'x');
+  assert.equal(res.status, 0, res.stderr);
+  assert.match(res.stderr, /^warning: .*info\/exclude.*add the line \/\.worktrees\/ to it by hand/m);
+  assert.ok(existsSync(join(base, 'x')), 'the worktree is still made');
+});
+
+test('worktree add refuses a tracked .worktrees', (t) => {
+  const { root } = repo(t);
+  mkdirSync(join(root, '.worktrees'));
+  writeFileSync(join(root, '.worktrees', 'keep'), 'x\n');
+  git(root, 'add', '.worktrees/keep');
+  git(root, 'commit', '-qm', 'track it');
+  const res = baton(root, 'worktree', 'add', 'x');
+  assert.notEqual(res.status, 0);
+  assert.match(res.stderr, /\.worktrees is tracked in this repo; baton keeps worktrees there/);
+  assert.equal(git(root, 'branch', '--list', 'x'), '', 'no branch was created');
+  assert.ok(!existsSync(join(root, '.worktrees', 'x')));
+});
+
+test('init writes no worktreeRoot', (t) => {
+  const { root } = repo(t, null);
+  assert.equal(baton(root, 'init').status, 0);
+  assert.equal(Object.hasOwn(JSON.parse(readFileSync(join(root, '.baton/config.json'), 'utf8')).git, 'worktreeRoot'), false);
+});
+
+/** A real folder `acme` and a symlink `link` to it, under an unresolved temp path (/var vs /private/var on macOS). */
+function linkedFolder(t) {
+  const dir = mkdtempSync(join(tmpdir(), 'baton-in-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const real = join(dir, 'acme');
+  mkdirSync(real);
+  const link = join(dir, 'link');
+  symlinkSync(real, link);
+  return { dir, real, link };
+}
+
+test('isInWorktrees compares real paths', (t) => {
+  const { dir, real, link } = linkedFolder(t);
+  assert.equal(isInWorktrees(link, join(real, '.worktrees', 'x')), true, 'missing path, root through a symlink');
+  assert.equal(isInWorktrees(real, join(link, '.worktrees', 'x')), true, 'missing path through a symlink');
+  mkdirSync(join(real, '.worktrees', 'x'), { recursive: true });
+  assert.equal(isInWorktrees(link, join(realpathSync(real), '.worktrees', 'x')), true, 'existing path');
+  assert.equal(isInWorktrees(realpathSync(real), join(link, '.worktrees', 'x')), true, 'existing path through a symlink');
+  assert.equal(isInWorktrees(real, join(dir, 'acme-worktrees', 'x')), false, 'a sibling folder');
+  assert.equal(isInWorktrees(real, join(real, '.worktrees-old', 'x')), false, 'a name sharing the prefix');
+  assert.equal(isInWorktrees(real, real), false, 'the main checkout');
+  assert.equal(isInWorktrees(real, join(real, '.worktrees')), false, 'the folder itself');
+});
+
+test('isInWorktrees accepts a nested path', (t) => {
+  const { real } = linkedFolder(t);
+  assert.equal(isInWorktrees(real, join(real, '.worktrees', 'a', 'b')), true);
+  mkdirSync(join(real, '.worktrees', 'a', 'b'), { recursive: true });
+  assert.equal(isInWorktrees(real, join(real, '.worktrees', 'a', 'b')), true);
 });

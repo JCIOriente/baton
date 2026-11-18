@@ -15,6 +15,7 @@ import {
   branchName,
   currentBranch,
   currentTop,
+  ensureExcluded,
   git,
   hasUncommittedChanges,
   issueFromBranch,
@@ -203,7 +204,7 @@ function init(argv) {
     project: root.split('/').pop(),
     stacks: detected.stacks,
     tasks: { provider: 'github', repo: null },
-    git: { baseBranch, branchPrefix: DEFAULT_CONFIG.git.branchPrefix, worktreeRoot: DEFAULT_CONFIG.git.worktreeRoot, mergeStrategy: 'squash' },
+    git: { baseBranch, branchPrefix: DEFAULT_CONFIG.git.branchPrefix, mergeStrategy: 'squash' },
     setup: suggestSetup(detected),
     validate: suggestValidate(detected, { remote: DEFAULT_CONFIG.git.remote, baseBranch }),
     workflow: DEFAULT_CONFIG.workflow,
@@ -502,7 +503,8 @@ function removeWorktree(root, w, { force = false } = {}) {
 /**
  * The worktree for `branch` under `worktreeBase`: an existing one is reused, an existing local
  * branch is checked out, otherwise the branch starts from the remote base with no upstream.
- * A stale record for the branch is pruned first, so the worktree is made again.
+ * A stale record for the branch is pruned first, so the worktree is made again. A new worktree
+ * is refused over a tracked `.worktrees`, and the folder is added to `info/exclude` first.
  */
 function createWorktree(root, config, branch) {
   let worktrees = listWorktrees(root);
@@ -512,7 +514,10 @@ function createWorktree(root, config, branch) {
     existing = worktrees.find((w) => w.branch === branch);
   }
   if (existing) return { path: existing.path, created: false };
-  const path = join(worktreeBase(root, config), branch.replace(/\//g, '-'));
+  if (git(['ls-files', '--', '.worktrees'], { cwd: root }).stdout) {
+    throw new BatonError('.worktrees is tracked in this repo; baton keeps worktrees there');
+  }
+  const path = join(worktreeBase(root), branch.replace(/\//g, '-'));
   // Checked before git runs, so a clash never leaves a new branch behind.
   const occupant = worktrees.find((w) => w.path === path);
   if (occupant || existsSync(path)) {
@@ -521,6 +526,8 @@ function createWorktree(root, config, branch) {
     });
   }
   const localBranch = git(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: root, allowFail: true });
+  const { warning } = ensureExcluded(root);
+  if (warning) process.stderr.write(`warning: ${warning}\n`);
   mkdirSync(dirname(path), { recursive: true });
   if (localBranch.code === 0) {
     git(['worktree', 'add', path, branch], { cwd: root });
