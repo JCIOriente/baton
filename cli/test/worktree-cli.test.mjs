@@ -824,3 +824,25 @@ test('worktree_clean_text_lists_kept_worktrees_and_the_newest_pr_decides', (t) =
   assert.equal(res.stdout, 'Kept:\n  reopened  PR #5 open\n  task/10-y  no PR\n');
   assert.ok(existsSync(reopened.path) && existsSync(task));
 });
+
+/** A repo with a linked worktree `feat`. worktreeRoot is relative, so resolving it against `feat` would nest new worktrees in it. */
+function repoWithLinked(t) {
+  const made = repo(t);
+  const from = join(made.base, 'feat');
+  git(made.root, 'worktree', 'add', '-q', '-b', 'feat', from, 'main');
+  return { ...made, from };
+}
+
+test('worktree_add_from_a_linked_worktree_creates_under_the_main_checkout', (t) => {
+  const { base, from } = repoWithLinked(t);
+  const res = baton(from, 'worktree', 'add', 'docs', '--json');
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(JSON.parse(res.stdout).path, join(base, 'docs'));
+});
+
+test('start_from_a_linked_worktree_creates_under_the_main_checkout', (t) => {
+  const { dir, base, from } = repoWithLinked(t);
+  const res = withFakeGh(dir, { title: 'Task' }).run(from, 'start', '12', '--no-baseline', '--json');
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(JSON.parse(res.stdout).path, join(base, 'task-12-task'));
+});
