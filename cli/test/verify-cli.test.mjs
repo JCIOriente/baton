@@ -364,3 +364,21 @@ test('doctor in a linked worktree checks the files of that worktree', (t) => {
   );
   assert.ok(!messages.some((m) => m.includes("cwd 'pkg'")), messages.join('\n'));
 });
+
+test('verify and doctor on a branch without the config of the main checkout say to update the branch', (t) => {
+  const { root, base } = repo(t, { validate: [step('tests')] });
+  const wt = join(base, 'old');
+  git(root, 'worktree', 'add', '-q', '-b', 'old', wt, 'main');
+  git(wt, 'rm', '-q', '.baton/config.json');
+  git(wt, 'commit', '-qm', 'a branch from before baton');
+  const expected = "This checkout's branch has no .baton/config.json, but the main checkout has one";
+  const verify = baton(wt, 'verify');
+  assert.equal(verify.status, 1);
+  assert.ok(verify.stderr.includes(expected), verify.stderr);
+  assert.match(verify.stderr, /hint: Rebase or merge the base branch into this branch/);
+  assert.doesNotMatch(verify.stderr, /Run `baton init` first/);
+  const config = JSON.parse(baton(wt, 'doctor', '--json').stdout).filter((f) => f.kind === 'config');
+  assert.equal(config.length, 1, JSON.stringify(config));
+  assert.ok(config[0].message.startsWith(expected), config[0].message);
+  assert.doesNotMatch(config[0].message, /\(run `baton init`\)/);
+});

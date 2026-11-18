@@ -162,8 +162,21 @@ function issueArg(positionals, i = 0) {
 
 function requireConfig() {
   const loaded = loadConfig();
-  if (!loaded.found) throw new BatonError('No .baton/config.json in this repo', { hint: 'Run `baton init` first.' });
+  if (!loaded.found) throw new BatonError(...(branchWithoutConfig(loaded) ?? ['No .baton/config.json in this repo', { hint: 'Run `baton init` first.' }]));
   return loaded;
+}
+
+/**
+ * The error for a linked worktree whose branch predates the main checkout's config, as
+ * BatonError arguments; null otherwise. Such a branch needs the base branch merged in, not a
+ * second config from `baton init`.
+ */
+function branchWithoutConfig({ root, top }) {
+  if (top === root || !existsSync(configPath(root))) return null;
+  return [
+    "This checkout's branch has no .baton/config.json, but the main checkout has one",
+    { hint: 'Rebase or merge the base branch into this branch; do not run `baton init` here.' },
+  ];
 }
 
 /** The task the current checkout belongs to, from its branch name. */
@@ -950,7 +963,11 @@ function doctor(argv) {
   const { values } = opts(argv);
   const findings = [];
   const loaded = loadConfig();
-  if (!loaded.found) findings.push({ kind: 'config', message: 'No .baton/config.json (run `baton init`)' });
+  if (!loaded.found) {
+    const branch = branchWithoutConfig(loaded);
+    const message = branch ? `${branch[0]} (${branch[1].hint.replace(/\.$/, '')})` : 'No .baton/config.json (run `baton init`)';
+    findings.push({ kind: 'config', message });
+  }
   // The checks of the config and its files read the checkout this runs in (`top`); the guard
   // checks read the main checkout (`root`).
   const { root, top, config } = loaded;
