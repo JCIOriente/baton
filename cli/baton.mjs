@@ -17,6 +17,7 @@ import {
   currentBranch,
   currentTop,
   ensureExcluded,
+  GITIGNORE_FORMS,
   git,
   hasUncommittedChanges,
   isInWorktrees,
@@ -1004,6 +1005,9 @@ function doctor(argv) {
     if (step.cwd && !existsSync(join(top, step.cwd)))
       findings.push({ kind: 'config', message: `cwd '${step.cwd}' of '${step.name ?? step.run}' does not exist` });
   }
+  if (Object.hasOwn(config.git, 'worktreeRoot')) {
+    findings.push({ kind: 'config', message: 'git.worktreeRoot is no longer used; worktrees always live in .worktrees/ (delete the key)' });
+  }
   const notEnabled = detectStacks(top).stacks.filter((s) => !config.stacks.includes(s));
   if (notEnabled.length) findings.push({ kind: 'stacks', message: `Detected but not enabled: ${notEnabled.join(', ')}` });
 
@@ -1036,6 +1040,16 @@ function doctor(argv) {
         kind: 'worktree',
         message: `The main checkout ${root} is on ${branch}, not ${config.git.baseBranch}. Switch it back; changes happen in linked worktrees.`,
       });
+    }
+    for (const w of listWorktrees(root)) {
+      if (w.path !== root && !isInWorktrees(root, w.path)) {
+        findings.push({ kind: 'worktree', message: `worktree ${w.branch ?? '(detached)'} is outside .worktrees/ (${w.path})` });
+      }
+    }
+    // The committed file, as tools that read only .gitignore see it. git drops trailing whitespace, not leading.
+    const gitignore = showFile(root, 'HEAD', '.gitignore') ?? '';
+    if (!gitignore.split('\n').some((line) => GITIGNORE_FORMS.includes(line.trimEnd()))) {
+      findings.push({ kind: 'worktree', message: ".gitignore doesn't ignore .worktrees/ (add the line /.worktrees/ in a PR)" });
     }
   }
   // Unlike the guard, the commit gates run in linked worktrees, so they matter whatever hooks.worktreeOnly says.

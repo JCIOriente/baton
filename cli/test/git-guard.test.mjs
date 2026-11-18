@@ -674,6 +674,10 @@ test('doctor_reports_missing_guard_only_when_on', (t) => {
   };
 
   const { root } = repo(t);
+  // A committed .gitignore that ignores .worktrees/, so the guard is the only finding.
+  writeFileSync(join(root, '.gitignore'), '/.worktrees/\n');
+  git(root, 'add', '.gitignore');
+  git(root, 'commit', '-qm', 'gitignore');
   const missing = findings(root);
   assert.equal(missing.status, 1);
   assert.equal(missing.kinds.length, 1);

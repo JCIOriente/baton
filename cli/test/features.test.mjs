@@ -735,7 +735,7 @@ test('doctor reports a .gitignore without .worktrees', async (t) => {
   writeFileSync(join(root, '.gitignore'), '/.worktrees/\n');
   assert.ok(hasGitignoreFinding(doctor().findings));
   // git keeps a leading space in the pattern, but drops trailing whitespace.
-  commitGitignore(' .worktrees/\n');
+  commitGitignore('node_modules/\n .worktrees/\n');
   assert.ok(hasGitignoreFinding(doctor().findings));
   for (const form of ['/.worktrees/', '.worktrees/', '/.worktrees', '.worktrees  ']) {
     commitGitignore(`node_modules/\n${form}\n`);
