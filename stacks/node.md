@@ -12,6 +12,12 @@ the database. Project conventions override this.
   module-level singletons that tests can't control.
 - Config comes from env vars, validated with a schema **at startup**. The process refuses to
   boot on invalid config. No `process.env.X` reads scattered through the code.
+- Layout: `src/modules/<name>/{routes,service,repository,schema}`. Modules meet only through
+  their service. The TypeScript guide's Layout rule enforces it (or the same rule in plain
+  JavaScript).
+- Entry points (server, worker, CLI) are thin: they parse arguments or requests and call a
+  module. Review checks it.
+- Config is isolated in one module. Review checks it.
 
 ## HTTP
 
