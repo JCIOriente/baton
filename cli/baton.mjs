@@ -508,7 +508,7 @@ function removeWorktree(root, w, { force = false } = {}) {
  * The worktree for `branch` under `worktreeBase`: an existing one is reused, an existing local
  * branch is checked out, otherwise the branch starts from the remote base with no upstream.
  * A stale record for the branch is pruned first, so the worktree is made again. A new worktree
- * is refused over a tracked `.worktrees`, and the folder is added to `info/exclude` first.
+ * is refused over a tracked `.worktrees`. Either way the folder is added to `info/exclude` first.
  */
 function createWorktree(root, config, branch) {
   let worktrees = listWorktrees(root);
@@ -517,6 +517,9 @@ function createWorktree(root, config, branch) {
     worktrees = pruneStale(root, existing);
     existing = worktrees.find((w) => w.branch === branch);
   }
+  // Also on reuse, so a removed line comes back.
+  const { warning } = ensureExcluded(root);
+  if (warning) process.stderr.write(`warning: ${warning}\n`);
   if (existing) return { path: existing.path, created: false };
   if (git(['ls-files', '--', '.worktrees'], { cwd: root }).stdout) {
     throw new BatonError('.worktrees is tracked in this repo; baton keeps worktrees there');
@@ -530,8 +533,6 @@ function createWorktree(root, config, branch) {
     });
   }
   const localBranch = git(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: root, allowFail: true });
-  const { warning } = ensureExcluded(root);
-  if (warning) process.stderr.write(`warning: ${warning}\n`);
   mkdirSync(dirname(path), { recursive: true });
   if (localBranch.code === 0) {
     git(['worktree', 'add', path, branch], { cwd: root });

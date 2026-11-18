@@ -74,11 +74,12 @@ function realPath(p) {
 
 /**
  * Appends `/.worktrees/` to the ignore file `file` unless it already holds an accepted form,
- * adding a newline first when the file doesn't end with one. Returns whether it wrote the line.
+ * comparing lines with trailing whitespace dropped (git keeps a leading space in the pattern).
+ * Adds a newline first when the file doesn't end with one. Returns whether it wrote the line.
  */
 export function addWorktreesLine(file) {
   const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
-  if (text.split('\n').some((line) => GITIGNORE_FORMS.includes(line.trim()))) return false;
+  if (text.split('\n').some((line) => GITIGNORE_FORMS.includes(line.trimEnd()))) return false;
   appendFileSync(file, `${text && !text.endsWith('\n') ? '\n' : ''}/.worktrees/\n`);
   return true;
 }

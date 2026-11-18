@@ -942,14 +942,35 @@ test('init appends /.worktrees/ to an existing .gitignore', (t) => {
 });
 
 test('init leaves a .gitignore that already ignores .worktrees', (t) => {
-  for (const form of GITIGNORE_FORMS) {
+  // The spec's four forms, written out so the list in the code can't drift from them.
+  for (const form of ['/.worktrees/', '.worktrees/', '/.worktrees', '.worktrees']) {
     const { root } = repo(t, null);
-    writeFileSync(join(root, '.gitignore'), `dist/\n ${form}\n`);
+    writeFileSync(join(root, '.gitignore'), `dist/\n${form}  \r\n`);
     const res = baton(root, 'init');
     assert.equal(res.status, 0, res.stderr);
-    assert.equal(readFileSync(join(root, '.gitignore'), 'utf8'), `dist/\n ${form}\n`, form);
+    assert.equal(readFileSync(join(root, '.gitignore'), 'utf8'), `dist/\n${form}  \r\n`, form);
     assert.ok(!res.stdout.includes(INIT_LINE), res.stdout);
   }
+});
+
+test('init adds /.worktrees/ after an indented .worktrees line', (t) => {
+  // git keeps leading whitespace in a pattern, so ` .worktrees` doesn't ignore the folder.
+  const { root } = repo(t, null);
+  writeFileSync(join(root, '.gitignore'), ' .worktrees\n');
+  const res = baton(root, 'init');
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(readFileSync(join(root, '.gitignore'), 'utf8'), ' .worktrees\n/.worktrees/\n');
+  assert.ok(res.stdout.includes(INIT_LINE), res.stdout);
+});
+
+test('worktree add restores the exclude line when it reuses a worktree', (t) => {
+  const { root } = repo(t);
+  assert.equal(baton(root, 'worktree', 'add', 'x').status, 0);
+  writeFileSync(excludeOf(root), '');
+  const again = baton(root, 'worktree', 'add', 'x', '--json');
+  assert.equal(again.status, 0, again.stderr);
+  assert.equal(JSON.parse(again.stdout).created, false);
+  assert.equal(readFileSync(excludeOf(root), 'utf8'), '/.worktrees/\n');
 });
 
 test('init writes no worktreeRoot', (t) => {
