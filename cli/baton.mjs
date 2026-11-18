@@ -17,8 +17,10 @@ import {
   currentBranch,
   currentTop,
   ensureExcluded,
+  GITIGNORE_FORMS,
   git,
   hasUncommittedChanges,
+  isInWorktrees,
   issueFromBranch,
   listWorktrees,
   repoRoot,
@@ -615,44 +617,58 @@ function worktree(argv) {
 
 /**
  * `worktree clean`: removes the worktrees whose PR is merged (or closed, with --force). The whole
- * plan is made before anything changes, so a gh failure leaves every worktree as it was.
+ * plan is made before anything changes, so a gh failure leaves every worktree as it was. Only
+ * worktrees inside `.worktrees/` are judged; the others are listed and never touched.
  */
 function cleanWorktrees(root, config, values) {
   const provider = getProvider(config, root);
   const here = currentTop();
   const plan = listWorktrees(root)
     .filter((w) => w.path !== root)
-    .map((w) => ({ w, ...cleanDecision(provider, config, w, { here, force: values.force }) }));
+    .map((w) => ({ w, ...cleanDecision(provider, config, w, { root, here, force: values.force }) }));
   const dryRun = values['dry-run'];
   let hasFailure = false;
-  // Each row is carried out on its own, so one failure still leaves a full report of what changed.
-  const rows = plan.map(({ w, pr, state, action, reason }) => {
-    const row = { branch: w.branch, path: w.path, task: issueFromBranch(config, w.branch), pr, state, action, reason };
-    const isMergedRemoval = state === 'merged' && action === 'remove';
-    const deleteBranch = values['delete-branch'] && isMergedRemoval;
-    if (dryRun) {
+  // `git worktree prune` is repo-wide, so a stale outside record is locked while the plan runs,
+  // then unlocked; one that was already locked is left as it is.
+  const shielded = [];
+  let rows;
+  try {
+    for (const { w, action } of plan) {
+      if (dryRun || action !== 'outside' || w.locked || !isStale(w)) continue;
+      git(['worktree', 'lock', '--reason', 'baton worktree clean is running', w.path], { cwd: root });
+      shielded.push(w.path);
+    }
+    // Each row is carried out on its own, so one failure still leaves a full report of what changed.
+    rows = plan.map(({ w, pr, state, action, reason }) => {
+      const row = { branch: w.branch, path: w.path, task: issueFromBranch(config, w.branch), pr, state, action, reason };
+      const isMergedRemoval = state === 'merged' && action === 'remove';
+      const deleteBranch = values['delete-branch'] && isMergedRemoval;
+      if (dryRun) {
+        if (!isMergedRemoval) return row;
+        return { ...row, reason: `${reason}; branch ${deleteBranch ? 'would be deleted' : 'kept'}` };
+      }
+      if (action !== 'remove' && action !== 'prune') return row;
+      try {
+        removeWorktree(root, w);
+      } catch (err) {
+        if (!(err instanceof BatonError)) throw err;
+        hasFailure = true;
+        return { ...row, action: 'skip', reason: `removal failed: ${oneLine(err.message)}` };
+      }
       if (!isMergedRemoval) return row;
-      return { ...row, reason: `${reason}; branch ${deleteBranch ? 'would be deleted' : 'kept'}` };
-    }
-    if (action !== 'remove' && action !== 'prune') return row;
-    try {
-      removeWorktree(root, w);
-    } catch (err) {
-      if (!(err instanceof BatonError)) throw err;
-      hasFailure = true;
-      return { ...row, action: 'skip', reason: `removal failed: ${oneLine(err.message)}` };
-    }
-    if (!isMergedRemoval) return row;
-    if (!deleteBranch) return { ...row, reason: `${reason}; branch kept` };
-    const tip = git(['rev-parse', '--short', `refs/heads/${w.branch}`], { cwd: root }).stdout;
-    // -D, not -d: after a squash merge git never sees the branch as merged.
-    const deleted = git(['branch', '-D', w.branch], { cwd: root, allowFail: true });
-    if (deleted.code !== 0) {
-      hasFailure = true;
-      return { ...row, reason: `${reason}; branch deletion failed: ${oneLine(deleted.stderr)}` };
-    }
-    return { ...row, reason: `${reason}; branch deleted (was ${tip})` };
-  });
+      if (!deleteBranch) return { ...row, reason: `${reason}; branch kept` };
+      const tip = git(['rev-parse', '--short', `refs/heads/${w.branch}`], { cwd: root }).stdout;
+      // -D, not -d: after a squash merge git never sees the branch as merged.
+      const deleted = git(['branch', '-D', w.branch], { cwd: root, allowFail: true });
+      if (deleted.code !== 0) {
+        hasFailure = true;
+        return { ...row, reason: `${reason}; branch deletion failed: ${oneLine(deleted.stderr)}` };
+      }
+      return { ...row, reason: `${reason}; branch deleted (was ${tip})` };
+    });
+  } finally {
+    for (const path of shielded) git(['worktree', 'unlock', path], { cwd: root, allowFail: true });
+  }
   if (hasFailure) process.exitCode = 1;
   if (values.json) return print(rows);
   if (!rows.length) return print('No worktrees to clean.');
@@ -667,6 +683,13 @@ function cleanWorktrees(root, config, values) {
     if (!members.length) continue;
     lines.push(`${heading}:`, ...members.map((r) => `  ${r.branch ?? r.path}  ${r.reason}`));
   }
+  const outside = rows.filter((r) => r.action === 'outside');
+  if (outside.length) {
+    lines.push(
+      `Outside .worktrees/ (not cleaned; every worktree belongs in ${worktreeBase(root)}/):`,
+      ...outside.map((r) => `  ${r.branch ?? r.path}  ${r.path}`),
+    );
+  }
   if (dryRun) lines.push('Dry run: nothing changed.');
   print(lines.join('\n'));
 }
@@ -674,10 +697,12 @@ function cleanWorktrees(root, config, values) {
 /**
  * Sorts worktree `w` into exactly one clean-up category. The PR state on GitHub is the signal,
  * since squash merges hide merged branches from `git branch --merged`. Changes nothing.
- * @returns {{ pr: number|null, state: string, action: 'remove'|'prune'|'keep'|'skip', reason: string }}
+ * A worktree outside `.worktrees/` is never judged, so it needs no PR lookup.
+ * @returns {{ pr: number|null, state: string, action: 'remove'|'prune'|'keep'|'skip'|'outside', reason: string }}
  */
-function cleanDecision(provider, config, w, { here, force }) {
+function cleanDecision(provider, config, w, { root, here, force }) {
   const decide = (state, action, reason, pr = null) => ({ pr, state, action, reason });
+  if (!isInWorktrees(root, w.path)) return decide('outside', 'outside', 'outside .worktrees/');
   if (w.path === here) return decide('current', 'keep', 'current worktree');
   // git refuses to remove or prune a locked worktree.
   if (w.locked) return decide('locked', 'skip', `locked; \`git worktree unlock ${w.path}\` to let clean see it`);
@@ -775,9 +800,10 @@ function worktreeRows(root, config) {
 function status(argv) {
   const { values } = opts(argv);
   const { root, config } = requireConfig();
-  const rows = worktreeRows(root, config);
+  // Not in worktreeRows, so handoff's facts keep their shape.
+  const rows = worktreeRows(root, config).map((r) => ({ ...r, outside: !isInWorktrees(root, r.path) }));
   if (values.json) return print(rows.map(({ stale, ...row }) => row));
-  const note = (r) => (r.stale ? ' (missing; baton worktree prune)' : r.dirty ? ' (uncommitted)' : '');
+  const note = (r) => `${r.stale ? ' (missing; baton worktree prune)' : r.dirty ? ' (uncommitted)' : ''}${r.outside ? ' (outside .worktrees/)' : ''}`;
   print(
     rows.length
       ? rows.map((r) => `${r.current ? '*' : ' '} ${r.task ? `#${r.task} ` : ''}${r.branch ?? '(detached)'}${note(r)}\n    ${r.path}`).join('\n')
@@ -992,6 +1018,9 @@ function doctor(argv) {
     if (step.cwd && !existsSync(join(top, step.cwd)))
       findings.push({ kind: 'config', message: `cwd '${step.cwd}' of '${step.name ?? step.run}' does not exist` });
   }
+  if (Object.hasOwn(config.git, 'worktreeRoot')) {
+    findings.push({ kind: 'config', message: 'git.worktreeRoot is no longer used; worktrees always live in .worktrees/ (delete the key)' });
+  }
   const notEnabled = detectStacks(top).stacks.filter((s) => !config.stacks.includes(s));
   if (notEnabled.length) findings.push({ kind: 'stacks', message: `Detected but not enabled: ${notEnabled.join(', ')}` });
 
@@ -1024,6 +1053,16 @@ function doctor(argv) {
         kind: 'worktree',
         message: `The main checkout ${root} is on ${branch}, not ${config.git.baseBranch}. Switch it back; changes happen in linked worktrees.`,
       });
+    }
+    for (const w of listWorktrees(root)) {
+      if (w.path !== root && !isInWorktrees(root, w.path)) {
+        findings.push({ kind: 'worktree', message: `worktree ${w.branch ?? '(detached)'} is outside .worktrees/ (${w.path})` });
+      }
+    }
+    // The committed file, as tools that read only .gitignore see it. git drops trailing whitespace, not leading.
+    const gitignore = showFile(root, 'HEAD', '.gitignore') ?? '';
+    if (!gitignore.split('\n').some((line) => GITIGNORE_FORMS.includes(line.trimEnd()))) {
+      findings.push({ kind: 'worktree', message: ".gitignore doesn't ignore .worktrees/ (add the line /.worktrees/ in a PR)" });
     }
   }
   // Unlike the guard, the commit gates run in linked worktrees, so they matter whatever hooks.worktreeOnly says.
