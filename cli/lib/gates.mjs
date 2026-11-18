@@ -49,6 +49,7 @@ export function applicableGates({ root, config }) {
     secrets: () => 'always',
     format: () => 'always',
     lint: () => 'always',
+    structure: () => 'always',
     'unit-tests': () => 'always',
     install: () => deps && 'a package.json with dependencies or a Cargo.toml exists',
     audit: () => deps && 'a package.json with dependencies or a Cargo.toml exists',

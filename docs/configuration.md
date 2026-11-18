@@ -16,6 +16,11 @@ anything left out falls back to the defaults. See
   run goes on. The PR body uses [`templates/pr-body.md`](../templates/pr-body.md): at most two
   paragraphs, plus a `Validated:` line
 - `gates.skip`: `{ "<gate>": "<reason>" }`, catalog gates this repo deliberately doesn't run
+- `structure`: `{ maxLines?, exclude?, allowlist? }`, the file size limit `baton structure`
+  enforces for the `structure` gate, which applies to every repo. `maxLines` is the most lines a
+  counted file may have (default 500); `exclude` lists globs for generated or vendored code that
+  isn't counted; `allowlist` maps a repo-relative path to the exact line count a long file may
+  keep, and only shrinks
 - `workflow.phases`: reorder or drop built-in phases, or add your own with
   `workflow.custom: { "<phase>": "docs/process/<phase>.md" }`
 - `workflow.requireSpec | requireTdd | requireReview | baselineOnStart`: the gates

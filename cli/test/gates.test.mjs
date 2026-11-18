@@ -15,7 +15,7 @@ const repo = (files = {}) => {
   return root;
 };
 const names = (root, config = {}) => applicableGates({ root, config: { stacks: [], release: { publish: [] }, ...config } }).map((g) => g.gate);
-const BASE = ['secrets', 'format', 'lint', 'unit-tests'];
+const BASE = ['secrets', 'format', 'lint', 'structure', 'unit-tests'];
 
 test('catalog order and static set', () => {
   assert.equal(GATES.length, 17);
@@ -46,9 +46,17 @@ test('applicableGates: always gates only in an empty repo', () => {
   assert.deepEqual(names(repo()), BASE);
 });
 
+test('applicableGates applies structure always', () => {
+  const r = applicableGates({ root: repo(), config: {} });
+  assert.deepEqual(
+    r.find((g) => g.gate === 'structure'),
+    { gate: 'structure', why: 'always' },
+  );
+});
+
 test('applicableGates: package.json with only devDependencies adds install, audit, unused-deps', () => {
   const root = repo({ 'package.json': '{"devDependencies":{"a":"1"}}' });
-  assert.deepEqual(names(root), ['secrets', 'install', 'format', 'lint', 'unused-deps', 'audit', 'unit-tests']);
+  assert.deepEqual(names(root), ['secrets', 'install', 'format', 'lint', 'structure', 'unused-deps', 'audit', 'unit-tests']);
 });
 
 test('applicableGates: package.json without dependencies adds nothing', () => {
@@ -57,17 +65,17 @@ test('applicableGates: package.json without dependencies adds nothing', () => {
 
 test('applicableGates: Cargo.toml one level down adds install, audit, unused-deps', () => {
   const root = repo({ 'crates/a/Cargo.toml': '[package]\n' });
-  assert.deepEqual(names(root), ['secrets', 'install', 'format', 'lint', 'unused-deps', 'audit', 'unit-tests']);
+  assert.deepEqual(names(root), ['secrets', 'install', 'format', 'lint', 'structure', 'unused-deps', 'audit', 'unit-tests']);
 });
 
 test('applicableGates: stack rows', () => {
   const rows = {
-    typescript: ['secrets', 'format', 'lint', 'types', 'unit-tests'],
-    rust: ['secrets', 'format', 'lint', 'types', 'unit-tests'],
-    'rust-tokio-postgres': ['secrets', 'format', 'lint', 'types', 'unit-tests'],
-    postgres: ['secrets', 'format', 'lint', 'migrations', 'unit-tests'],
-    e2e: ['secrets', 'format', 'lint', 'unit-tests', 'e2e'],
-    react: ['secrets', 'format', 'lint', 'unit-tests', 'build'],
+    typescript: ['secrets', 'format', 'lint', 'structure', 'types', 'unit-tests'],
+    rust: ['secrets', 'format', 'lint', 'structure', 'types', 'unit-tests'],
+    'rust-tokio-postgres': ['secrets', 'format', 'lint', 'structure', 'types', 'unit-tests'],
+    postgres: ['secrets', 'format', 'lint', 'structure', 'migrations', 'unit-tests'],
+    e2e: ['secrets', 'format', 'lint', 'structure', 'unit-tests', 'e2e'],
+    react: ['secrets', 'format', 'lint', 'structure', 'unit-tests', 'build'],
     javascript: BASE,
     node: BASE,
   };
@@ -88,7 +96,7 @@ test('applicableGates: never-applicable gates are never returned', () => {
     stacks: ['typescript', 'react', 'postgres', 'e2e'],
     release: { publish: ['npm'] },
   });
-  for (const g of ['structure', 'generated', 'dead-code', 'integration-tests', 'budget']) assert.ok(!all.includes(g), g);
+  for (const g of ['generated', 'dead-code', 'integration-tests', 'budget']) assert.ok(!all.includes(g), g);
 });
 
 test('coverageFindings: an uncovered gate is reported', () => {
