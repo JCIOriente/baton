@@ -1,6 +1,6 @@
 {
   "name": "@jcioriente/baton",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "description": "CLI behind the baton Claude Code plugin. No runtime dependencies.",
   "bin": {

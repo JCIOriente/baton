@@ -3,6 +3,32 @@
 Generated from PR titles at release by release-please. Versions follow
 [semver](https://semver.org); before 1.0, minor versions may change behavior.
 
+## [0.8.0](https://github.com/JCIOriente/baton/compare/v0.7.0...v0.8.0) (2026-11-18)
+
+
+### Features
+
+* **cli:** doctor reports gate gaps, and context and init show gates ([#181](https://github.com/JCIOriente/baton/issues/181)) ([5f9bcda](https://github.com/JCIOriente/baton/commit/5f9bcdab3f3b6c68ab17704d9ddb9ace991820c4))
+* **cli:** gate catalog, applicability and config validation ([#177](https://github.com/JCIOriente/baton/issues/177)) ([fa1a0f9](https://github.com/JCIOriente/baton/commit/fa1a0f9a7066aefbcc7aa0773d021e05f9959b57))
+* **cli:** publish the CLI to npm as @jcioriente/baton ([#176](https://github.com/JCIOriente/baton/issues/176)) ([16dc696](https://github.com/JCIOriente/baton/commit/16dc696f45278a4019534c6f59ce757f85e00b2b))
+* **cli:** run validate by stage, with advisory steps and gate lines in the PR body ([#180](https://github.com/JCIOriente/baton/issues/180)) ([9df3714](https://github.com/JCIOriente/baton/commit/9df3714c4bba7d3949ff5cac448409107f633fac))
+* **gates:** apply the structure gate to every repo, and run it on baton ([#221](https://github.com/JCIOriente/baton/issues/221)) ([3b0cfa6](https://github.com/JCIOriente/baton/commit/3b0cfa63c390083db6aa72ca800033604249186e))
+* **guard:** refuse commits and edits in worktrees outside .worktrees/ ([#216](https://github.com/JCIOriente/baton/issues/216)) ([3f1cc26](https://github.com/JCIOriente/baton/commit/3f1cc2699c61498bfe15408f82414ec3260f1c80))
+* **hooks:** refuse git commit --no-verify in baton repos ([#174](https://github.com/JCIOriente/baton/issues/174)) ([92ea591](https://github.com/JCIOriente/baton/commit/92ea5916af33ef22ad99b589221e33c0deb70e60))
+* **hooks:** run commit-stage gates from the pre-commit hook ([#178](https://github.com/JCIOriente/baton/issues/178)) ([ea90604](https://github.com/JCIOriente/baton/commit/ea90604cc25d45f43c72fbeb2db0c15717b54818))
+* **skills:** document the .worktrees/ folder in the skills, guides and architecture ([#213](https://github.com/JCIOriente/baton/issues/213)) ([eea8360](https://github.com/JCIOriente/baton/commit/eea836048e0a056d3d6199c5f813b03c12b0fcf9))
+* **skills:** split files in the same PR, never raise the allowlist, review structure ([#208](https://github.com/JCIOriente/baton/issues/208)) ([5241417](https://github.com/JCIOriente/baton/commit/5241417a5497d5409d68b0f2450c7c20cdf383a8))
+* **stacks:** size and structure rules and a Layout section per stack guide ([#209](https://github.com/JCIOriente/baton/issues/209)) ([84a0423](https://github.com/JCIOriente/baton/commit/84a04231e21be4f9aae10fdfa3137e9f5dbb4f78))
+* **structure:** add the baton structure command and its config ([#220](https://github.com/JCIOriente/baton/issues/220)) ([a3f35cc](https://github.com/JCIOriente/baton/commit/a3f35ccfdb0895cfc0fc0532cc155f9d2403dc32))
+* **structure:** line counting, glob matching and allowlist classification ([#211](https://github.com/JCIOriente/baton/issues/211)) ([0d95203](https://github.com/JCIOriente/baton/commit/0d9520308c998e3d9eafe95991822ca2a4afbb51))
+* **worktree:** clean, status and doctor report worktrees outside .worktrees/ ([#218](https://github.com/JCIOriente/baton/issues/218)) ([1c9d5bf](https://github.com/JCIOriente/baton/commit/1c9d5bfe8f262841c77343233f3ad74939b5f9f5))
+* **worktree:** create every worktree in .worktrees/ ([#215](https://github.com/JCIOriente/baton/issues/215)) ([19704e8](https://github.com/JCIOriente/baton/commit/19704e82fb7ebcf0529c2c963b482b3996e1c21f))
+
+
+### Bug Fixes
+
+* **config:** read .baton/config.json from the current worktree ([#212](https://github.com/JCIOriente/baton/issues/212)) ([a834a15](https://github.com/JCIOriente/baton/commit/a834a15c18ab20af546136f3c753c28030f312bc))
+
 ## [0.7.0](https://github.com/JCIOriente/baton/compare/v0.6.0...v0.7.0) (2026-11-16)
 
 
