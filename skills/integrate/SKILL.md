@@ -88,7 +88,8 @@ git -C <main checkout> branch --show-current
 git -C <main checkout> pull --ff-only # only when the line above printed git.baseBranch
 ```
 
-Report worktrees clean keeps (dirty, unpushed) and any it reports outside `.worktrees/`; never force them.
+Report worktrees clean keeps (dirty, unpushed) and any it reports outside `.worktrees/`; never
+force them.
 The fast-forward keeps the config and docs the main checkout serves current. If the main
 checkout is on another branch, don't pull: report it, since the base branch stays behind. If the
 pull can't fast-forward (local commits, uncommitted changes), report that to the user. Never

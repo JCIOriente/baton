@@ -38,7 +38,8 @@ else.
 anyone. It never changes an existing hook, a hook manager's setup or a hooks directory in the
 working tree (`.husky/`, `.githooks/`); it prints the line to add instead. `baton doctor` and
 the session-start hook report when a clone lacks the guard. The guards also refuse edits and
-commits in a worktree outside `.worktrees/` and print the `git worktree move` command that fixes it.
+commits in a worktree outside `.worktrees/`; the git guard prints the `git worktree move`
+command that fixes it.
 
 Both guards read the switch from the main checkout's committed `HEAD`, allow the action on any
 internal error, and are disabled when `CI` or `CLAUDE_CODE_REMOTE` is `true`. A repo turns them
