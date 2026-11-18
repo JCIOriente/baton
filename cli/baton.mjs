@@ -11,6 +11,7 @@ import { buildContext } from './lib/context.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
 import { applicableGates, coverageFindings, normalizeStep, orderFindings, STAGES } from './lib/gates.mjs';
 import {
+  addWorktreesLine,
   aheadBehind,
   branchName,
   currentBranch,
@@ -216,9 +217,12 @@ function init(argv) {
   mkdirSync(join(top, CONFIG_DIR), { recursive: true });
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
   for (const d of [config.docs.specs, config.docs.plans]) mkdirSync(join(top, d), { recursive: true });
+  // Next to the config, so the adoption commit carries both.
+  const ignored = addWorktreesLine(join(top, '.gitignore'));
   // The config just written, merged over defaults.
   if (values.labels) getProvider(deepMerge(DEFAULT_CONFIG, config), root).ensureLabels();
-  print(values.json ? config : `Wrote ${relative(top, path)}\n${JSON.stringify(config, null, 2)}`);
+  const added = ignored ? '\nAdded /.worktrees/ to .gitignore; commit it with .baton/config.json.' : '';
+  print(values.json ? config : `Wrote ${relative(top, path)}\n${JSON.stringify(config, null, 2)}${added}`);
 }
 
 function detectBaseBranch(root) {

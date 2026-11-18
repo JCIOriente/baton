@@ -338,6 +338,7 @@ test('init_writes_into_current_worktree', (t) => {
   assert.ok(existsSync(join(path, 'docs/specs')) && existsSync(join(path, 'docs/plans')));
   assert.ok(!existsSync(join(root, '.baton')), 'no config in the main checkout');
   assert.ok(!existsSync(join(root, 'docs')), 'no docs dirs in the main checkout');
+  assert.equal(readFileSync(join(path, '.gitignore'), 'utf8'), '/.worktrees/\n', '.gitignore goes with the config');
   // The worktree, made by bare git here, is the only thing under .worktrees/.
   assert.equal(git(root, 'status', '--porcelain', '--', '.', ':!.worktrees'), '');
 });
@@ -912,6 +913,43 @@ test('worktree add refuses a tracked .worktrees', (t) => {
   assert.match(res.stderr, /\.worktrees is tracked in this repo; baton keeps worktrees there/);
   assert.equal(git(root, 'branch', '--list', 'x'), '', 'no branch was created');
   assert.ok(!existsSync(join(root, '.worktrees', 'x')));
+});
+
+const INIT_LINE = 'Added /.worktrees/ to .gitignore; commit it with .baton/config.json.';
+
+test('init adds /.worktrees/ to .gitignore without a final newline', (t) => {
+  const { root } = repo(t, null);
+  writeFileSync(join(root, '.gitignore'), 'node_modules');
+  const res = baton(root, 'init');
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(readFileSync(join(root, '.gitignore'), 'utf8'), 'node_modules\n/.worktrees/\n');
+  assert.ok(res.stdout.includes(INIT_LINE), res.stdout);
+});
+
+test('init creates .gitignore with /.worktrees/', (t) => {
+  const { root } = repo(t, null);
+  const res = baton(root, 'init');
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(readFileSync(join(root, '.gitignore'), 'utf8'), '/.worktrees/\n');
+  assert.ok(res.stdout.includes(INIT_LINE), res.stdout);
+});
+
+test('init appends /.worktrees/ to an existing .gitignore', (t) => {
+  const { root } = repo(t, null);
+  writeFileSync(join(root, '.gitignore'), 'dist/\n');
+  assert.equal(baton(root, 'init').status, 0);
+  assert.equal(readFileSync(join(root, '.gitignore'), 'utf8'), 'dist/\n/.worktrees/\n');
+});
+
+test('init leaves a .gitignore that already ignores .worktrees', (t) => {
+  for (const form of GITIGNORE_FORMS) {
+    const { root } = repo(t, null);
+    writeFileSync(join(root, '.gitignore'), `dist/\n ${form}\n`);
+    const res = baton(root, 'init');
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(readFileSync(join(root, '.gitignore'), 'utf8'), `dist/\n ${form}\n`, form);
+    assert.ok(!res.stdout.includes(INIT_LINE), res.stdout);
+  }
 });
 
 test('init writes no worktreeRoot', (t) => {
