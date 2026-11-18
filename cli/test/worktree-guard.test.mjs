@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { decide, denyText } from '../../hooks/worktree-guard.mjs';
+import { decide, denyText, outsideDenyText } from '../../hooks/worktree-guard.mjs';
 
 const hook = new URL('../../hooks/worktree-guard.mjs', import.meta.url).pathname;
 
@@ -50,17 +50,18 @@ function denialReason(stdout) {
 
 /**
  * A repo whose HEAD holds `config` as .baton/config.json (none if null; a string is written
- * as is), with a gitignored `.env`, a sibling linked worktree and one nested at
- * `.claude/worktrees/x` (gitignored unless `ignoreNested` is false).
+ * as is), with a gitignored `.env` and three linked worktrees: `inside` at `.worktrees/docs`
+ * (not gitignored, so only the folder decides), and two outside `.worktrees/`: a `sibling`
+ * and one `nested` at `.claude/worktrees/x` (gitignored in the main checkout).
  */
-function repo(t, config = {}, { ignoreNested = true } = {}) {
+function repo(t, config = {}) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'baton-guard-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'acme');
   mkdirSync(root);
   git(root, 'init', '-q', '-b', 'main');
   writeFileSync(join(root, 'README.md'), 'acme\n');
-  writeFileSync(join(root, '.gitignore'), ignoreNested ? '.env\n.claude/worktrees/\n' : '.env\n');
+  writeFileSync(join(root, '.gitignore'), '.env\n.claude/worktrees/\n');
   if (config) {
     mkdirSync(join(root, '.baton'));
     writeFileSync(join(root, '.baton/config.json'), typeof config === 'string' ? config : JSON.stringify(config));
@@ -71,16 +72,46 @@ function repo(t, config = {}, { ignoreNested = true } = {}) {
   git(root, 'worktree', 'add', '-q', '-b', 'docs', sibling);
   const nested = join(root, '.claude', 'worktrees', 'x');
   git(root, 'worktree', 'add', '-q', '-b', 'x', nested);
-  return { dir, root, sibling, nested };
+  const inside = join(root, '.worktrees', 'docs');
+  git(root, 'worktree', 'add', '-q', '-b', 'inside', inside);
+  return { dir, root, sibling, nested, inside };
 }
 
 const on = { hooks: { worktreeOnly: true } };
-const main = { gitDir: '/r/acme/.git', commonDir: '/r/acme/.git', top: '/r/acme', path: '/r/acme/docs/a.md', ignored: false, config: on, env: {} };
+const main = { gitDir: '/r/acme/.git', commonDir: '/r/acme/.git', top: '/r/acme', mainTop: '/r/acme', path: '/r/acme/docs/a.md', ignored: false, config: on, env: {} };
+/** An edit in the linked worktree whose top-level folder is `top`. */
+const linkedAt = (top) => ({ ...main, gitDir: '/r/acme/.git/worktrees/w', top, path: `${top}/docs/a.md` });
 
 // --- decide (pure) ---
 
-test('decide_allows_linked_worktree', () => {
-  assert.equal(decide({ ...main, gitDir: '/r/acme/.git/worktrees/docs', top: '/r/acme-worktrees/docs', path: '/r/acme-worktrees/docs/docs/a.md' }), null);
+test('decide_allows_linked_worktree_inside_worktrees', () => {
+  assert.equal(decide(linkedAt('/r/acme/.worktrees/docs')), null);
+  assert.equal(decide(linkedAt('/r/acme/.worktrees/a/b')), null, 'nested');
+  assert.equal(decide(linkedAt('/r/acme/.worktrees/..x')), null, 'a name starting with two dots');
+});
+
+test('decide_denies_linked_worktree_outside_worktrees', () => {
+  const reason = decide(linkedAt('/r/acme-worktrees/docs'));
+  assert.equal(reason, outsideDenyText('docs/a.md', '/r/acme-worktrees/docs', '/r/acme'));
+  assert.equal(
+    reason,
+    [
+      'baton: docs/a.md is in a worktree outside .worktrees/ (/r/acme-worktrees/docs).',
+      'Every worktree lives in /r/acme/.worktrees/.',
+      '- Task work: `baton start <n>`, then edit inside the printed path.',
+      '- Anything else: `baton worktree add <name>`, then edit there.',
+    ].join('\n'),
+  );
+  assert.notEqual(decide(linkedAt('/r/acme/.claude/worktrees/x')), null, "Claude Code's worktree folder");
+  assert.notEqual(decide(linkedAt('/r/acme/.worktreesx/docs')), null, 'a folder named like it');
+  assert.notEqual(decide({ ...linkedAt('/r/acme-worktrees/docs'), config: { project: 'acme' } }), null, 'no key means on');
+
+  assert.equal(decide({ ...linkedAt('/r/acme-worktrees/docs'), mainTop: null }), null, 'no main checkout');
+  assert.equal(decide({ ...linkedAt('/r/acme-worktrees/docs'), ignored: true }), null, 'gitignored');
+  assert.equal(decide({ ...linkedAt('/r/acme-worktrees/docs'), config: { hooks: { worktreeOnly: false } } }), null, 'off');
+  assert.equal(decide({ ...linkedAt('/r/acme-worktrees/docs'), config: null }), null, 'no committed config');
+  assert.equal(decide({ ...linkedAt('/r/acme-worktrees/docs'), env: { CI: 'true' } }), null, 'CI');
+  assert.equal(decide({ ...linkedAt('/r/acme-worktrees/docs'), env: { CLAUDE_CODE_REMOTE: 'true' } }), null, 'cloud');
 });
 
 test('decide_denies_main_checkout', () => {
@@ -127,25 +158,100 @@ test('decide_stands_down_in_ci_and_cloud', () => {
 
 // --- hook integration ---
 
-test('hook_denies_main_checkout_edit_and_allows_worktrees', (t) => {
-  const { root, sibling, nested } = repo(t);
+test('hook_denies_main_checkout_edit', (t) => {
+  const { root, inside } = repo(t);
   const edit = (cwd, file_path) => runHook({ tool_name: 'Edit', cwd, tool_input: { file_path } });
   assert.equal(denialReason(edit(root, join(root, 'README.md'))), denyText('README.md', root));
   assert.equal(denialReason(edit(root, 'README.md')), denyText('README.md', root), 'relative to cwd');
-  assert.equal(edit(root, join(sibling, 'README.md')), '');
-  assert.equal(edit(sibling, 'README.md'), '');
-  assert.equal(edit(root, join(nested, 'README.md')), '');
   // The edited file's directory picks the checkout, not the session cwd.
-  assert.equal(denialReason(edit(sibling, join(root, 'README.md'))), denyText('README.md', root));
-  assert.equal(denialReason(edit(nested, join(root, 'README.md'))), denyText('README.md', root));
+  assert.equal(denialReason(edit(inside, join(root, 'README.md'))), denyText('README.md', root));
 });
 
-test('hook_allows_nested_worktree_not_gitignored', (t) => {
-  const { root, nested } = repo(t, {}, { ignoreNested: false });
-  const edit = (file_path) => runHook({ tool_name: 'Edit', cwd: root, tool_input: { file_path } });
-  assert.equal(edit(join(nested, 'README.md')), '');
-  assert.equal(edit(join(nested, 'docs/specs/new.md')), '');
-  assert.equal(denialReason(edit(join(root, 'README.md'))), denyText('README.md', root));
+test('edit guard allows edits inside .worktrees', (t) => {
+  const { root, inside } = repo(t);
+  const nestedInside = join(root, '.worktrees', 'a', 'b');
+  git(root, 'worktree', 'add', '-q', '-b', 'ab', nestedInside);
+  for (const wt of [inside, nestedInside]) {
+    for (const tool_name of ['Edit', 'Write', 'MultiEdit']) {
+      assert.equal(runHook({ tool_name, cwd: root, tool_input: { file_path: join(wt, 'README.md') } }), '', `${tool_name} in ${wt}`);
+      assert.equal(runHook({ tool_name, cwd: root, tool_input: { file_path: join(wt, 'docs/specs/new.md') } }), '', `${tool_name} new dir in ${wt}`);
+    }
+    assert.equal(runHook({ tool_name: 'NotebookEdit', cwd: root, tool_input: { notebook_path: join(wt, 'nb/a.ipynb') } }), '');
+    assert.equal(runHook({ tool_name: 'Edit', cwd: wt, tool_input: { file_path: 'README.md' } }), '', 'relative to a worktree cwd');
+  }
+
+  // Inside, the hook makes no further git calls: a failing check-ignore leaves no trace.
+  const bin = join(root, '..', 'fake-git');
+  mkdirSync(bin);
+  const realGit = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
+  writeFileSync(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" check-ignore "*) exit 128 ;; esac\nexec '${realGit}' "$@"\n`, { mode: 0o755 });
+  const PATH = `${bin}:${env.PATH}`;
+  const quiet = spawnHook({ tool_name: 'Edit', cwd: root, tool_input: { file_path: join(inside, 'README.md') } }, { PATH });
+  assert.deepEqual([quiet.stdout, quiet.stderr], ['', '']);
+  const traced = spawnHook({ tool_name: 'Edit', cwd: root, tool_input: { file_path: join(root, 'README.md') } }, { PATH });
+  assert.match(traced.stderr, /allowing edit, git check-ignore failed/, 'the fake git does fail check-ignore');
+
+  // A .worktrees that is a symlink holds its worktrees at the real folder it points to.
+  const { dir: dir2, root: root2 } = repo(t);
+  rmSync(join(root2, '.worktrees'), { recursive: true });
+  git(root2, 'worktree', 'prune');
+  mkdirSync(join(dir2, 'elsewhere'));
+  symlinkSync(join(dir2, 'elsewhere'), join(root2, '.worktrees'));
+  git(root2, 'worktree', 'add', '-q', '-b', 'linked-folder', join(root2, '.worktrees/feat'));
+  assert.equal(runHook({ tool_name: 'Edit', cwd: root2, tool_input: { file_path: join(dir2, 'elsewhere/feat/README.md') } }), '');
+});
+
+test('edit guard denies edits in a worktree outside .worktrees', (t) => {
+  const { root, sibling, nested } = repo(t);
+  const edit = (cwd, file_path) => runHook({ tool_name: 'Edit', cwd, tool_input: { file_path } });
+  assert.equal(denialReason(edit(root, join(sibling, 'README.md'))), outsideDenyText('README.md', sibling, root));
+  assert.equal(denialReason(edit(sibling, 'README.md')), outsideDenyText('README.md', sibling, root), 'relative to cwd');
+  const write = runHook({ tool_name: 'Write', cwd: root, tool_input: { file_path: join(sibling, 'docs/specs/new.md'), content: 'x' } });
+  assert.equal(denialReason(write), outsideDenyText('docs/specs/new.md', sibling, root), 'new dir');
+  // Claude Code's own worktree folder is outside too, even though the main checkout ignores it.
+  assert.equal(denialReason(edit(root, join(nested, 'README.md'))), outsideDenyText('README.md', nested, root));
+});
+
+test('edit guard allows edits in an outside worktree when off, ignored, in CI or on git failure', (t) => {
+  const { root, sibling } = repo(t);
+  const input = (file_path) => ({ tool_name: 'Edit', cwd: sibling, tool_input: { file_path } });
+  assert.equal(runHook(input(join(sibling, '.env'))), '', 'gitignored');
+  assert.equal(runHook(input(join(sibling, 'README.md')), { CI: 'true' }), '');
+  assert.equal(runHook(input(join(sibling, 'README.md')), { CLAUDE_CODE_REMOTE: 'true' }), '');
+  const failed = spawnHook(input(join(sibling, 'README.md')), { PATH: '/nonexistent' });
+  assert.equal(failed.stdout, '');
+  assert.match(failed.stderr, /^baton worktree-guard: allowing edit, git /);
+
+  // The switch comes from the main checkout's HEAD: a branch can't turn it off for itself...
+  writeFileSync(join(sibling, '.baton/config.json'), JSON.stringify({ hooks: { worktreeOnly: false } }));
+  git(sibling, 'commit', '-qam', 'off in the branch');
+  assert.notEqual(runHook(input(join(sibling, 'README.md'))), '');
+  // ...and the main checkout's off holds even when the branch says on.
+  writeFileSync(join(root, '.baton/config.json'), JSON.stringify({ hooks: { worktreeOnly: false } }));
+  git(root, 'commit', '-qam', 'off');
+  writeFileSync(join(sibling, '.baton/config.json'), JSON.stringify({ hooks: { worktreeOnly: true } }));
+  git(sibling, 'commit', '-qam', 'on in the branch');
+  assert.equal(runHook(input(join(sibling, 'README.md'))), '');
+});
+
+test('edit guard skips the outside check without a main checkout', (t) => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'baton-guard-')));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  // A separate git dir: the common dir isn't `<checkout>/.git`.
+  const proj = join(dir, 'proj');
+  git(dir, 'init', '-q', '-b', 'main', '--separate-git-dir', join(dir, 'sep.git'), proj);
+  mkdirSync(join(proj, '.baton'));
+  writeFileSync(join(proj, '.baton/config.json'), '{}');
+  git(proj, 'add', '-A');
+  git(proj, 'commit', '-qm', 'init');
+  const sepWt = join(dir, 'proj-wt');
+  git(proj, 'worktree', 'add', '-q', '-b', 'feat', sepWt);
+  assert.equal(runHook({ tool_name: 'Edit', cwd: sepWt, tool_input: { file_path: join(sepWt, 'README.md') } }), '');
+  // A bare repository has no main checkout at all.
+  const bareWt = join(dir, 'bare-wt');
+  git(dir, 'clone', '-q', '--bare', join(dir, 'sep.git'), join(dir, 'bare.git'));
+  git(join(dir, 'bare.git'), 'worktree', 'add', '-q', '-b', 'bare-feat', bareWt);
+  assert.equal(runHook({ tool_name: 'Edit', cwd: bareWt, tool_input: { file_path: join(bareWt, 'README.md') } }), '');
 });
 
 test('hook_resolves_symlinked_paths', (t) => {
@@ -172,25 +278,17 @@ test('hook_does_not_run_repo_configured_fsmonitor', (t) => {
 });
 
 test('hook_denies_new_file_in_new_dir_in_main_checkout', (t) => {
-  const { root, sibling } = repo(t);
+  const { root, inside } = repo(t);
   const write = (file_path) => runHook({ tool_name: 'Write', cwd: root, tool_input: { file_path, content: 'x' } });
   assert.equal(denialReason(write(join(root, 'docs/specs/new.md'))), denyText('docs/specs/new.md', root));
-  assert.equal(write(join(sibling, 'docs/specs/new.md')), '');
-});
-
-test('hook_allows_nested_worktree', (t) => {
-  const { root, nested } = repo(t);
-  for (const tool_name of ['Edit', 'Write', 'MultiEdit']) {
-    assert.equal(runHook({ tool_name, cwd: root, tool_input: { file_path: join(nested, 'README.md') } }), '');
-    assert.equal(runHook({ tool_name, cwd: root, tool_input: { file_path: join(nested, 'docs/specs/new.md') } }), '');
-  }
+  assert.equal(write(join(inside, 'docs/specs/new.md')), '');
 });
 
 test('hook_reads_notebook_path', (t) => {
   const { root, sibling } = repo(t);
   const nb = (path) => runHook({ tool_name: 'NotebookEdit', cwd: root, tool_input: { notebook_path: path, new_source: '' } });
   assert.equal(denialReason(nb(join(root, 'nb/a.ipynb'))), denyText('nb/a.ipynb', root));
-  assert.equal(nb(join(sibling, 'nb/a.ipynb')), '');
+  assert.equal(denialReason(nb(join(sibling, 'nb/a.ipynb'))), outsideDenyText('nb/a.ipynb', sibling, root));
 });
 
 test('hook_allows_ignored_git_internal_outside_and_unconfigured', (t) => {
