@@ -11,10 +11,12 @@ import { buildContext } from './lib/context.mjs';
 import { detectStacks, suggestSetup, suggestValidate } from './lib/detect.mjs';
 import { applicableGates, coverageFindings, normalizeStep, orderFindings, STAGES } from './lib/gates.mjs';
 import {
+  addWorktreesLine,
   aheadBehind,
   branchName,
   currentBranch,
   currentTop,
+  ensureExcluded,
   git,
   hasUncommittedChanges,
   issueFromBranch,
@@ -203,7 +205,7 @@ function init(argv) {
     project: root.split('/').pop(),
     stacks: detected.stacks,
     tasks: { provider: 'github', repo: null },
-    git: { baseBranch, branchPrefix: DEFAULT_CONFIG.git.branchPrefix, worktreeRoot: DEFAULT_CONFIG.git.worktreeRoot, mergeStrategy: 'squash' },
+    git: { baseBranch, branchPrefix: DEFAULT_CONFIG.git.branchPrefix, mergeStrategy: 'squash' },
     setup: suggestSetup(detected),
     validate: suggestValidate(detected, { remote: DEFAULT_CONFIG.git.remote, baseBranch }),
     workflow: DEFAULT_CONFIG.workflow,
@@ -215,9 +217,12 @@ function init(argv) {
   mkdirSync(join(top, CONFIG_DIR), { recursive: true });
   writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
   for (const d of [config.docs.specs, config.docs.plans]) mkdirSync(join(top, d), { recursive: true });
+  // Next to the config, so the adoption commit carries both.
+  const ignored = addWorktreesLine(join(top, '.gitignore'));
   // The config just written, merged over defaults.
   if (values.labels) getProvider(deepMerge(DEFAULT_CONFIG, config), root).ensureLabels();
-  print(values.json ? config : `Wrote ${relative(top, path)}\n${JSON.stringify(config, null, 2)}`);
+  const added = ignored ? '\nAdded /.worktrees/ to .gitignore; commit it with .baton/config.json.' : '';
+  print(values.json ? config : `Wrote ${relative(top, path)}\n${JSON.stringify(config, null, 2)}${added}`);
 }
 
 function detectBaseBranch(root) {
@@ -502,7 +507,8 @@ function removeWorktree(root, w, { force = false } = {}) {
 /**
  * The worktree for `branch` under `worktreeBase`: an existing one is reused, an existing local
  * branch is checked out, otherwise the branch starts from the remote base with no upstream.
- * A stale record for the branch is pruned first, so the worktree is made again.
+ * A stale record for the branch is pruned first, so the worktree is made again. A new worktree
+ * is refused over a tracked `.worktrees`. Either way the folder is added to `info/exclude` first.
  */
 function createWorktree(root, config, branch) {
   let worktrees = listWorktrees(root);
@@ -511,8 +517,14 @@ function createWorktree(root, config, branch) {
     worktrees = pruneStale(root, existing);
     existing = worktrees.find((w) => w.branch === branch);
   }
+  // Also on reuse, so a removed line comes back.
+  const { warning } = ensureExcluded(root);
+  if (warning) process.stderr.write(`warning: ${warning}\n`);
   if (existing) return { path: existing.path, created: false };
-  const path = join(worktreeBase(root, config), branch.replace(/\//g, '-'));
+  if (git(['ls-files', '--', '.worktrees'], { cwd: root }).stdout) {
+    throw new BatonError('.worktrees is tracked in this repo; baton keeps worktrees there');
+  }
+  const path = join(worktreeBase(root), branch.replace(/\//g, '-'));
   // Checked before git runs, so a clash never leaves a new branch behind.
   const occupant = worktrees.find((w) => w.path === path);
   if (occupant || existsSync(path)) {

@@ -47,7 +47,6 @@ export const DEFAULT_CONFIG = {
     baseBranch: 'main',
     remote: 'origin',
     branchPrefix: 'task',
-    worktreeRoot: '../{repo}-worktrees',
     mergeStrategy: 'squash',
   },
   // Commands run in every new task worktree before work starts (e.g. dependency install).
